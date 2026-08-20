@@ -11,8 +11,9 @@ import { Readable } from 'node:stream';
 
 import { requireAbac } from '../../middleware/abac.js';
 import { withTenantDb } from '../../lib/tenant-database.js';
-import { ValidationError, FileTooLargeError } from '../../lib/app-error.js';
+import { parseOrThrow } from '../../lib/validation.js';
 import { config } from '../../lib/config.js';
+import { readStream } from '../../lib/file-upload.js';
 import {
   UPLOAD_RATE_LIMIT,
   AUTH_CONFIG_RATE_LIMIT,
@@ -25,21 +26,6 @@ import { getBranding, updateBranding } from './service-branding.js';
 
 import type { FastifyInstance } from 'fastify';
 import type { UpdateBrandingInput, LogoFileBuffer } from './types.js';
-
-/** Reads a Readable stream into a Buffer; throws FileTooLargeError if maxBytes exceeded. */
-async function readStream(stream: Readable, maxBytes: number): Promise<Buffer> {
-  const chunks: Buffer[] = [];
-  let totalBytes = 0;
-  for await (const chunk of stream) {
-    const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk as string);
-    totalBytes += buf.length;
-    if (totalBytes > maxBytes) {
-      throw new FileTooLargeError(`File exceeds maximum allowed size of ${maxBytes} bytes`);
-    }
-    chunks.push(buf);
-  }
-  return Buffer.concat(chunks);
-}
 
 export async function tenantSettingsRoutes(fastify: FastifyInstance): Promise<void> {
   // ── GET /api/v1/tenant/settings ──────────────────────────────────────────
@@ -62,12 +48,9 @@ export async function tenantSettingsRoutes(fastify: FastifyInstance): Promise<vo
       config: { rateLimit: SETTINGS_RATE_LIMIT },
     },
     async (request) => {
-      const parsed = updateSettingsSchema.safeParse(request.body);
-      if (!parsed.success) {
-        throw new ValidationError(parsed.error.issues.map((i) => i.message).join(', '));
-      }
+      const input = parseOrThrow(updateSettingsSchema, request.body);
       return withTenantDb(
-        (tx) => updateSettings(tx, request.user.id, request.tenantContext, parsed.data),
+        (db) => updateSettings(db, request.user.id, request.tenantContext, input),
         request.tenantContext
       );
     }
@@ -81,7 +64,7 @@ export async function tenantSettingsRoutes(fastify: FastifyInstance): Promise<vo
       config: { rateLimit: SETTINGS_RATE_LIMIT },
     },
     async (request) => {
-      return withTenantDb((tx) => getBranding(tx, request.tenantContext), request.tenantContext);
+      return withTenantDb((db) => getBranding(db, request.tenantContext), request.tenantContext);
     }
   );
 
@@ -124,25 +107,17 @@ export async function tenantSettingsRoutes(fastify: FastifyInstance): Promise<vo
         if (fields['primaryColor'] !== undefined) rawInput['primaryColor'] = fields['primaryColor'];
         if (fields['darkMode'] !== undefined) rawInput['darkMode'] = fields['darkMode'] === 'true';
 
-        const parsed = updateBrandingSchema.safeParse(rawInput);
-        if (!parsed.success) {
-          throw new ValidationError(parsed.error.issues.map((i) => i.message).join(', '));
-        }
-        const input = parsed.data as UpdateBrandingInput;
+        const input = parseOrThrow(updateBrandingSchema, rawInput) as UpdateBrandingInput;
 
         return withTenantDb(
-          (tx) => updateBranding(tx, request.user.id, request.tenantContext, input, logoBuffer),
+          (db) => updateBranding(db, request.user.id, request.tenantContext, input, logoBuffer),
           request.tenantContext
         );
       }
 
-      const parsed = updateBrandingSchema.safeParse(request.body);
-      if (!parsed.success) {
-        throw new ValidationError(parsed.error.issues.map((i) => i.message).join(', '));
-      }
-      const input = parsed.data as UpdateBrandingInput;
+      const input = parseOrThrow(updateBrandingSchema, request.body) as UpdateBrandingInput;
       return withTenantDb(
-        (tx) => updateBranding(tx, request.user.id, request.tenantContext, input),
+        (db) => updateBranding(db, request.user.id, request.tenantContext, input),
         request.tenantContext
       );
     }
@@ -168,15 +143,13 @@ export async function tenantSettingsRoutes(fastify: FastifyInstance): Promise<vo
       config: { rateLimit: AUTH_CONFIG_RATE_LIMIT },
     },
     async (request) => {
-      const parsed = updateAuthConfigSchema.safeParse(request.body);
-      if (!parsed.success) {
-        throw new ValidationError(parsed.error.issues.map((i) => i.message).join(', '));
-      }
       // Cast required: Zod infers optional fields as T | undefined, which conflicts
       // with exactOptionalPropertyTypes. Runtime values are correct.
-      const input = parsed.data as Parameters<typeof updateAuthConfig>[3];
+      const input = parseOrThrow(updateAuthConfigSchema, request.body) as Parameters<
+        typeof updateAuthConfig
+      >[3];
       return withTenantDb(
-        (tx) => updateAuthConfig(tx, request.user.id, request.tenantContext, input),
+        (db) => updateAuthConfig(db, request.user.id, request.tenantContext, input),
         request.tenantContext
       );
     }

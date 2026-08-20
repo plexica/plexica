@@ -37,22 +37,6 @@ export interface WorkspaceMemberDto {
   createdAt: string;
 }
 
-export interface WorkspaceTemplateDto {
-  id: string;
-  name: string;
-  description: string | null;
-  structure: TemplateChildDef[];
-  isBuiltin: boolean;
-  version: number;
-  createdAt: string;
-}
-
-export interface TemplateChildDef {
-  name: string;
-  description?: string;
-  defaultRoles: { creator: string };
-}
-
 export interface CreateWorkspaceInput {
   name: string;
   description?: string | null | undefined;
@@ -63,10 +47,6 @@ export interface CreateWorkspaceInput {
 export interface UpdateWorkspaceInput {
   name?: string | undefined;
   description?: string | null | undefined;
-}
-
-export interface ReparentInput {
-  newParentId: string | null;
 }
 
 export interface ArchiveResult {

@@ -1,18 +1,53 @@
 // user-profile.spec.ts
 // E2E-08: User profile (Spec 003, Phase 20.8).
 // Tests display name update, avatar upload, timezone/language preferences.
-// Timezone and language use Radix <Select> (button trigger + listbox popup).
+// Timezone and language use Radix <Select> (button trigger + listbox popup);
+// the trigger text mirrors the selected option's label exactly, so the current
+// value can be captured from the trigger and restored by option name.
+// Accessibility/keyboard coverage lives in user-profile-a11y.spec.ts
+// (Constitution Rule 4 — no file above 200 lines).
 // Skips when Keycloak credentials are absent or the stack is not running.
 
-import AxeBuilder from '@axe-core/playwright';
-
 import { expect, test } from './helpers/base-fixture.js';
+import { expectResponseTo } from './helpers/api-response.js';
 import {
   hasKeycloak,
   loginAsAdmin,
   requireKeycloakInCI,
   uniqueName,
 } from './helpers/admin-login.js';
+import { PNG_1X1, runCleanups } from './helpers/settings-fixtures.js';
+
+import type { Cleanup } from './helpers/settings-fixtures.js';
+import type { Page } from './helpers/base-fixture.js';
+
+const PROFILE_PATH = '/api/v1/profile';
+const AVATAR_PATH = '/api/v1/profile/avatar';
+
+/** Reads the label currently shown by a Radix Select trigger. */
+async function currentSelectLabel(page: Page, field: RegExp): Promise<string> {
+  const trigger = page.getByRole('combobox', { name: field });
+  await expect(trigger).toBeVisible({ timeout: 15_000 });
+  return (await trigger.innerText()).trim();
+}
+
+/** Opens a Radix Select and picks an option by its exact accessible name. */
+async function pickSelectOption(page: Page, field: RegExp, option: string): Promise<void> {
+  await page.getByRole('combobox', { name: field }).click();
+  await page.getByRole('option', { name: option, exact: true }).click();
+}
+
+/** Restores a profile Radix Select to `label` if the test left it changed. */
+function restoreSelect(field: RegExp, label: string): Cleanup {
+  return async (page: Page): Promise<void> => {
+    await page.goto('/profile');
+    if ((await currentSelectLabel(page, field)) === label) return;
+    await pickSelectOption(page, field, label);
+    await expectResponseTo(page, PROFILE_PATH, 'PATCH', async () => {
+      await page.getByRole('button', { name: /save/i }).click();
+    });
+  };
+}
 
 test.describe('E2E-08: User profile', () => {
   test.skip(!hasKeycloak, 'Requires live Keycloak (PLAYWRIGHT_KEYCLOAK_* env vars)');
@@ -21,8 +56,26 @@ test.describe('E2E-08: User profile', () => {
     requireKeycloakInCI();
   });
 
+  // FIX — order-dependent shared state.
+  // Restores used to be inline code placed AFTER the assertions: when an
+  // assertion failed or timed out, the reset never ran and the profile stayed
+  // on a foreign timezone/language. On retry the "pick a value different from
+  // the current one" logic no longer applied, the form was not dirty, Save
+  // stayed disabled and the failure cascaded. afterEach runs even when the
+  // test body fails, so restores registered here are always executed.
+  let cleanups: Cleanup[] = [];
+
   test.beforeEach(async ({ page }) => {
+    cleanups = [];
     await loginAsAdmin(page);
+  });
+
+  test.afterEach(async ({ page }, testInfo) => {
+    const pending = cleanups;
+    cleanups = [];
+    // Same isolation + deadline guarantees as the tenant-settings suite: one
+    // failing restore neither skips the others nor masks the real failure.
+    await runCleanups(page, pending, testInfo);
   });
 
   test('navigate to /profile shows profile page', async ({ page }) => {
@@ -32,124 +85,109 @@ test.describe('E2E-08: User profile', () => {
     await expect(page.getByRole('heading', { name: /profile/i }).first()).toBeVisible();
   });
 
-  test('update display name — persists after reload', async ({ page }) => {
+  test('update display name — server persists it and returns the updated DTO', async ({ page }) => {
     await page.goto('/profile');
 
     // i18n: profile.displayName.label = 'Display name'
     const displayNameInput = page.getByLabel(/display name/i);
+    await expect(displayNameInput).toBeVisible({ timeout: 15_000 });
     const newName = uniqueName('Test User');
     await displayNameInput.clear();
     await displayNameInput.fill(newName);
-    // Click Save and wait for the API call to complete
-    const [saveResp] = await Promise.all([
-      page.waitForResponse((r) => r.url().includes('/api/v1/profile') && r.request().method() === 'PATCH'),
-      page.getByRole('button', { name: /save/i }).click(),
-    ]);
-    if (saveResp.status() >= 400) throw new Error(`Profile save failed: ${saveResp.status()}`);
 
-    // Verify the value persists after reload (TanStack Query refetch)
+    const saveResponse = await expectResponseTo(page, PROFILE_PATH, 'PATCH', async () => {
+      await page.getByRole('button', { name: /save/i }).click();
+    });
+
+    // Response body assertion. PATCH /api/v1/profile currently returns the bare
+    // UserProfileDto (services/core-api/src/modules/user-profile/routes.ts:30-43),
+    // NOT wrapped in { data }. Status alone would not catch a handler that
+    // returns 200 with a stale or empty payload.
+    expect(await saveResponse.json()).toMatchObject({ displayName: newName });
+
+    // Round-trip: the value must come back from the server, not from the form.
     await page.reload();
-    await expect(page.getByLabel(/display name/i)).toHaveValue(newName, { timeout: 8_000 });
+    await expect(page.getByLabel(/display name/i)).toHaveValue(newName, { timeout: 15_000 });
   });
 
-  test('upload avatar — preview updates on the profile page', async ({ page }) => {
+  test('upload avatar — file is persisted and served back as a real URL', async ({ page }) => {
     await page.goto('/profile');
 
-    const pngBytes = Buffer.from(
-      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwADhQGAWjR9awAAAABJRU5ErkJggg==',
-      'base64'
-    );
     const fileInput = page.locator('input[type="file"]');
-    await fileInput.setInputFiles({
-      name: 'avatar.png',
-      mimeType: 'image/png',
-      buffer: pngBytes,
+
+    // FileUpload calls onFile() as soon as the file is selected, which triggers
+    // POST /api/v1/profile/avatar (profile-api.ts uploadAvatar).
+    const uploadResponse = await expectResponseTo(page, AVATAR_PATH, 'POST', async () => {
+      await fileInput.setInputFiles({
+        name: 'avatar.png',
+        mimeType: 'image/png',
+        buffer: PNG_1X1,
+      });
     });
 
-    await expect(page.getByRole('img', { name: /preview/i })).toBeVisible({
-      timeout: 10_000,
-    });
+    // Response body assertion — the status alone is not the contract.
+    // POST /api/v1/profile/avatar returns the payload BARE
+    // (services/core-api/src/modules/user-profile/routes.ts:49-63 →
+    // service.ts uploadAvatar: `{ avatarUrl }`), like GET and PATCH /profile.
+    // If the `{ data: … }` envelope came back, the client-side safeParse in
+    // profile-api.ts would fail while the server-side upload still succeeded —
+    // so the reload assertion below would keep passing and hide the regression.
+    const uploadBody: unknown = await uploadResponse.json();
+    expect(uploadBody).toMatchObject({ avatarUrl: expect.stringMatching(/^https?:\/\//) });
+    expect(uploadBody).not.toHaveProperty('data');
+
+    // The preview visible right after selection is a client-side artifact:
+    // packages/ui/src/components/file-upload.tsx:64 does URL.createObjectURL(file)
+    // and renders <img src="blob:…">, which appears even when the upload fails.
+    // Reloading drops that local blob state, so the <img> can only render from
+    // data.avatarUrl (profile-page.tsx:131) — a presigned MinIO URL produced by
+    // the server. That proves the bytes were really stored and are readable.
+    await page.reload();
+    const preview = page.getByRole('img', { name: /preview/i });
+    await expect(preview).toBeVisible({ timeout: 15_000 });
+    await expect(preview).not.toHaveAttribute('src', /^blob:/);
+    await expect(preview).toHaveAttribute('src', /^https?:\/\//);
   });
 
-  test('change timezone — Select value persists', async ({ page }) => {
+  test('change timezone — server persists the new zone', async ({ page }) => {
     await page.goto('/profile');
 
-    // Use a timezone that is DIFFERENT from whatever the current value is,
-    // to avoid the form being not-dirty when we try to Save.
-    // "Pacific/Auckland" is unlikely to be the current value.
     // i18n: profile.timezone.label = 'Timezone'
-    const tzTrigger = page.getByRole('combobox', { name: /timezone/i });
-    await tzTrigger.click();
-    // Select "Pacific/Auckland" from the listbox (slash is preserved in the label)
-    await page.getByRole('option', { name: /Pacific\/Auckland/ }).click();
-    // Click Save and wait for the API call to complete
-    const [tzSaveResp] = await Promise.all([
-      page.waitForResponse((r) => r.url().includes('/api/v1/profile') && r.request().method() === 'PATCH'),
-      page.getByRole('button', { name: /save/i }).click(),
-    ]);
-    if (tzSaveResp.status() >= 400) throw new Error(`Timezone save failed: ${tzSaveResp.status()}`);
+    const field = /timezone/i;
+    const original = await currentSelectLabel(page, field);
+    // Pick a zone guaranteed to differ from the current one, otherwise the form
+    // is not dirty and Save stays disabled (SaveBar: disabled={!isDirty}).
+    const target = original === 'Pacific/Auckland' ? 'Europe/Rome' : 'Pacific/Auckland';
+    cleanups.push(restoreSelect(field, original));
 
-    // Verify persists after reload — the trigger shows the selected value
-    await page.reload();
-    await expect(page.getByRole('combobox', { name: /timezone/i })).toHaveText(/Pacific\/Auckland/, { timeout: 8_000 });
+    await pickSelectOption(page, field, target);
+    await expectResponseTo(page, PROFILE_PATH, 'PATCH', async () => {
+      await page.getByRole('button', { name: /save/i }).click();
+    });
 
-    // Reset to UTC to avoid breaking other tests (order-dependent state)
-    const tzTriggerAfter = page.getByRole('combobox', { name: /timezone/i });
-    await tzTriggerAfter.click();
-    await page.getByRole('option', { name: /^UTC$/ }).click();
-    const [tzResetSave] = await Promise.all([
-      page.waitForResponse((r) => r.url().includes('/api/v1/profile') && r.request().method() === 'PATCH'),
-      page.getByRole('button', { name: /save/i }).click(),
-    ]);
-    if (tzResetSave.status() >= 400) throw new Error(`Timezone reset failed: ${tzResetSave.status()}`);
     await page.reload();
+    await expect(page.getByRole('combobox', { name: field })).toHaveText(target, {
+      timeout: 15_000,
+    });
   });
 
-  test('change language — Select value persists', async ({ page }) => {
+  test('change language — server persists the new locale', async ({ page }) => {
     await page.goto('/profile');
 
-    // Use a language that is DIFFERENT from whatever the current value is,
-    // to avoid the form being not-dirty when we try to Save.
-    // French ('fr') is unlikely to be the current value.
     // i18n: profile.language.label = 'Language'
-    const langTrigger = page.getByRole('combobox', { name: /language/i });
-    await langTrigger.click();
-    // Select "Français" (value 'fr')
-    await page.getByRole('option', { name: 'Français' }).click();
-    // Click Save and wait for the API call to complete
-    const [langSaveResp] = await Promise.all([
-      page.waitForResponse((r) => r.url().includes('/api/v1/profile') && r.request().method() === 'PATCH'),
-      page.getByRole('button', { name: /save/i }).click(),
-    ]);
-    if (langSaveResp.status() >= 400) throw new Error(`Language save failed: ${langSaveResp.status()}`);
+    const field = /language/i;
+    const original = await currentSelectLabel(page, field);
+    const target = original === 'Français' ? 'English' : 'Français';
+    cleanups.push(restoreSelect(field, original));
 
-    // Verify persists after reload
+    await pickSelectOption(page, field, target);
+    await expectResponseTo(page, PROFILE_PATH, 'PATCH', async () => {
+      await page.getByRole('button', { name: /save/i }).click();
+    });
+
     await page.reload();
-    await expect(page.getByRole('combobox', { name: /language/i })).toHaveText('Français', { timeout: 8_000 });
-
-    // Reset to English to avoid breaking other tests
-    const langTriggerAfter = page.getByRole('combobox', { name: /language/i });
-    await langTriggerAfter.click();
-    await page.getByRole('option', { name: 'English' }).click();
-    const [resetSaveResp] = await Promise.all([
-      page.waitForResponse((r) => r.url().includes('/api/v1/profile') && r.request().method() === 'PATCH'),
-      page.getByRole('button', { name: /save/i }).click(),
-    ]);
-    if (resetSaveResp.status() >= 400) throw new Error(`Language reset failed: ${resetSaveResp.status()}`);
-    await page.reload();
-  });
-
-  test('/profile page is keyboard-navigable', async ({ page }) => {
-    await page.goto('/profile');
-    await expect(page.getByRole('heading', { name: /profile/i }).first()).toBeVisible();
-    await page.keyboard.press('Tab');
-    const focused = await page.evaluate(() => document.activeElement?.tagName ?? 'BODY');
-    expect(focused).not.toBe('BODY');
-  });
-
-  test('/profile page passes axe-core accessibility check', async ({ page }) => {
-    await page.goto('/profile');
-    const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
-    expect(results.violations).toEqual([]);
+    await expect(page.getByRole('combobox', { name: field })).toHaveText(target, {
+      timeout: 15_000,
+    });
   });
 });

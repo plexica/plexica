@@ -1,15 +1,14 @@
 // 005-11-kafka-status.spec.ts — Kafka status E2E (Feature 005-11).
 // Super admin → /kafka → consumer lag table + DLQ depth summary. Verifies lag
 // values render and warning indicators appear when thresholds are exceeded.
-//
-// NOTE: this spec surfaces a pre-existing path mismatch —
-// services/admin-api.ts getKafkaStatus() calls /api/v1/admin/kafka/status but
-// the backend route is /api/v1/admin/system/kafka, so the page currently loads
-// the error banner instead of the table. See the report.
+
+import { KafkaStatusResponseSchema } from '@plexica/api-types';
 
 import { expect, test } from './helpers/base-fixture.js';
 import { loginAsAdmin, hasKeycloak, requireKeycloakInCI } from './helpers/admin-login.js';
 import { adminApi } from './helpers/api-client.js';
+
+test.describe.configure({ mode: 'parallel' });
 
 test.describe('005-11 Kafka status', () => {
   test.skip(!hasKeycloak, 'Requires live Keycloak');
@@ -44,14 +43,12 @@ test.describe('005-11 Kafka status', () => {
   });
 
   test('admin API kafka status is well-formed', async () => {
-    const data = (await adminApi().getKafkaStatus()) as {
-      brokers: string[];
-      consumerLags: { lag: number }[];
-      dlqDepth: number;
-    };
+    const data = KafkaStatusResponseSchema.parse(await adminApi().getKafkaStatus());
+
     expect(Array.isArray(data.brokers)).toBe(true);
-    expect(Array.isArray(data.consumerLags)).toBe(true);
-    expect(typeof data.dlqDepth).toBe('number');
+    expect(Array.isArray(data.consumers)).toBe(true);
+    expect(data.totalLag).toBeGreaterThanOrEqual(0);
     expect(data.dlqDepth).toBeGreaterThanOrEqual(0);
+    expect(data.activeConsumerGroups).toBeGreaterThanOrEqual(0);
   });
 });

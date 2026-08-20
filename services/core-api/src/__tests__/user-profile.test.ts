@@ -142,7 +142,13 @@ describe('INT-05 Avatar upload', () => {
   });
 
   skipIfNoMinio('accepts valid avatar upload < 1MB → 200, avatarUrl returned', async () => {
-    const content = Buffer.alloc(512, 0xff); // 512 bytes fake JPEG
+    // Real JPEG SOI + APP0/JFIF header: the route now sniffs magic bytes, so a
+    // buffer of 0xff declared as image/jpeg is rejected with 415 (which is the
+    // point of the sniffing — a client-supplied Content-Type is not evidence).
+    const content = Buffer.concat([
+      Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00]),
+      Buffer.alloc(501, 0x00),
+    ]);
     const boundary = '----TestBoundaryAvatarValid';
     const body = Buffer.concat([
       Buffer.from(
@@ -161,8 +167,9 @@ describe('INT-05 Avatar upload', () => {
       body,
     });
     expect(res.statusCode).toBe(200);
-    const result = JSON.parse(res.body) as { data: { avatarUrl: string } };
-    expect(typeof result.data.avatarUrl).toBe('string');
-    expect(result.data.avatarUrl.length).toBeGreaterThan(0);
+    // Bare payload — no { data } envelope (consistent with GET/PATCH /api/v1/profile).
+    const result = JSON.parse(res.body) as { avatarUrl: string };
+    expect(typeof result.avatarUrl).toBe('string');
+    expect(result.avatarUrl.length).toBeGreaterThan(0);
   });
 });

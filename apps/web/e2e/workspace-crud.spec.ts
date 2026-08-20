@@ -4,6 +4,7 @@
 // Skips when Keycloak credentials are absent or the stack is not running.
 
 import { expect, test } from './helpers/base-fixture.js';
+import { expectApiStatus } from './helpers/api-response.js';
 import {
   hasKeycloak,
   loginAsAdmin,
@@ -12,6 +13,7 @@ import {
   ADMIN_TENANT_SLUG,
 } from './helpers/admin-login.js';
 import { API_BASE } from './helpers/api-check.js';
+import { freshBearer } from './helpers/session-token.js';
 import {
   createWorkspace,
   findWorkspaceInList,
@@ -24,33 +26,25 @@ import {
   updateWorkspaceName,
 } from './helpers/workspace-settings.js';
 
+import type { Page } from './helpers/base-fixture.js';
+
 /**
  * Creates a workspace via API, bypassing the UI.
  * Useful when the parent workspace dropdown has pagination limits (100 items)
  * and the newly created parent might not appear in the dropdown.
  */
 async function createWorkspaceViaApi(
-  page: import('@playwright/test').Page,
+  page: Page,
   payload: { name: string; parentId?: string }
 ): Promise<string> {
-  const accessToken = await page.evaluate(() => {
-    const stored = sessionStorage.getItem('plexica-auth');
-    if (!stored) return '';
-    const parsed = JSON.parse(stored) as { state?: { accessToken?: string } };
-    return parsed.state?.accessToken ?? '';
-  });
   const res = await page.request.post(`${API_BASE}/api/v1/workspaces`, {
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'X-Tenant-Slug': ADMIN_TENANT_SLUG,
-      'Content-Type': 'application/json',
-    },
+    headers: { ...(await freshBearer(page)), 'X-Tenant-Slug': ADMIN_TENANT_SLUG },
     data: JSON.stringify(payload),
   });
-  if (res.status() >= 400) {
-    const body = await res.text().catch(() => 'no body');
-    throw new Error(`API workspace creation failed: ${res.status()} — ${body}`);
-  }
+  // Shared convention instead of `if (status >= 400) throw`: 201 is the
+  // documented status (workspace/routes.ts), and a failure is reported as a
+  // Playwright expectation — with the error body — rather than a stack trace.
+  await expectApiStatus(res, 201);
   const body = (await res.json()) as { id: string };
   return body.id;
 }

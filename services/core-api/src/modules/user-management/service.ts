@@ -4,10 +4,13 @@
 
 import { CORE_POLICIES, POLICY_MAP } from '../abac/policies.js';
 import { ROLE_HIERARCHY } from '../abac/types.js';
+import { buildPaginatedResult } from '../../lib/pagination.js';
 
 import { findTenantUsers, findUserWorkspaces } from './repository.js';
 
+import type { PaginatedResult } from '../../lib/pagination.js';
 import type { TenantContext } from '../../lib/tenant-context-store.js';
+import type { TenantDbClient } from '../../lib/tenant-database.js';
 import type {
   TenantUserDto,
   UserWorkspacesDto,
@@ -23,15 +26,18 @@ export { removeUser } from './service-remove.js';
 // User listing
 // ---------------------------------------------------------------------------
 
+// The envelope MUST come from buildPaginatedResult: the web client renders
+// <Pagination> from `totalPages`, which a hand-built { data, total, page,
+// pageSize } object silently omitted — leaving page 2+ unreachable from the UI.
 export async function listTenantUsers(
-  db: unknown,
+  db: TenantDbClient,
   filters: UserListFilters,
   _tenantContext: TenantContext
-): Promise<{ data: TenantUserDto[]; total: number; page: number; limit: number }> {
+): Promise<PaginatedResult<TenantUserDto>> {
   const page = filters.page ?? 1;
-  const limit = filters.limit ?? 20;
+  const pageSize = filters.pageSize ?? 20;
   const { data, total } = await findTenantUsers(db, filters);
-  return { data, total, page, limit };
+  return buildPaginatedResult(data, total, { page, pageSize });
 }
 
 // ---------------------------------------------------------------------------
@@ -39,7 +45,7 @@ export async function listTenantUsers(
 // ---------------------------------------------------------------------------
 
 export async function getUserWorkspaces(
-  db: unknown,
+  db: TenantDbClient,
   userId: string,
   _tenantContext: TenantContext
 ): Promise<UserWorkspacesDto> {

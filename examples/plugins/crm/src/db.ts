@@ -1,39 +1,33 @@
-import pg from 'pg';
+// db.ts
+// Database access for the CRM plugin backend — now via @plexica/sdk.
+//
+// The SDK manages a typed pg.Pool connected via the restricted role injected
+// by the platform (DATABASE_URL env var). query/queryOne are SDK convenience
+// methods that delegate to the pool.
+//
+// Tables are created by the platform during install via declaredTables migrations.
+// The plugin backend holds only runtime DML privileges (SELECT/INSERT/UPDATE/DELETE)
+// on its declared tables, granted to the restricted plugin_{installId} role.
 
-import logger from './logger.js';
+import { sdk } from './sdk.js';
 
-// Tables are created by the platform during install via declaredTables migrations
-// (see services/core-api/src/modules/plugin/routes/lifecycle/install.routes.ts).
-// The plugin backend must NEVER run DDL itself — it only holds runtime DML
-// privileges (SELECT/INSERT/UPDATE/DELETE) on its declared tables, granted to
-// the restricted `plugin_{installId}` role.
+import type { Pool } from 'pg';
 
-const connectionString = process.env['DATABASE_URL'];
-if (!connectionString) {
-  // Fail fast with a clear message rather than silently falling back to a
-  // hardcoded admin credential. The platform injects DATABASE_URL pointing at
-  // the restricted role created during install.
-  throw new Error(
-    'DATABASE_URL is required by the CRM plugin backend. ' +
-      'It must be injected by the platform (restricted plugin role connection string).',
-  );
+/** Return the underlying pg.Pool (for advanced use). Prefer query()/queryOne(). */
+export async function getPool(): Promise<Pool> {
+  return sdk.getDb();
 }
-
-const pool = new pg.Pool({ connectionString });
-pool.on('error', (error) => logger.warn({ code: (error as { code?: string }).code }, 'Idle database connection closed'));
 
 export async function query(
   sql: string,
   params?: unknown[],
 ): Promise<Record<string, unknown>[]> {
-  const result = await pool.query(sql, params);
-  return result.rows as Record<string, unknown>[];
+  return sdk.query(sql, params);
 }
 
 export async function queryOne(
   sql: string,
   params?: unknown[],
 ): Promise<Record<string, unknown> | null> {
-  const rows = await query(sql, params);
-  return rows[0] ?? null;
+  return sdk.queryOne(sql, params);
 }

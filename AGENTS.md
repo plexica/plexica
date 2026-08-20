@@ -92,14 +92,16 @@ apps/
   web/              # Frontend React tenant (MF host)
   admin/            # Frontend React super-admin
 packages/
+  auth/             # @plexica/auth — auth frontend condivisa (PKCE, silent refresh, auth store)
+  cli/              # create-plexica-plugin — CLI scaffolding per nuovi plugin
+  keycloak-theme/   # @plexica/keycloak-theme — tema login Keycloak (Keycloakify, ADR-010)
+  sdk/              # @plexica/sdk — SDK plugin
   ui/               # @plexica/ui — design system condiviso
-  i18n/             # @plexica/i18n — traduzioni
   vite-plugin/      # @plexica/vite-plugin — Vite preset per plugin
-  sdk/              # @plexica/sdk — SDK plugin (1 classe)
 services/
   core-api/
     src/
-      modules/      # Feature modules (auth, tenant, workspace, plugin, admin, notification, user-profile)
+      modules/      # Feature modules (abac, admin, audit-log, invitation, plugin, tenant, tenant-settings, user, user-management, user-profile, workspace, workspace-member)
       middleware/   # Middleware condivisi (auth, tenant-context, abac, rate-limit, csrf, error-handler)
       lib/          # Utility condivise (database, logger, config, kafka-producer)
       events/       # Definizioni eventi core e producer
@@ -247,13 +249,14 @@ Queste decisioni **non sono negoziabili** e non richiedono ulteriori ADR:
 
 ## Governance
 
-### Le 5 Regole (dalla Costituzione)
+### Le 6 Regole (dalla Costituzione)
 
 1. **Ogni feature ha un test E2E.** Playwright in CI, blocca il merge.
 2. **Nessun merge senza CI verde.** Unit, integration e E2E devono tutti passare.
 3. **Un pattern per tipo di operazione.** Un modo di fare data fetching, form, auth.
 4. **Nessun file sopra 200 righe.** Se serve di più, decomporre.
 5. **Le decisioni architetturali significative hanno un ADR.** Significativo = cambia modello dati, auth, infrastruttura, dipendenze core.
+6. **Tutti i messaggi di commit devono essere in inglese.** Un commit in un'altra lingua deve essere rifiutato e riscritto prima del merge.
 
 ### Quando Aprire un ADR
 

@@ -3,9 +3,8 @@
 // Companion to keycloak-admin.ts (realm lifecycle) and
 // keycloak-admin-users.ts (user management).
 
-import { KeycloakError } from './app-error.js';
 import { logger } from './logger.js';
-import { adminRequest } from './keycloak-admin-internal.js';
+import { adminRequestOk } from './keycloak-admin-internal.js';
 
 /** Subset of Keycloak realm representation relevant to auth configuration. */
 export interface RealmAuthConfig {
@@ -19,11 +18,9 @@ export interface RealmAuthConfig {
  * Retrieves the current auth configuration for a realm.
  */
 export async function getRealmConfig(realm: string): Promise<RealmAuthConfig> {
-  const res = await adminRequest(`/admin/realms/${realm}`, 'GET');
-
-  if (!res.ok) {
-    throw new KeycloakError(`Failed to get realm config for ${realm}: ${res.status}`);
-  }
+  const res = await adminRequestOk(`/admin/realms/${realm}`, 'GET', undefined, {
+    context: `Failed to get realm config for ${realm}`,
+  });
 
   const data = (await res.json()) as Record<string, unknown>;
 
@@ -46,11 +43,9 @@ export async function updateRealmConfig(
   realm: string,
   patch: Partial<RealmAuthConfig>
 ): Promise<void> {
-  const res = await adminRequest(`/admin/realms/${realm}`, 'PUT', patch);
-
-  if (!res.ok) {
-    throw new KeycloakError(`Failed to update realm config for ${realm}: ${res.status}`);
-  }
+  await adminRequestOk(`/admin/realms/${realm}`, 'PUT', patch, {
+    context: `Failed to update realm config for ${realm}`,
+  });
 
   logger.debug({ realm, patch }, 'Keycloak realm config updated');
 }
@@ -63,13 +58,14 @@ export async function updateRealmConfig(
  * users; existing sessions remain until they expire or are explicitly revoked.
  */
 export async function setRealmEnabled(realm: string, enabled: boolean): Promise<void> {
-  const res = await adminRequest(`/admin/realms/${realm}`, 'PUT', { enabled });
-
-  if (!res.ok) {
-    throw new KeycloakError(
-      `Failed to ${enabled ? 'enable' : 'disable'} realm ${realm}: ${res.status}`
-    );
-  }
+  await adminRequestOk(
+    `/admin/realms/${realm}`,
+    'PUT',
+    { enabled },
+    {
+      context: `Failed to ${enabled ? 'enable' : 'disable'} realm ${realm}`,
+    }
+  );
 
   logger.info({ realm, enabled }, 'Keycloak realm enabled flag updated');
 }

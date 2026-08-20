@@ -2,20 +2,14 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 
 import { prisma } from '../../lib/database.js';
 import { kafkaStatusRoutes } from '../../modules/admin/routes/kafka-status.routes.js';
-import { createTestServer, isDbReachable, makeFullStub } from '../helpers/server.helpers.js';
 import {
-  clearLagMetrics,
-  updateLag,
-} from '../../modules/plugin/events/lag-metrics.service.js';
+  SUPER_ADMIN_ACTOR,
+  createAdminTestServer,
+  isDbReachable,
+} from '../helpers/server.helpers.js';
+import { clearLagMetrics, updateLag } from '../../modules/plugin/events/lag-metrics.service.js';
 
 import type { FastifyInstance } from 'fastify';
-import type { TenantContext } from '../../lib/tenant-context-store.js';
-
-const SUPER_ADMIN_ACTOR = '00000000-0000-0000-0000-000000000000';
-const mockTenantContext: TenantContext = {
-  slug: 'system', schemaName: 'core', realmName: 'master',
-  tenantId: '00000000-0000-0000-0000-000000000000',
-};
 
 let server: FastifyInstance;
 let pluginId: string;
@@ -31,15 +25,30 @@ function dlqData(currentPluginId: string, index: number, status = 'pending') {
   const eventId = crypto.randomUUID();
   const installId = crypto.randomUUID();
   return {
-    tenantId, installId, eventId, eventType: 'plexica.plugin.test', schemaVersion: 1,
+    tenantId,
+    installId,
+    eventId,
+    eventType: 'plexica.plugin.test',
+    schemaVersion: 1,
     payload: {
-      eventId, type: 'plexica.plugin.test', schemaVersion: 1, tenantId,
-      occurredAt: new Date().toISOString(), producer: { kind: 'core', id: 'core' },
-      correlationId: eventId, causationId: null, payload: { idx: index },
+      eventId,
+      type: 'plexica.plugin.test',
+      schemaVersion: 1,
+      tenantId,
+      occurredAt: new Date().toISOString(),
+      producer: { kind: 'core', id: 'core' },
+      correlationId: eventId,
+      causationId: null,
+      payload: { idx: index },
     },
-    pluginId: currentPluginId, errorMessage: 'TEST_FAILURE', retryCount: 0,
-    originalTopic: 'plexica.plugin.test', originalPartition: 0,
-    originalOffset: BigInt(index), dedupeKey: eventId.replaceAll('-', '').padEnd(64, '0'), status,
+    pluginId: currentPluginId,
+    errorMessage: 'TEST_FAILURE',
+    retryCount: 0,
+    originalTopic: 'plexica.plugin.test',
+    originalPartition: 0,
+    originalOffset: BigInt(index),
+    dedupeKey: eventId.replaceAll('-', '').padEnd(64, '0'),
+    status,
   };
 }
 
@@ -103,10 +112,7 @@ beforeAll(async () => {
     await prisma.deadLetterQueue.create({ data: dlqData(pluginId2, i + 20) });
   }
 
-  server = await createTestServer();
-  server.addHook('preHandler', makeFullStub(SUPER_ADMIN_ACTOR, mockTenantContext, ['super_admin']));
-  await server.register(kafkaStatusRoutes, { prefix: '/api/v1/admin' });
-  await server.ready();
+  server = await createAdminTestServer([kafkaStatusRoutes]);
 });
 
 afterAll(async () => {
@@ -130,36 +136,44 @@ afterEach(() => {
 });
 
 describe('Kafka Status — GET /api/v1/admin/system/kafka', () => {
-  it('returns brokers, consumerLags and dlqDepth with the expected shape', async () => {
+  it('returns the canonical KafkaStatusResponse shape (ADR-029)', async () => {
     updateLag(INSTALL_ID, PLUGIN_SLUG, 'acme', 50);
     const res = await server.inject({ method: 'GET', url: '/api/v1/admin/system/kafka' });
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.payload);
+    // Canonical shape: { brokers, consumers, totalLag, dlqDepth, activeConsumerGroups }
     expect(body.brokers).toBeInstanceOf(Array);
-    expect(body.consumerLags).toBeInstanceOf(Array);
+    expect(body.consumers).toBeInstanceOf(Array);
+    expect(typeof body.totalLag).toBe('number');
     expect(typeof body.dlqDepth).toBe('number');
+    expect(typeof body.activeConsumerGroups).toBe('number');
+    // No legacy fields
+    expect(body.consumerLags).toBeUndefined();
   });
 
-  it('consumerLags contain the correct pluginSlug, consumerGroup and lag values', async () => {
+  it('consumers contain the correct pluginSlug, tenantSlug, lag and topic', async () => {
     updateLag(INSTALL_ID, PLUGIN_SLUG, 'acme', 120);
     updateLag(INSTALL_ID_2, PLUGIN_SLUG, 'globex', 80);
     const res = await server.inject({ method: 'GET', url: '/api/v1/admin/system/kafka' });
     const body = JSON.parse(res.payload);
-    expect(body.consumerLags).toHaveLength(2);
+    expect(body.consumers).toHaveLength(2);
+    expect(body.totalLag).toBe(200);
 
-    // Order-independent matching via consumerGroup (distinguishes acme vs globex).
-    const byGroup = new Map<string, { pluginSlug: string; consumerGroup: string; lag: number }>(
-      body.consumerLags.map(
-        (c: { pluginSlug: string; consumerGroup: string; lag: number }) => [c.consumerGroup, c] as const
+    // Order-independent matching via tenantSlug (distinguishes acme vs globex).
+    const byTenant = new Map<string, { pluginSlug: string; lag: number; topic: string }>(
+      body.consumers.map(
+        (c: { pluginSlug: string; tenantSlug: string | null; lag: number; topic: string }) =>
+          [c.tenantSlug ?? '', c] as const
       )
     );
 
-    const acme = byGroup.get(`plexica.plugin.${PLUGIN_SLUG}-acme`);
+    const acme = byTenant.get('acme');
     expect(acme).toBeDefined();
     expect(acme!.pluginSlug).toBe(PLUGIN_SLUG);
     expect(acme!.lag).toBe(120);
+    expect(acme!.topic).toBe(`plexica.plugin.${PLUGIN_SLUG}`);
 
-    const globex = byGroup.get(`plexica.plugin.${PLUGIN_SLUG}-globex`);
+    const globex = byTenant.get('globex');
     expect(globex).toBeDefined();
     expect(globex!.pluginSlug).toBe(PLUGIN_SLUG);
     expect(globex!.lag).toBe(80);

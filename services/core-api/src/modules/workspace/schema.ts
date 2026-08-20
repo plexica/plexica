@@ -3,11 +3,11 @@
 
 import { z } from 'zod';
 
-import { SLUG_REGEX } from '../../lib/slug.js';
+import { RESOURCE_SLUG_REGEX } from '../../lib/slug.js';
 import { paginationSchema } from '../../lib/pagination.js';
 
 // Re-export to allow future consumers to reference it
-export { SLUG_REGEX };
+export { RESOURCE_SLUG_REGEX };
 
 export const createWorkspaceSchema = z.object({
   name: z.string().min(1).max(255),

@@ -9,8 +9,3 @@ export function tableName(slug: string, table: string): string {
   }
   return `${slug}_${table}`;
 }
-
-export function validateTableName(name: string): boolean {
-  const pluginTableRegex = /^[a-z][a-z0-9-]{1,62}_[a-z][a-z0-9_]{1,63}$/;
-  return pluginTableRegex.test(name);
-}

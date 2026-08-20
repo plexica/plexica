@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { SLUG_REGEX } from './tenant-schema-helpers.js';
+import { TENANT_SLUG_REGEX } from './slug.js';
 
 const dnsLabelSchema = z
   .string()
@@ -19,7 +19,7 @@ const hostHeaderSchema = z
     return port === undefined || Number(port) <= 65535;
   });
 
-const tenantSlugSchema = z.string().regex(SLUG_REGEX);
+const tenantSlugSchema = z.string().regex(TENANT_SLUG_REGEX);
 
 export function tenantSlugFromHost(host: unknown): string | null {
   const parsedHost = hostHeaderSchema.safeParse(host);

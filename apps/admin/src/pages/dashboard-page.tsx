@@ -6,7 +6,8 @@
 // All strings via react-intl; icons via Lucide (no emoji).
 
 import { FormattedMessage, useIntl } from 'react-intl';
-import { AlertTriangle, Building2, CheckCircle2, Layers, Loader2, MailWarning, Plug, ServerCog, Users } from 'lucide-react';
+import { Building2, CheckCircle2, Layers, Loader2, MailWarning, Plug, ServerCog, Users } from 'lucide-react';
+import { CardGridSkeleton, ErrorState } from '@plexica/ui';
 
 import { HealthIndicator } from '../components/dashboard/health-indicator.js';
 import { KpiCard } from '../components/dashboard/kpi-card.js';
@@ -37,32 +38,19 @@ export function DashboardPage(): JSX.Element {
       </div>
 
       {isError && (
-        <div role="alert" className="rounded-lg border border-red-300 bg-red-50 p-4 text-sm text-red-800">
-          <p className="flex items-center gap-2 font-medium">
-            <AlertTriangle className="h-4 w-4" aria-hidden="true" />
-            <FormattedMessage id="dashboard.error" />
-          </p>
-          {error instanceof Error && <p className="mt-1 text-red-700">{error.message}</p>}
-          <button
-            type="button"
-            onClick={() => void refetch()}
-            className="mt-3 inline-flex items-center gap-1 rounded-md bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700"
-          >
-            <FormattedMessage id="dashboard.retry" />
-          </button>
-        </div>
+        <ErrorState
+          heading={<FormattedMessage id="dashboard.error" />}
+          description={error instanceof Error ? error.message : undefined}
+          retryLabel={<FormattedMessage id="dashboard.retry" />}
+          onRetry={() => void refetch()}
+        />
       )}
 
       {isLoading && (
-        <div
-          className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3"
-          aria-busy="true"
-          aria-label={intl.formatMessage({ id: 'dashboard.loading' })}
-        >
-          {Array.from({ length: SKELETON_CARDS }, (_, i) => (
-            <div key={i} className="h-28 animate-pulse rounded-lg border border-neutral-200 bg-neutral-100" />
-          ))}
-        </div>
+        <CardGridSkeleton
+          count={SKELETON_CARDS}
+          ariaLabel={intl.formatMessage({ id: 'dashboard.loading' })}
+        />
       )}
 
       {!isLoading && !isError && data && (

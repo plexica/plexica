@@ -12,14 +12,13 @@ import { prepareMigrationSql } from '../schema/migrations.js';
 import { PluginInstallError, PluginValidationError } from '../errors.js';
 
 import type { PluginRole } from './db-role.service.js';
+import type { TenantPrisma } from '../../../lib/tenant-database.js';
 import type { Manifest } from '../schema/manifest.js';
 
 interface RunMigrationsParams {
-  // Tenant-schema Prisma transaction client — type-erased pending prisma generate
-  // for the tenant schema. Methods used: $executeRawUnsafe, actionRegistry.create,
-  // pluginMigrationStatus.create.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  tx: any;
+  // Tenant-schema interactive $transaction client (ADR-028). Methods used:
+  // $executeRawUnsafe, actionRegistry.create, pluginMigrationStatus.create.
+  tx: TenantPrisma.TransactionClient;
   manifest: Manifest;
   role: PluginRole;
   installId: string;

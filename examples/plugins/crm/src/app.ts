@@ -8,6 +8,7 @@ import eventsRoutes from './routes/events.js';
 import healthRoutes from './health.js';
 import { requireRole } from './auth.js';
 import databaseProbeRoutes from './database-probe.js';
+import { initSdk, destroySdk } from './sdk.js';
 
 const app = Fastify();
 
@@ -22,5 +23,15 @@ await app.register(healthRoutes, { prefix: '/_plexica' });
 if (process.env['E2E_DATABASE_PROBE'] === 'true') {
   await app.register(databaseProbeRoutes, { prefix: '/_plexica' });
 }
+
+// Initialize the PluginSDK — must happen after route registration so that
+// event handlers registered via sdk.onEvent() in route modules are in place
+// before any event could be dispatched.
+await initSdk();
+
+// Ensure SDK cleanup on shutdown.
+app.addHook('onClose', async () => {
+  await destroySdk();
+});
 
 export default app;

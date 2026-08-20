@@ -137,14 +137,14 @@ describe('INT-07 — Audit Log routes', () => {
 
   // ── Pagination ────────────────────────────────────────────────────────────
 
-  it.skipIf(!allOk)('respects page and limit query params', async () => {
+  it.skipIf(!allOk)('respects page and pageSize query params', async () => {
     for (let i = 0; i < 5; i++) {
       await seedAuditLog(ctx, ACTOR_ID, 'workspace.create');
     }
 
     const res = await server.inject({
       method: 'GET',
-      url: '/api/v1/tenant/audit-log?page=2&limit=2',
+      url: '/api/v1/tenant/audit-log?page=2&pageSize=2',
     });
     expect(res.statusCode).toBe(200);
     const body = res.json<{ data: unknown[]; total: number; page: number }>();

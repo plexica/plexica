@@ -1,40 +1,121 @@
 // writer.ts
-// Fire-and-forget audit log writer.
+// Awaited, non-throwing audit log writer.
 // Implements: FR-021, NFR-03, DR-08, plan §5.1.7
 
+import { Prisma } from '../../../prisma/generated/tenant-client/index.js';
 import { logger } from '../../lib/logger.js';
+import { assertNonTransactionalDb } from '../../lib/tenant-database.js';
 
+import type { TenantPrisma, TenantPrismaClient } from '../../lib/tenant-database.js';
 import type { AuditLogEntry } from './types.js';
 
 /**
  * Writes an entry to the tenant's audit_log table.
- * Fire-and-forget: synchronous call, never awaits, never throws.
- * Errors are captured and logged via Pino — they never propagate to callers.
  *
- * @param tenantDb - Tenant-schema Prisma transaction client (type-erased)
+ * Awaiting: callers must `await` this call. Since ADR-027, `withTenantDb` no
+ * longer disconnects the tenant client in its `finally` block — it only
+ * releases the cache pin (`releaseTenantClient`). But once the callback
+ * returns, the cached entry is idle and becomes evictable: an LRU-cap or TTL
+ * eviction (tenant-db-cache-eviction.ts) `$disconnect()`s the client, which
+ * rejects any query still in flight. Awaiting keeps the INSERT inside the
+ * pin window, so it always completes on a live client.
+ *
+ * Rejection: the returned promise never rejects for a *database* failure — a
+ * failed INSERT is caught and reported through Pino. The one exception is the
+ * transaction-safety guard below, which throws in EVERY environment
+ * (production included) because it signals a programming error, not a runtime
+ * fault — see assertNonTransactionalDb in lib/tenant-database.ts.
+ *
+ * TRANSACTION SAFETY — READ BEFORE USE:
+ * Swallowing the rejection does NOT undo the failure at the database level.
+ * If the INSERT is issued on an interactive `$transaction` client, PostgreSQL
+ * puts that transaction into the aborted state (SQLSTATE 25P02); every
+ * subsequent statement fails with "current transaction is aborted" and the
+ * COMMIT degrades into a ROLLBACK. Because the JS rejection is hidden, the
+ * caller has no signal that this happened — in the worst case the API returns
+ * a success response for data that was never persisted.
+ *
+ * Therefore: DO NOT call `writeAuditLog` inside an interactive `$transaction`.
+ * Invoke it on a non-transactional tenant client, after the transaction has
+ * committed. Services that run inside a transaction should build the entry and
+ * return it to their caller (see workspace/audit-entries.ts) so the caller can
+ * persist it post-COMMIT. Audit logging is an observational side-effect: its
+ * failure must never roll back the business operation it describes.
+ *
+ * This is enforced BOTH at compile time — the `tenantDb` parameter is typed
+ * `TenantPrismaClient` (not the `TenantDbClient` union), so a
+ * `Prisma.TransactionClient` no longer typechecks here (ADR-028) — AND at
+ * runtime by `assertNonTransactionalDb`, kept as defence in depth for untyped
+ * call paths (plain test doubles, JS callers). See the feasibility note in
+ * lib/tenant-database.ts for why a branded type does not work here.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * NOT THE SAME CONTRACT AS `admin/services/audit-log.service.ts#writeAuditEntry`
+ *
+ * The codebase has two audit writers with deliberately OPPOSITE transactional
+ * contracts. Pick by asking: "if the audit row is lost, is the business
+ * operation still correct?"
+ *
+ *   writeAuditLog (this function) — TENANT audit_log, observational.
+ *     Outside a transaction; swallows DB errors. Losing the row must never
+ *     fail or roll back the user action it describes (workspace renamed,
+ *     member added…). Availability of the operation wins over completeness of
+ *     the trail.
+ *
+ *   writeAuditEntry (admin) — CORE platform_audit_log, compliance evidence.
+ *     Inside the transaction; propagates errors. It records privileged
+ *     super-admin actions (tenant suspend/reactivate, GDPR purge) where the
+ *     record IS part of the operation's correctness. If it cannot be written,
+ *     the operation must not be considered to have happened, so the
+ *     transaction rolls back. Completeness of the trail wins.
+ *
+ * The "DO NOT call inside $transaction" rule above is specific to THIS writer.
+ * It does not generalise to `writeAuditEntry`.
+ * ─────────────────────────────────────────────────────────────────────────────
+ *
+ * @param tenantDb - Non-transactional tenant-schema Prisma client
  * @param entry    - Structured audit log entry
  */
-export function writeAuditLog(
-  tenantDb: unknown, // tenant-schema PrismaClient, type-erased pending prisma generate
+export async function writeAuditLog(
+  tenantDb: TenantPrismaClient,
   entry: AuditLogEntry
-): void {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const db = tenantDb as any;
+): Promise<void> {
+  // Compile-time: the TenantPrismaClient parameter already rejects transaction
+  // clients. Runtime: the guard stays as defence in depth for untyped callers.
+  assertNonTransactionalDb(tenantDb, 'writeAuditLog');
 
-  // Fire-and-forget: never await, never throw
-  db.auditLog
+  // Awaited (not returned) so the INSERT lands while the caller's
+  // `withTenantDb` callback still pins the cached client (see JSDoc), and so
+  // the declared `Promise<void>` stays truthful — `create()` resolves
+  // with the persisted record, which is not part of this contract.
+  await tenantDb.auditLog
     .create({
       data: {
         actorId: entry.actorId,
         actionType: entry.actionType,
         targetType: entry.targetType,
         targetId: entry.targetId ?? null,
-        beforeValue: entry.beforeValue ?? null,
-        afterValue: entry.afterValue ?? null,
+        // Nullable Json columns: plain `null` is stored by Prisma as JSON
+        // 'null' (verified empirically) — Prisma.JsonNull is the same value,
+        // type-correct. DbNull would be a behaviour change (SQL NULL).
+        beforeValue: (entry.beforeValue ?? Prisma.JsonNull) as TenantPrisma.InputJsonValue,
+        afterValue: (entry.afterValue ?? Prisma.JsonNull) as TenantPrisma.InputJsonValue,
         ipAddress: entry.ipAddress ?? null,
       },
     })
     .catch((err: unknown) => {
-      logger.error({ err: String(err), entry }, 'Failed to write audit log entry');
+      // Log only non-sensitive identifiers. The full entry must never reach the
+      // logs: `ipAddress` is PII under GDPR and `beforeValue`/`afterValue` can
+      // carry arbitrary domain data (AGENTS.md — Security rule 6).
+      logger.error(
+        {
+          err: String(err),
+          actionType: entry.actionType,
+          targetType: entry.targetType,
+          targetId: entry.targetId ?? null,
+          actorId: entry.actorId,
+        },
+        'Failed to write audit log entry'
+      );
     });
 }

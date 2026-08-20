@@ -3,10 +3,7 @@
 // Called by provisionTenant() after the tenant schema migrations run.
 // Idempotent: skips seeding if built-in templates already exist.
 
-// TODO: Run 'pnpm db:generate' to generate tenant client types before this compiles.
- 
-// @ts-ignore — generated at build time via 'pnpm db:generate'; not present in git checkout
-import type { PrismaClient } from '../../../prisma/generated/tenant-client/index.js';
+import type { Prisma, PrismaClient } from '../../../../prisma/generated/tenant-client/index.js';
 
 export interface ChildWorkspaceDef {
   name: string;
@@ -84,7 +81,7 @@ export async function seedBuiltInTemplates(tenantDb: PrismaClient): Promise<void
     data: BUILT_IN_TEMPLATES.map((t) => ({
       name: t.name,
       description: t.description,
-      structure: t.structure,
+      structure: t.structure as unknown as Prisma.InputJsonValue,
       isBuiltin: true,
       createdBy: null,
     })),

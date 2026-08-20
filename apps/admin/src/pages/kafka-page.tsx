@@ -6,12 +6,12 @@
 
 import { FormattedMessage, useIntl } from 'react-intl';
 import { AlertTriangle, CheckCircle2, RefreshCw } from 'lucide-react';
+import { EmptyState, ErrorState } from '@plexica/ui';
 
 import {
   ConsumerLagTable,
   KafkaSkeleton,
   LAG_WARNING_THRESHOLD,
-  computeTotalLag,
 } from '../components/kafka/consumer-lag-table.js';
 import { useKafkaStatus } from '../hooks/use-kafka-status.js';
 
@@ -21,11 +21,11 @@ export function KafkaPage(): JSX.Element {
   const { data, isLoading, isError, error, refetch, isFetching } = useKafkaStatus();
   const intl = useIntl();
 
-  const totalLag = data ? computeTotalLag(data.consumerLags) : 0;
-  const hasConsumers = (data?.consumerLags.length ?? 0) > 0;
+  const totalLag = data ? data.totalLag : 0;
+  const hasConsumers = (data?.consumers.length ?? 0) > 0;
   const dlqWarning = (data?.dlqDepth ?? 0) > DLQ_WARNING_THRESHOLD;
   const lagWarnings = data
-    ? data.consumerLags.filter((r) => r.lag > LAG_WARNING_THRESHOLD).length
+    ? data.consumers.filter((r) => r.lag > LAG_WARNING_THRESHOLD).length
     : 0;
 
   return (
@@ -52,32 +52,18 @@ export function KafkaPage(): JSX.Element {
       )}
 
       {isError && (
-        <div
-          role="alert"
-          className="rounded-lg border border-red-300 bg-red-50 p-4 text-sm text-red-800"
-        >
-          <p className="font-medium">
-            <FormattedMessage id="admin.kafka.error" />
-          </p>
-          {error instanceof Error && <p className="mt-1 text-red-700">{error.message}</p>}
-          <button
-            type="button"
-            onClick={() => void refetch()}
-            className="mt-3 rounded-md bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700"
-          >
-            <FormattedMessage id="admin.kafka.retry" />
-          </button>
-        </div>
+        <ErrorState
+          heading={<FormattedMessage id="admin.kafka.error" />}
+          description={error instanceof Error ? error.message : undefined}
+          retryLabel={<FormattedMessage id="admin.kafka.retry" />}
+          onRetry={() => void refetch()}
+        />
       )}
 
       {!isLoading && !isError && data && (
         <div className="space-y-6">
           {!hasConsumers ? (
-            <div className="rounded-lg border border-dashed border-neutral-300 bg-white p-12 text-center">
-              <p className="text-sm text-neutral-500">
-                <FormattedMessage id="admin.kafka.empty" />
-              </p>
-            </div>
+            <EmptyState heading={<FormattedMessage id="admin.kafka.empty" />} />
           ) : (
             <>
               <div
@@ -99,7 +85,7 @@ export function KafkaPage(): JSX.Element {
                 <h2 className="mb-2 text-sm font-semibold text-neutral-700">
                   <FormattedMessage id="admin.kafka.consumerLag" />
                 </h2>
-                <ConsumerLagTable lags={data.consumerLags} />
+                <ConsumerLagTable lags={data.consumers} />
               </div>
             </>
           )}

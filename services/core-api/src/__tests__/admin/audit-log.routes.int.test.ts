@@ -5,23 +5,12 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { prisma } from '../../lib/database.js';
-import { requireSuperAdmin } from '../../middleware/require-super-admin.js';
 import { auditLogRoutes } from '../../modules/admin/routes/audit-log.routes.js';
 import { writeAuditEntry } from '../../modules/admin/services/audit-log.service.js';
-import { createTestServer, makeFullStub, isDbReachable } from '../helpers/server.helpers.js';
+import { createAdminTestServer, isDbReachable } from '../helpers/server.helpers.js';
 
 import type { FastifyInstance } from 'fastify';
-import type { TenantContext } from '../../lib/tenant-context-store.js';
 
-const SUPER_ADMIN_ACTOR = '00000000-0000-0000-0000-000000000000';
-const mockTenantContext: TenantContext = {
-  slug: 'system',
-  schemaName: 'core',
-  realmName: 'master',
-  tenantId: '00000000-0000-0000-0000-000000000000',
-};
-
-const ADMIN_PREFIX = '/api/v1/admin';
 // Unique actor per test run so cleanup is deterministic and isolated.
 const ACTOR_ID = '00000000-aaaa-0000-0000-0000000000aa';
 const TENANT_ID = '00000000-bbbb-0000-0000-0000000000bb';
@@ -64,16 +53,7 @@ beforeAll(async () => {
   ]);
   seededIds = entries.map((e) => e.id);
 
-  server = await createTestServer();
-  server.addHook('preHandler', makeFullStub(SUPER_ADMIN_ACTOR, mockTenantContext, ['super_admin']));
-  await server.register(
-    async (scope) => {
-      scope.addHook('preHandler', requireSuperAdmin);
-      await scope.register(auditLogRoutes);
-    },
-    { prefix: ADMIN_PREFIX }
-  );
-  await server.ready();
+  server = await createAdminTestServer([auditLogRoutes]);
 });
 
 afterAll(async () => {
@@ -90,9 +70,11 @@ describe('GET /api/v1/admin/audit-logs — platform audit log', () => {
       total: number;
       page: number;
       pageSize: number;
+      totalPages: number;
     }>();
     expect(body.page).toBe(1);
     expect(body.pageSize).toBe(20);
+    expect(body.totalPages).toBeGreaterThanOrEqual(1);
     expect(body.total).toBeGreaterThanOrEqual(3);
     const ids = body.data.map((e) => e.id);
     for (const id of seededIds) {

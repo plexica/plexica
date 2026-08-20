@@ -2,11 +2,13 @@
 
 import { z } from 'zod';
 
-import { toRealmName, toSchemaName } from '../../../lib/tenant-schema-helpers.js';
+import {
+  SCHEMA_NAME_REGEX,
+  toRealmName,
+  toSchemaName,
+} from '../../../lib/tenant-schema-helpers.js';
 
 import type { PrismaClient, Prisma } from '@prisma/client';
-
-const SCHEMA_NAME_REGEX = /^tenant_[a-z0-9_]{1,55}$/;
 
 export const DeletionContextSchema = z.object({
   tenantSlug: z.string().min(1).max(63),

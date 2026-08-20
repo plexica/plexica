@@ -5,11 +5,10 @@ import Fastify from 'fastify';
 import rateLimit from '@fastify/rate-limit';
 
 import { configureErrorHandler } from '../middleware/error-handler.js';
-import { rateLimitKey } from '../lib/rate-limit-key.js';
 import { TRUSTED_AUTH_SYMBOL } from '../middleware/auth-middleware.js';
 import {
   GLOBAL_RATE_LIMIT,
-  rateLimitKeyGenerator,
+  rateLimitKey,
   rateLimitErrorResponseBuilder,
 } from '../lib/rate-limit-config.js';
 
@@ -35,7 +34,6 @@ async function buildAdminServer(): Promise<FastifyInstance> {
     global: true,
     max: GLOBAL_RATE_LIMIT.max,
     timeWindow: GLOBAL_RATE_LIMIT.timeWindow,
-    keyGenerator: rateLimitKeyGenerator,
     errorResponseBuilder: rateLimitErrorResponseBuilder,
   });
 

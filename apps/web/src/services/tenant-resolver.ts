@@ -2,9 +2,9 @@
 // Resolves the current tenant from the browser URL (subdomain or dev query override).
 // Called once at app startup to determine which Keycloak realm to use.
 
-import type { TenantInfo } from '../types/tenant.js';
+import { API_BASE } from './api-client.js';
 
-const API_BASE = import.meta.env.VITE_API_URL ?? '/api';
+import type { TenantInfo } from '../types/tenant.js';
 
 class TenantResolutionError extends Error {
   constructor(
@@ -45,7 +45,12 @@ export async function resolveTenant(): Promise<TenantInfo> {
     throw new TenantResolutionError('no-subdomain', 'No tenant subdomain found in URL');
   }
 
-  const response = await fetch(`${API_BASE}/tenants/resolve?slug=${encodeURIComponent(slug)}`);
+  // Backend route: GET /api/tenants/resolve — registered WITHOUT a /v1 segment and
+  // WITHOUT a Fastify prefix (tenant-routes.ts, registered in index.ts). The /api
+  // prefix belongs to the path, never to API_BASE.
+  const response = await fetch(
+    `${API_BASE}/api/tenants/resolve?slug=${encodeURIComponent(slug)}`
+  );
 
   if (!response.ok) {
     throw new TenantResolutionError(

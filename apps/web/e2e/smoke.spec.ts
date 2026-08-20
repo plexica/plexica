@@ -9,6 +9,8 @@ import AxeBuilder from '@axe-core/playwright';
 
 import { expect, test } from './helpers/base-fixture.js';
 
+test.describe.configure({ mode: 'parallel' });
+
 test.describe('App smoke test', () => {
   test('app loads at / without tenant and shows org-error page', async ({ page }) => {
     // In production mode, tenant is resolved from the host subdomain.

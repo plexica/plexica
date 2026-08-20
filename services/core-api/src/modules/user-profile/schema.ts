@@ -24,5 +24,3 @@ export const updateProfileSchema = z.object({
     })
     .optional(),
 });
-
-export type UpdateProfileData = z.infer<typeof updateProfileSchema>;

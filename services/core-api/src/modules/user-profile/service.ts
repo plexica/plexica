@@ -6,11 +6,11 @@ import crypto from 'node:crypto';
 import { Readable } from 'node:stream';
 
 
-import { UserNotFoundError, FileTooLargeError } from '../../lib/app-error.js';
+import { UserNotFoundError } from '../../lib/app-error.js';
 import { config } from '../../lib/config.js';
+import { readStream } from '../../lib/file-upload.js';
 import { logger } from '../../lib/logger.js';
 import { uploadAvatar as minioUploadAvatar, getPresignedReadUrl } from '../../lib/minio-client.js';
-import { validateMimeType } from '../../lib/file-upload.js';
 import { syncDisplayName } from '../../lib/keycloak-admin-users.js';
 import { writeAuditLog } from '../audit-log/writer.js';
 
@@ -22,10 +22,9 @@ import {
 } from './repository.js';
 
 import type { TenantContext } from '../../lib/tenant-context-store.js';
+import type { TenantDbClient, TenantPrismaClient } from '../../lib/tenant-database.js';
 import type { UpdateProfileInput, UserProfileDto } from './types.js';
 import type { MultipartFile } from '@fastify/multipart';
-
-const AVATAR_ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -38,29 +37,12 @@ async function attachAvatarUrl(profile: UserProfileDto, slug: string): Promise<U
   return { ...profile, avatarUrl };
 }
 
-/** Reads a Readable stream into a Buffer. Throws FileTooLargeError if maxBytes exceeded. */
-async function readStream(stream: Readable, maxBytes: number): Promise<Buffer> {
-  const chunks: Buffer[] = [];
-  let totalBytes = 0;
-
-  for await (const chunk of stream) {
-    const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk as string);
-    totalBytes += buf.length;
-    if (totalBytes > maxBytes) {
-      throw new FileTooLargeError(`File exceeds maximum allowed size of ${maxBytes} bytes`);
-    }
-    chunks.push(buf);
-  }
-
-  return Buffer.concat(chunks);
-}
-
 // ---------------------------------------------------------------------------
 // Service functions
 // ---------------------------------------------------------------------------
 
 export async function getProfile(
-  tenantDb: unknown,
+  tenantDb: TenantDbClient,
   keycloakUserId: string,
   tenantContext: TenantContext
 ): Promise<UserProfileDto> {
@@ -83,8 +65,9 @@ export async function getProfile(
   return attachAvatarUrl(profile, tenantContext.slug);
 }
 
+// TenantPrismaClient (non-transactional): writes the audit log.
 export async function updateProfile(
-  tenantDb: unknown,
+  tenantDb: TenantPrismaClient,
   keycloakUserId: string,
   input: UpdateProfileInput,
   tenantContext: TenantContext
@@ -112,7 +95,7 @@ export async function updateProfile(
     );
   }
 
-  writeAuditLog(tenantDb, {
+  await writeAuditLog(tenantDb, {
     actorId: existing.userId,
     actionType: 'profile.update',
     targetType: 'user_profile',
@@ -122,8 +105,9 @@ export async function updateProfile(
   return attachAvatarUrl(updated, tenantContext.slug);
 }
 
+// TenantPrismaClient (non-transactional): writes the audit log.
 export async function uploadAvatar(
-  tenantDb: unknown,
+  tenantDb: TenantPrismaClient,
   keycloakUserId: string,
   file: MultipartFile,
   tenantContext: TenantContext
@@ -131,7 +115,13 @@ export async function uploadAvatar(
   const profile = await findProfileByKeycloakId(tenantDb, keycloakUserId);
   if (profile === null) throw new UserNotFoundError();
 
-  validateMimeType(file.mimetype, AVATAR_ALLOWED_MIME_TYPES);
+  // No mime/content validation here: routes.ts (the only caller) already runs
+  // the authoritative `validateFileContent` check — allowlist, magic-byte
+  // sniffing, SVG active-content scan — on these exact bytes before this
+  // function is invoked. Re-declaring a weaker, client-Content-Type-only
+  // check here would be redundant at best and a stale, unenforced allowlist
+  // at worst (see history: this used to duplicate the constant and never
+  // stayed in sync with lib/file-upload.ts).
 
   // Buffer the stream to validate size before uploading to MinIO.
   const fileBytes = await readStream(file.file as unknown as Readable, config.AVATAR_MAX_BYTES);
@@ -146,7 +136,7 @@ export async function uploadAvatar(
 
   await updateAvatarPath(tenantDb, profile.userId, avatarPath);
 
-  writeAuditLog(tenantDb, {
+  await writeAuditLog(tenantDb, {
     actorId: profile.userId,
     actionType: 'profile.avatar_change',
     targetType: 'user_profile',

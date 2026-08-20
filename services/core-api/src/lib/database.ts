@@ -3,6 +3,17 @@
 
 import { PrismaClient } from '@prisma/client';
 
+import type { Prisma } from '@prisma/client';
+
+/**
+ * Core-schema client accepted by services and repositories (ADR-028): either
+ * the plain `PrismaClient` singleton handed out by `withCoreDb()` or an
+ * interactive `$transaction` client derived from it. Functions that open
+ * their own transaction MUST declare `PrismaClient` — `TransactionClient`
+ * has no `$transaction` by construction.
+ */
+export type CoreDbClient = PrismaClient | Prisma.TransactionClient;
+
 // Singleton pattern — reuse the same connection in dev to avoid
 // connection pool exhaustion during hot reload.
 const globalForPrisma = globalThis as unknown as {

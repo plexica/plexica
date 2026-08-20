@@ -7,6 +7,13 @@ import { FormattedMessage, useIntl } from 'react-intl';
 import { FileUpload, ToggleSwitch } from '@plexica/ui';
 
 import { useBranding, useUpdateBranding, useUploadLogo } from '../hooks/use-tenant-settings.js';
+import { LOGO_UPLOAD } from '../services/settings-api.js';
+import {
+  acceptAttribute,
+  megabytes,
+  mimeTypeLabels,
+  uploadErrorMessageId,
+} from '../i18n/upload-messages.js';
 import { ColorPicker } from '../components/settings/color-picker.js';
 import { SkeletonLoader } from '../components/feedback/skeleton-loader.js';
 import { PageError } from '../components/feedback/page-error.js';
@@ -28,10 +35,18 @@ export function TenantBrandingPage(): JSX.Element {
   const { saveStatus, markSaved } = useSaveStatus();
   const { data, isPending, isError, refetch } = useBranding();
   const { mutate: updateBranding, isPending: isSaving } = useUpdateBranding();
-  const { mutate: uploadLogo, isPending: isUploading } = useUploadLogo();
+  const {
+    mutate: uploadLogo,
+    isPending: isUploading,
+    isError: isUploadError,
+    error: uploadError,
+  } = useUploadLogo();
 
   const [primaryColor, setPrimaryColor] = useState('#0f172a');
   const [darkMode, setDarkMode] = useState(false);
+  // Bumped on every failed upload. Remounting FileUpload discards the optimistic
+  // `blob:` preview, so a failed upload no longer looks like a successful one.
+  const [uploadAttempt, setUploadAttempt] = useState(0);
 
   useEffect(() => {
     if (data !== undefined) {
@@ -39,6 +54,12 @@ export function TenantBrandingPage(): JSX.Element {
       setDarkMode(data.darkMode);
     }
   }, [data]);
+
+  // Upload constraints and copy both derive from LOGO_UPLOAD — one source.
+  const uploadValues = {
+    maxMb: megabytes(LOGO_UPLOAD.maxBytes),
+    formats: intl.formatList(mimeTypeLabels(LOGO_UPLOAD.mimeTypes), { type: 'disjunction' }),
+  };
 
   if (isPending) return <BrandingSkeleton />;
   if (isError || data === undefined) {
@@ -64,13 +85,26 @@ export function TenantBrandingPage(): JSX.Element {
         {/* Logo section — independent upload, no dirty tracking */}
         <SettingsSection
           title={<FormattedMessage id="settings.branding.logo.label" />}
-          description={<FormattedMessage id="settings.branding.logo.description" />}
+          description={
+            <FormattedMessage id="settings.branding.logo.description" values={uploadValues} />
+          }
         >
           <FileUpload
-            accept="image/*"
-            maxSizeBytes={2 * 1024 * 1024}
-            onFile={(f) => uploadLogo(f)}
+            key={uploadAttempt}
+            accept={acceptAttribute(LOGO_UPLOAD.mimeTypes)}
+            maxSizeBytes={LOGO_UPLOAD.maxBytes}
+            onFile={(f) => {
+              uploadLogo(f, { onError: () => { setUploadAttempt((n) => n + 1); } });
+            }}
             disabled={isUploading}
+            {...(isUploadError
+              ? {
+                  error: intl.formatMessage(
+                    { id: uploadErrorMessageId(uploadError) },
+                    uploadValues
+                  ),
+                }
+              : {})}
             {...(data.logoUrl !== null ? { preview: data.logoUrl } : {})}
           />
         </SettingsSection>

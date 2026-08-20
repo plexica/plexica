@@ -8,12 +8,11 @@
 
 import { z } from 'zod';
 
-// SLUG_REGEX mirrors the plugin slug constraint (admin-publish.routes.ts).
-const SLUG_REGEX = /^[a-z][a-z0-9-]{1,62}$/;
+import { RESOURCE_SLUG_REGEX } from '../../../lib/slug.js';
 
 // Path params for POST /plugins/:slug/review.
 export const ReviewParamsSchema = z.object({
-  slug: z.string().regex(SLUG_REGEX),
+  slug: z.string().regex(RESOURCE_SLUG_REGEX),
 });
 
 // Reviewer decision. 'approve' flips review_status -> 'approved',
@@ -36,8 +35,3 @@ export const ReviewResponseSchema = z.object({
   reviewedAt: z.coerce.date().nullable(),
   reviewedBy: z.string().nullable(),
 });
-
-export type ReviewParams = z.infer<typeof ReviewParamsSchema>;
-export type ReviewDecision = z.infer<typeof ReviewDecisionSchema>;
-export type ReviewBody = z.infer<typeof ReviewBodySchema>;
-export type ReviewResponse = z.infer<typeof ReviewResponseSchema>;

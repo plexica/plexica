@@ -11,7 +11,12 @@ import { useAuthStore } from '../stores/auth-store.js';
 
 export { ApiError };
 
-const API_BASE = import.meta.env.VITE_API_URL ?? '';
+/**
+ * Origin of the core-api backend — single source of truth for the admin app.
+ * Must NOT include the `/api` prefix: the paths passed to `apiClient` already
+ * carry it. Empty string = same origin.
+ */
+export const API_BASE = import.meta.env.VITE_API_URL ?? '';
 
 export const apiClient = createApiClient({
   baseUrl: API_BASE,

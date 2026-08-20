@@ -8,6 +8,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  TableSkeleton,
 } from '@plexica/ui';
 
 import { PluginStatusBadge, ReviewStatusBadge } from './plugin-status-badge.js';
@@ -74,19 +75,9 @@ function PluginRow({ plugin, onReview }: PluginRowProps): JSX.Element {
 
 export function PluginTableSkeleton(): JSX.Element {
   return (
-    <div className="rounded-lg border border-neutral-200">
-      <div className="divide-y divide-neutral-100">
-        {Array.from({ length: 5 }).map((_, i) => (
-          <div key={i} className="flex animate-pulse gap-4 px-4 py-3">
-            <div className="h-4 w-32 rounded bg-neutral-200" />
-            <div className="h-4 w-24 rounded bg-neutral-200" />
-            <div className="h-4 w-20 rounded bg-neutral-200" />
-            <div className="h-4 w-20 rounded bg-neutral-200" />
-            <div className="h-4 w-10 rounded bg-neutral-200" />
-            <div className="h-4 w-16 rounded bg-neutral-200" />
-          </div>
-        ))}
-      </div>
-    </div>
+    <TableSkeleton
+      columnWidths={['w-32', 'w-24', 'w-20', 'w-20', 'w-10', 'w-16']}
+      rows={5}
+    />
   );
 }

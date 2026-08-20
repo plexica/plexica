@@ -4,6 +4,8 @@
 // Uses the Prisma singleton via the withCoreDb wrapper (route layer).
 // No tenant context — admin reads from the global core.tenants table.
 
+import { buildPaginatedResult } from '../../../lib/pagination.js';
+
 import type { PrismaClient, Prisma } from '@prisma/client';
 import type { TenantListItem, TenantListResponse } from '../schemas/tenant-schemas.js';
 
@@ -64,5 +66,5 @@ export async function listTenants(
     version: row.version,
   }));
 
-  return { data, total, page, pageSize };
+  return buildPaginatedResult(data, total, { page, pageSize });
 }

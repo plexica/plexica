@@ -9,7 +9,7 @@
 import { z } from 'zod';
 
 import { withCoreDb } from '../../../lib/tenant-database.js';
-import { ValidationError } from '../../../lib/app-error.js';
+import { parseOrThrow } from '../../../lib/validation.js';
 import { requireSuperAdmin } from '../../../middleware/require-super-admin.js';
 import { getTenantDetail } from '../services/tenant-detail.service.js';
 
@@ -19,24 +19,11 @@ const TenantDetailParamsSchema = z.object({
   id: z.string().uuid(),
 });
 
-export async function tenantDetailRoutes(
-  fastify: FastifyInstance
-): Promise<void> {
+export async function tenantDetailRoutes(fastify: FastifyInstance): Promise<void> {
   // ── GET /api/v1/admin/tenants/:id ──────────────────────────────────────────
-  fastify.get(
-    '/tenants/:id',
-    { preHandler: [requireSuperAdmin] },
-    async (request) => {
-      const parsed = TenantDetailParamsSchema.safeParse(request.params);
-      if (!parsed.success) {
-        throw new ValidationError(
-          parsed.error.issues.map((i) => i.message).join(', ')
-        );
-      }
+  fastify.get('/tenants/:id', { preHandler: [requireSuperAdmin] }, async (request) => {
+    const { id } = parseOrThrow(TenantDetailParamsSchema, request.params);
 
-      const { id } = parsed.data;
-
-      return withCoreDb((prisma) => getTenantDetail(prisma, id));
-    }
-  );
+    return withCoreDb((prisma) => getTenantDetail(prisma, id));
+  });
 }

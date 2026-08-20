@@ -22,14 +22,26 @@
 // - `api-client.ts`  — createApiClient() factory (auto-auth, 401 refresh, error handling)
 // - `auth-store.ts`  — createAuthBaseSlice(), rehydrateStatus(), partializeAuthState()
 // - `use-silent-refresh.ts` — useSilentRefresh() hook
+// - `env-guard.ts`   — requiredOrigin() fail-fast guard for build-time env origins
 
 export type { TokenResponse, BaseUserProfile, AuthStatus, AuthState } from './types.js';
+
+export { extractBaseProfile, isTokenValid } from './jwt.js';
 
 export type { KeycloakClientConfig, KeycloakClient } from './keycloak-client.js';
 
 export type { ApiClientConfig, RequestOptions, ApiClient } from './api-client.js';
 
 export type { AuthBaseState, AuthBaseActions } from './auth-store.js';
+
+export { createAuthStore } from './create-auth-store.js';
+export type {
+  AuthStoreConfig,
+  AuthStoreState,
+  BaseAuthState,
+  BaseAuthActions,
+  ExtraActionsFactory,
+} from './create-auth-store.js';
 
 export type { SilentRefreshConfig } from './use-silent-refresh.js';
 

@@ -3,7 +3,8 @@
 
 import { z } from 'zod';
 
-import { ValidationError, ForbiddenError, WorkspaceNotFoundError } from '../../../lib/app-error.js';
+import { ForbiddenError, WorkspaceNotFoundError } from '../../../lib/app-error.js';
+import { parseOrThrow } from '../../../lib/validation.js';
 import { withTenantDb } from '../../../lib/tenant-database.js';
 import { requireAbac } from '../../../middleware/abac.js';
 import { evaluate } from '../../../modules/abac/engine.js';
@@ -16,7 +17,6 @@ import {
 import { updateVisibilityListSchema } from '../schema/api.js';
 
 import type { FastifyInstance } from 'fastify';
-import type { TenantPrismaClient } from '../../../lib/tenant-database.js';
 import type { AbacContext } from '../../../modules/abac/types.js';
 
 const installIdParamSchema = z.object({ installId: z.string().uuid() });
@@ -29,8 +29,8 @@ export async function visibilityRoutes(fastify: FastifyInstance): Promise<void> 
       const { installId } = installIdParamSchema.parse(request.params);
       const ctx = request.tenantContext;
 
-      return withTenantDb(async (tx: TenantPrismaClient) => {
-        return getVisibilityEntries(tx as never, installId);
+      return withTenantDb(async (db) => {
+        return getVisibilityEntries(db, installId);
       }, ctx);
     }
   );
@@ -45,18 +45,13 @@ export async function visibilityRoutes(fastify: FastifyInstance): Promise<void> 
       const { installId } = installIdParamSchema.parse(request.params);
       const ctx = request.tenantContext;
 
-      const parsed = updateVisibilityListSchema.safeParse(request.body);
-      if (!parsed.success) {
-        throw new ValidationError(parsed.error.issues.map((i) => i.message).join(', '));
-      }
-
-      const updates = parsed.data;
+      const updates = parseOrThrow(updateVisibilityListSchema, request.body);
       const userId = request.user.id;
       const isTenantAdmin = request.user.roles.includes('tenant_admin');
 
-      await withTenantDb(async (tx) => {
+      await withTenantDb(async (db) => {
         const workspaceIds = [...new Set(updates.map((update) => update.workspaceId))];
-        const existing = await tx.workspace.findMany({
+        const existing = await db.workspace.findMany({
           where: { id: { in: workspaceIds } },
           select: { id: true },
         });
@@ -71,20 +66,21 @@ export async function visibilityRoutes(fastify: FastifyInstance): Promise<void> 
             action: 'workspace:update',
             isTenantAdmin,
           };
-          const decision = await evaluate(abacCtx, tx, redis);
+          const decision = await evaluate(abacCtx, db, redis);
           if (!decision.allowed) {
-            throw new ForbiddenError(`Workspace admin required for workspace ${workspaceId}: ${decision.reason}`);
+            throw new ForbiddenError(
+              `Workspace admin required for workspace ${workspaceId}: ${decision.reason}`
+            );
           }
         }
       }, ctx);
 
-      const results = await withTenantDb(async (tx: TenantPrismaClient) => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        return (tx as any).$transaction(async (innerTx: TenantPrismaClient) => {
+      const results = await withTenantDb(async (db) => {
+        return db.$transaction(async (innerTx) => {
           for (const { workspaceId, isEnabled } of updates) {
             await setWorkspaceVisibility(innerTx, installId, workspaceId, isEnabled, userId);
           }
-          return getVisibilityEntries(innerTx as never, installId);
+          return getVisibilityEntries(innerTx, installId);
         });
       }, ctx);
 

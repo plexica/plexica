@@ -10,14 +10,12 @@ import rateLimit from '@fastify/rate-limit';
 import Fastify from 'fastify';
 
 import { config } from './lib/config.js';
-import { disconnectDatabase } from './lib/database.js';
-import { disconnectKafka } from './lib/kafka.js';
-import { startEventWorkers, stopEventWorkers } from './events/event-workers.js';
 import { logger } from './lib/logger.js';
-import { redis, disconnectRedis } from './lib/redis.js';
+import { redis } from './lib/redis.js';
+import { connectRedis, startBackgroundServices, stopBackgroundServices } from './bootstrap.js';
 import {
   GLOBAL_RATE_LIMIT,
-  rateLimitKeyGenerator,
+  rateLimitKey,
   rateLimitErrorResponseBuilder,
 } from './lib/rate-limit-config.js';
 import { configureErrorHandler } from './middleware/error-handler.js';
@@ -33,18 +31,13 @@ import { userManagementRoutes } from './modules/user-management/routes.js';
 import { userProfileRoutes } from './modules/user-profile/routes.js';
 import { tenantSettingsRoutes } from './modules/tenant-settings/routes.js';
 import { auditLogRoutes } from './modules/audit-log/routes.js';
-import { pluginAdminRoutes, pluginTenantRoutes, pluginEventRoutes } from './modules/plugin/index.js';
+import {
+  pluginAdminRoutes,
+  pluginTenantRoutes,
+  pluginEventRoutes,
+} from './modules/plugin/index.js';
 import { adminRoutes } from './modules/admin/index.js';
 import { pluginEventAuth } from './middleware/plugin-event-auth.js';
-import { rateLimit as rateLimitMiddleware } from './middleware/rate-limit.js';
-import { startupSweep } from './modules/admin/services/deletion-saga.service.js';
-import { startMetricsAggregator } from './modules/admin/services/metrics-aggregator.service.js';
-import { prisma } from './lib/database.js';
-import { reconcilePluginRuntimes } from './modules/plugin/services/runtime-recovery.service.js';
-import {
-  startTenantLifecycleWorker,
-  stopTenantLifecycleWorker,
-} from './modules/admin/services/tenant-lifecycle-worker.js';
 
 const server = Fastify({ loggerInstance: logger, trustProxy: config.TRUST_PROXY });
 
@@ -53,25 +46,17 @@ const server = Fastify({ loggerInstance: logger, trustProxy: config.TRUST_PROXY 
 // handler to a child plugin context, leaving sibling routes unprotected.
 configureErrorHandler(server);
 
-// ---------------------------------------------------------------------------
-// Redis — connect eagerly so the first request does not pay the TCP handshake
-// cost. lazyConnect:true in redis.ts means connect() is a no-op if already
-// connected. Failures are non-fatal: @fastify/rate-limit fails open (ADR-012).
-// ---------------------------------------------------------------------------
-try {
-  await redis.connect();
-} catch {
-  logger.warn(
-    'Redis unavailable at startup — rate limiting degraded to in-memory (fail-open per ADR-012)'
-  );
-}
+// Redis must be connected before the rate-limit plugin below is registered
+// with the same client. Never throws — see bootstrap.ts.
+await connectRedis();
 
 // ---------------------------------------------------------------------------
 // Rate limiting — registered before route plugins so all routes are covered.
 // Redis-backed for correctness across multiple Node.js processes.
-// keyGenerator: IP-based at plugin level (request.user not yet populated here).
-// Per-user keying is applied via hook:'preHandler' on individual routes
-// (e.g. POST /api/admin/tenants uses its own keyGenerator in preHandler).
+// keyGenerator: library default (request.ip) — request.user is not yet
+// populated at plugin level. Per-user keying is applied via hook:'preHandler'
+// on individual routes/scopes (e.g. the admin scope below, POST
+// /api/admin/tenants/migrate-all in tenant-routes.ts).
 // Fails open when Redis is unavailable (ADR-012).
 // ---------------------------------------------------------------------------
 await server.register(rateLimit, {
@@ -79,18 +64,14 @@ await server.register(rateLimit, {
   max: GLOBAL_RATE_LIMIT.max,
   timeWindow: GLOBAL_RATE_LIMIT.timeWindow,
   redis,
-  keyGenerator: rateLimitKeyGenerator,
   errorResponseBuilder: rateLimitErrorResponseBuilder,
 });
 
 // ---------------------------------------------------------------------------
-// Multipart support — required for file uploads (logo, avatar).
-// Must be registered before routes that use request.isMultipart().
-// Rate limiting is provided by the global @fastify/rate-limit plugin above
-// (global: true, Redis-backed). Per-route config: { rateLimit: ... } is
-// set on all upload routes. CodeQL js/missing-rate-limiting is suppressed
-// here because the static query cannot trace through Fastify's plugin
-// architecture to see the global rate-limit registration at line 63.
+// Multipart support — required for file uploads (logo, avatar). Must be
+// registered before routes calling request.isMultipart(). Rate limiting comes
+// from the global @fastify/rate-limit plugin registered above; CodeQL cannot
+// trace through Fastify's plugin architecture, hence the suppression below.
 // ---------------------------------------------------------------------------
 // codeql[js/missing-rate-limiting]
 await server.register(multipart, {
@@ -114,9 +95,27 @@ await server.register(invitationPublicRoutes);
 // Super admin plugin management routes — auth-only scope (no tenant context).
 // Also hosts the new admin module (/api/v1/admin/* — Spec 005) which applies
 // requireSuperAdmin per route group inside the module plugin itself.
+//
+// Scoped @fastify/rate-limit registration (the plugin is fp-wrapped, so this
+// adds a second onRoute hook firing only for routes registered inside this
+// scope): admin routes get BOTH the global IP-keyed limit (onRequest) and
+// this stricter user-keyed limit. hook:'preHandler' places the check after
+// authMiddleware (scope-level hooks run before route-level preHandler arrays),
+// so request.user is populated when rateLimitKey runs.
+// Redis-backed: the limit is exact across N replicas — the in-memory limiter
+// it replaces was per-process (effective limit N × max). Trade-off (ADR-012,
+// fail-open): with Redis down, admin endpoints lose this throttling.
 await server.register(async (adminScope) => {
   adminScope.addHook('preHandler', authMiddleware);
-  adminScope.addHook('preHandler', rateLimitMiddleware(config.ADMIN_RATE_LIMIT_MAX, 60000));
+  await adminScope.register(rateLimit, {
+    global: true,
+    max: config.ADMIN_RATE_LIMIT_MAX,
+    timeWindow: '1 minute',
+    hook: 'preHandler',
+    keyGenerator: rateLimitKey,
+    redis,
+    errorResponseBuilder: rateLimitErrorResponseBuilder,
+  });
   await adminScope.register(pluginAdminRoutes);
   await adminScope.register(adminRoutes);
 });
@@ -126,9 +125,10 @@ await server.register(async (adminScope) => {
 // Registered OUTSIDE the tenantScope because authMiddleware would reject
 // service-token requests (no Authorization header) with 401 before the
 // handler runs. pluginEventAuth handles both paths.
+// Rate limiting is per-route on POST /api/v1/events/emit (100 req/min,
+// Redis-backed — see events.routes.ts).
 await server.register(async (eventScope) => {
   eventScope.addHook('preHandler', pluginEventAuth);
-  eventScope.addHook('preHandler', rateLimitMiddleware(100, 60000));
   await eventScope.register(pluginEventRoutes);
 });
 
@@ -153,16 +153,31 @@ await server.register(async (tenantScope) => {
 // ---------------------------------------------------------------------------
 // Graceful shutdown
 // ---------------------------------------------------------------------------
+let shuttingDown = false;
+
 async function shutdown(signal: string): Promise<void> {
+  // A second signal (or SIGINT after SIGTERM) must not run the teardown twice.
+  if (shuttingDown) {
+    logger.warn({ signal }, 'Shutdown already in progress — signal ignored');
+    return;
+  }
+  shuttingDown = true;
+
   logger.info({ signal }, 'Shutdown signal received — closing server');
-  await server.close();
-  await stopTenantLifecycleWorker();
-  await stopEventWorkers();
-  await disconnectDatabase();
-  await disconnectRedis();
-  await disconnectKafka();
-  logger.info('Server closed gracefully');
-  process.exit(0);
+  let exitCode = 0;
+  try {
+    await server.close();
+    await stopBackgroundServices();
+    logger.info('Server closed gracefully');
+  } catch (err) {
+    // try/finally guarantees process.exit is reached: shutdown() is invoked as
+    // `void shutdown(...)`, so a rejection here would leave the process alive
+    // and dependent on the event loop draining on its own.
+    exitCode = 1;
+    logger.error({ err, signal }, 'Graceful shutdown failed — exiting anyway');
+  } finally {
+    process.exit(exitCode);
+  }
 }
 
 process.on('SIGINT', () => void shutdown('SIGINT'));
@@ -173,23 +188,7 @@ process.on('SIGTERM', () => void shutdown('SIGTERM'));
 // ---------------------------------------------------------------------------
 async function start(): Promise<void> {
   try {
-    await startEventWorkers();
-    startTenantLifecycleWorker();
-
-    // Discover every pending saga; CAS leases delay live work and recover crashed work.
-    void startupSweep(prisma).catch(() =>
-      logger.error('Deletion saga startup sweep failed')
-    );
-
-    // Restore Kafka subscriptions held only in memory before accepting new
-    // workspace events. Individual broken installations do not block startup.
-    await reconcilePluginRuntimes();
-
-    // Scheduled job: aggregate user/workspace counts across tenant schemas
-    // into Redis (5-minute interval). Dashboard reads the cached totals.
-    // Errors within each tick are caught and logged inside the aggregator.
-    startMetricsAggregator();
-
+    await startBackgroundServices();
     await server.listen({ port: config.PORT, host: '0.0.0.0' });
   } catch (err) {
     logger.error({ err }, 'Server failed to start');

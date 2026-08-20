@@ -10,22 +10,9 @@ import { deleteBucket } from '../../lib/minio-client.js';
 import { deleteRealm } from '../../lib/keycloak-admin.js';
 import { toSchemaName } from '../../lib/tenant-schema-helpers.js';
 import { tenantProvisionRoutes } from '../../modules/admin/routes/tenant-provision.routes.js';
-import {
-  createTestServer,
-  isDbReachable,
-  isKeycloakReachable,
-  isMinioReachable,
-  makeFullStub,
-} from '../helpers/server.helpers.js';
+import { createAdminTestServer, requireInfra } from '../helpers/server.helpers.js';
 
 import type { FastifyInstance } from 'fastify';
-import type { TenantContext } from '../../lib/tenant-context-store.js';
-
-const SUPER_ADMIN_ACTOR = '00000000-0000-0000-0000-000000000000';
-const masterCtx: TenantContext = {
-  slug: 'system', schemaName: 'core', realmName: 'master',
-  tenantId: SUPER_ADMIN_ACTOR,
-};
 
 const SUFFIX = Date.now().toString(36);
 const SLUG = `intprov-${SUFFIX}`;
@@ -36,21 +23,11 @@ const SCHEMA_EDGE = toSchemaName(SCHEMA_EDGE_SLUG);
 let server: FastifyInstance;
 
 beforeAll(async () => {
-  const dbOk = await isDbReachable();
-  const kcOk = await isKeycloakReachable();
-  const minioOk = await isMinioReachable();
-  if (!dbOk || !kcOk || !minioOk) {
-    throw new Error(
-      'PostgreSQL + Keycloak + MinIO must all be reachable for tenant provisioning integration tests.'
-    );
-  }
+  await requireInfra('tenant provisioning integration tests');
   // Pre-create a schema with no tenant row to exercise the schema_exists path.
   await prisma.$executeRawUnsafe(`CREATE SCHEMA IF NOT EXISTS "${SCHEMA_EDGE}"`);
 
-  server = await createTestServer();
-  server.addHook('preHandler', makeFullStub(SUPER_ADMIN_ACTOR, masterCtx, ['super_admin']));
-  await server.register(tenantProvisionRoutes, { prefix: '/api/v1/admin' });
-  await server.ready();
+  server = await createAdminTestServer([tenantProvisionRoutes]);
 });
 
 afterAll(async () => {
@@ -69,7 +46,8 @@ afterAll(async () => {
 describe('POST /api/v1/admin/tenants — provisioning', () => {
   it('happy path: provisions tenant → 201, tenant row present, audit logged', async () => {
     const res = await server.inject({
-      method: 'POST', url: '/api/v1/admin/tenants',
+      method: 'POST',
+      url: '/api/v1/admin/tenants',
       payload: { slug: SLUG, name: 'Integration Prov Org', adminEmail: `admin@${SLUG}.example` },
     });
     expect(res.statusCode).toBe(201);
@@ -91,7 +69,8 @@ describe('POST /api/v1/admin/tenants — provisioning', () => {
 
   it('edge: duplicate slug → 409 conflictType=tenant_slug_exists', async () => {
     const res = await server.inject({
-      method: 'POST', url: '/api/v1/admin/tenants',
+      method: 'POST',
+      url: '/api/v1/admin/tenants',
       payload: { slug: SLUG, name: 'Dup', adminEmail: `dup@${SLUG}.example` },
     });
     expect(res.statusCode).toBe(409);
@@ -101,9 +80,11 @@ describe('POST /api/v1/admin/tenants — provisioning', () => {
 
   it('edge: schema already exists (no tenant row) → 409 conflictType=schema_exists', async () => {
     const res = await server.inject({
-      method: 'POST', url: '/api/v1/admin/tenants',
+      method: 'POST',
+      url: '/api/v1/admin/tenants',
       payload: {
-        slug: SCHEMA_EDGE_SLUG, name: 'Schema Conflict',
+        slug: SCHEMA_EDGE_SLUG,
+        name: 'Schema Conflict',
         adminEmail: `sch@${SCHEMA_EDGE_SLUG}.example`,
       },
     });
@@ -114,7 +95,8 @@ describe('POST /api/v1/admin/tenants — provisioning', () => {
 
   it('edge: invalid body → 422', async () => {
     const res = await server.inject({
-      method: 'POST', url: '/api/v1/admin/tenants',
+      method: 'POST',
+      url: '/api/v1/admin/tenants',
       payload: { slug: 'BAD!!', name: '', adminEmail: 'not-an-email' },
     });
     expect(res.statusCode).toBe(422);

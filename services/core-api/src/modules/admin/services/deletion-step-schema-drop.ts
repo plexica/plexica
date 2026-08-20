@@ -5,13 +5,16 @@
 // saga executor records the error and retries with backoff.
 
 import { logger } from '../../../lib/logger.js';
+import { invalidateTenantDbClient } from '../../../lib/tenant-database.js';
+import { SCHEMA_NAME_REGEX } from '../../../lib/tenant-schema-helpers.js';
 
 import type { PrismaClient } from '@prisma/client';
 
-// Defence-in-depth: validate the derived schema name matches the exact shape
-// produced by toSchemaName before interpolating into DDL. PostgreSQL schema
-// names cannot be parameterised, so a strict allowlist regex is the guard.
-const SCHEMA_NAME_REGEX = /^tenant_[a-z0-9_]{1,55}$/;
+// SCHEMA_NAME_REGEX (canonical, lib/tenant-schema-helpers.ts) is the
+// defence-in-depth guard: validate the derived schema name matches the exact
+// shape produced by toSchemaName before interpolating into DDL. PostgreSQL
+// schema names cannot be parameterised, so a strict allowlist regex is the
+// guard.
 
 /**
  * Drops the PostgreSQL schema `tenant_<slug>` (hyphens → underscores) with
@@ -30,6 +33,12 @@ export async function executeSchemaDrop(
   logger.info({ tenantId }, 'Dropping tenant PostgreSQL schema');
 
   await prisma.$executeRawUnsafe(`DROP SCHEMA IF EXISTS "${schemaName}" CASCADE`);
+
+  // ADR-027: evict the cached TenantPrismaClient for this schema. A cached
+  // client holding pooled connections to a dropped schema would fail on its
+  // next use. Done AFTER the drop so a client recreated during the drop
+  // window is removed too. Never throws (disconnect failures are logged).
+  await invalidateTenantDbClient(schemaName);
 
   logger.info({ tenantId }, 'Tenant PostgreSQL schema dropped');
 }

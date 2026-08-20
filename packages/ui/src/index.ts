@@ -29,7 +29,6 @@ export {
   TableHead,
   TableCell,
 } from './components/table.js';
-export type { TableHeadProps } from './components/table.js';
 
 export {
   DropdownMenuRoot,
@@ -85,5 +84,26 @@ export {
   PopoverAnchor,
 } from './components/popover.js';
 
+export { EmptyState } from './components/empty-state.js';
+export type { EmptyStateProps } from './components/empty-state.js';
+
+export { ErrorState } from './components/error-state.js';
+export type { ErrorStateProps } from './components/error-state.js';
+
+export { SkeletonLoader } from './components/skeleton-loader.js';
+export type { SkeletonLoaderProps, SkeletonVariant } from './components/skeleton-loader.js';
+
+export { TableSkeleton } from './components/table-skeleton.js';
+export type { TableSkeletonProps } from './components/table-skeleton.js';
+
+export { CardGridSkeleton } from './components/card-grid-skeleton.js';
+export type { CardGridSkeletonProps } from './components/card-grid-skeleton.js';
+
+// Accessibility & error boundary (Decision 7, 2026-08-18)
+export { SkipLink } from './components/skip-link.js';
+export { ErrorFallback } from './components/error-fallback.js';
+export { RouteErrorBoundary } from './components/route-error-boundary.js';
+
 // Utilities
 export { cn } from './lib/cn.js';
+export { useMediaQuery } from './lib/use-media-query.js';

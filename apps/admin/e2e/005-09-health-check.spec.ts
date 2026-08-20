@@ -8,6 +8,8 @@ import { loginAsAdmin, hasKeycloak, requireKeycloakInCI } from './helpers/admin-
 
 const EXPECTED_SERVICES = ['postgres', 'redis', 'keycloak', 'kafka', 'minio'] as const;
 
+test.describe.configure({ mode: 'parallel' });
+
 test.describe('005-09 System health', () => {
   test.skip(!hasKeycloak, 'Requires live Keycloak');
   test.beforeAll(() => requireKeycloakInCI());

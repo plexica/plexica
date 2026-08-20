@@ -7,9 +7,8 @@
 import { prisma } from '../../../lib/database.js';
 import { logger } from '../../../lib/logger.js';
 import { redis } from '../../../lib/redis.js';
-import { toSchemaName } from '../../../lib/tenant-schema-helpers.js';
+import { SCHEMA_NAME_REGEX, toSchemaName } from '../../../lib/tenant-schema-helpers.js';
 
-const SCHEMA_NAME_REGEX = /^tenant_[a-z0-9_]+$/;
 const USER_COUNT_KEY = 'metrics:user_count:total';
 const WORKSPACE_COUNT_KEY = 'metrics:workspace_count:total';
 const DEFAULT_INTERVAL_MS = 300_000; // 5 minutes
@@ -98,22 +97,51 @@ export async function aggregateMetrics(): Promise<void> {
   );
 }
 
+let aggregatorInterval: NodeJS.Timeout | null = null;
+let aggregatorTick: Promise<void> | null = null;
+
+async function runTick(): Promise<void> {
+  try {
+    await aggregateMetrics();
+  } catch (err) {
+    logger.error({ err }, 'Metrics aggregator tick failed');
+  }
+}
+
+function scheduleTick(): void {
+  // Skip if the previous tick is still walking the tenant schemas.
+  if (aggregatorTick) return;
+  aggregatorTick = runTick().finally(() => {
+    aggregatorTick = null;
+  });
+}
+
 /**
  * Start the metrics aggregator: run once immediately, then on a fixed
- * interval. Returns the interval handle for cleanup. Errors in the
- * scheduled tick are caught and logged so the process never crashes.
+ * interval. Errors in the scheduled tick are caught and logged so the process
+ * never crashes.
+ *
+ * The handle is kept in module scope and released by stopMetricsAggregator();
+ * the interval is also unref'd so it can never by itself keep the event loop
+ * alive during a shutdown (mirrors outbox-publisher.ts).
  */
-export function startMetricsAggregator(
-  intervalMs: number = DEFAULT_INTERVAL_MS
-): NodeJS.Timeout {
-  const tick = async (): Promise<void> => {
-    try {
-      await aggregateMetrics();
-    } catch (err) {
-      logger.error({ err }, 'Metrics aggregator tick failed');
-    }
-  };
+export function startMetricsAggregator(intervalMs: number = DEFAULT_INTERVAL_MS): void {
+  if (aggregatorInterval) return;
 
-  void tick();
-  return setInterval(() => void tick(), intervalMs);
+  scheduleTick();
+  aggregatorInterval = setInterval(scheduleTick, intervalMs);
+  aggregatorInterval.unref();
+}
+
+/**
+ * Stop the aggregator and await the in-flight tick, so no Prisma or Redis
+ * query is still pending when the shutdown closes those connections.
+ */
+export async function stopMetricsAggregator(): Promise<void> {
+  if (aggregatorInterval) {
+    clearInterval(aggregatorInterval);
+    aggregatorInterval = null;
+  }
+  await aggregatorTick?.catch(() => undefined);
+  aggregatorTick = null;
 }

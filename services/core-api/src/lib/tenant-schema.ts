@@ -14,7 +14,7 @@ import {
 
 import type { Prisma } from '@prisma/client';
 
-export interface TenantCreationParams {
+interface TenantCreationParams {
   slug: string;
   name?: string;
   minioBucket?: string;

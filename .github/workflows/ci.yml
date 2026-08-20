@@ -7,6 +7,13 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# Cancel superseded runs on the same ref: on pull requests only the latest
+# push matters, so stale in-progress runs are cancelled. Runs on main are
+# never cancelled so merge results (and this run's artifacts) are preserved.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 env:
   NODE_ENV: test
   DATABASE_URL: postgresql://plexica:changeme@localhost:5432/plexica
@@ -44,6 +51,12 @@ jobs:
 
       - name: Checkout repository
         uses: actions/checkout@v7
+      # No `cache: 'pnpm'` here: this job runs on a self-hosted runner whose
+      # filesystem persists between runs, so the pnpm store is already warm
+      # (same rationale as skipping the Docker image tar cache in
+      # .github/actions/docker-infra/action.yml). A tar-based actions/cache
+      # round-trip would add I/O slower than the warm local store.
+      # Revisit only if the runners ever become ephemeral.
       - name: Setup Node.js 24
         uses: actions/setup-node@v7
         with:
@@ -62,10 +75,16 @@ jobs:
           printf 'PLUGIN_CREDENTIAL_PEPPER=%s\n' "$(to_base64url)" >> "$GITHUB_ENV"
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+      # ADR-028: `pnpm install` runs the core-api `prepare` script, which runs
+      # `db:generate` (it needs no database — prisma generate only reads the
+      # schema files). No explicit `db:generate` step here on purpose: one
+      # would mask the prepare mechanism — if it ever stopped working, CI
+      # would stay green while fresh clones broke. This check fails the build
+      # at the exact point a fresh clone would fail.
+      - name: Verify generated Prisma client exists
+        run: test -f services/core-api/prisma/generated/tenant-client/index.d.ts
       - name: Verify authored-file line gate
         run: pnpm test:line-gate && pnpm check:lines
-      - name: Generate Prisma client
-        run: pnpm --filter core-api db:generate
       - name: Build Keycloak theme JAR
         run: pnpm --filter @plexica/keycloak-theme build
 
@@ -80,12 +99,10 @@ jobs:
           keycloak-admin-password: changeme
       - name: Lint
         run: pnpm lint
-      - name: Typecheck
-        run: pnpm typecheck
       - name: Build
-        run: pnpm -r --filter='!@plexica/plugin-crm' --filter='!plexica' run build
-      - name: Admin app build (S5-C10)
-        run: pnpm --filter @plexica/admin build
+        run: |
+          pnpm -r --filter='!@plexica/plugin-crm' --filter='!plexica' run build
+          pnpm -r --filter '@plexica/auth' --filter '@plexica/sdk' --filter 'create-plexica-plugin' --filter '@plexica/keycloak-theme' --filter '@plexica/plugin-crm' run typecheck
       - name: Wait for Docker infrastructure to be healthy
         uses: ./.github/actions/docker-infra
         with:
@@ -106,16 +123,17 @@ jobs:
       - name: Run unit and integration tests
         run: pnpm --filter core-api test
         env:
-          DATABASE_URL: ${{ env.DATABASE_URL }}
-          KEYCLOAK_URL: ${{ env.KEYCLOAK_URL }}
-          KEYCLOAK_ADMIN_USER: ${{ env.KEYCLOAK_ADMIN_USER }}
-          KEYCLOAK_ADMIN_PASSWORD: ${{ env.KEYCLOAK_ADMIN_PASSWORD }}
-          REDIS_URL: ${{ env.REDIS_URL }}
-          MINIO_ENDPOINT: ${{ env.MINIO_ENDPOINT }}
-          MINIO_ACCESS_KEY: ${{ env.MINIO_ACCESS_KEY }}
-          MINIO_SECRET_KEY: ${{ env.MINIO_SECRET_KEY }}
-          KAFKA_BROKERS: ${{ env.KAFKA_BROKERS }}
-          LOKI_URL: ${{ env.LOKI_URL }}
+          NODE_OPTIONS: '--trace-warnings'
+
+      # Free ~2.3 GB before the web E2E suite boots its own isolated compose
+      # stack (project plexica-e2e-*, ports 15432/16379/18080/...), otherwise
+      # two full stacks (~4.5 GB) run in parallel on a 7 GB runner.
+      # `stop` — not `down -v` — preserves containers and volumes: the admin
+      # E2E suite below still runs against this plexica-ci stack and expects
+      # the migrated database and provisioned Keycloak realm. The stack is
+      # restarted just before the admin E2E step.
+      - name: Stop Docker infrastructure before web E2E tests
+        run: docker compose -f docker-compose.yml -f docker-compose.ci.yml stop
 
       - name: Clean up ports and stale E2E containers for Playwright
         run: |
@@ -131,16 +149,6 @@ jobs:
           CI: 'true'
           RATE_LIMIT_MAX: '1000'
           ADMIN_RATE_LIMIT_MAX: '1000'
-          DATABASE_URL: ${{ env.DATABASE_URL }}
-          KEYCLOAK_URL: ${{ env.KEYCLOAK_URL }}
-          KEYCLOAK_ADMIN_USER: ${{ env.KEYCLOAK_ADMIN_USER }}
-          KEYCLOAK_ADMIN_PASSWORD: ${{ env.KEYCLOAK_ADMIN_PASSWORD }}
-          REDIS_URL: ${{ env.REDIS_URL }}
-          MINIO_ENDPOINT: ${{ env.MINIO_ENDPOINT }}
-          MINIO_ACCESS_KEY: ${{ env.MINIO_ACCESS_KEY }}
-          MINIO_SECRET_KEY: ${{ env.MINIO_SECRET_KEY }}
-          KAFKA_BROKERS: ${{ env.KAFKA_BROKERS }}
-          LOKI_URL: ${{ env.LOKI_URL }}
       - name: Upload Playwright report on failure
         if: failure()
         uses: actions/upload-artifact@v7
@@ -153,6 +161,18 @@ jobs:
         run: |
           docker ps -aq --filter "name=plexica-e2e-" 2>/dev/null | xargs -r docker rm -f
           bash .github/actions/docker-infra/scripts/cleanup-ports.sh 3001 3002
+      # Restart the stack stopped above: admin E2E targets the plexica-ci
+      # ports (postgres 5432, keycloak 8080, redis 6379, minio 9000,
+      # redpanda 19092, loki 3100) via the job-level env. Containers and
+      # volumes were preserved, so the migrated schema and Keycloak realm
+      # are intact; --wait blocks until every service is healthy again.
+      # One-shot init containers (keycloak-init, redpanda-init) are not
+      # re-run: their side effects persist in the preserved volumes.
+      - name: Restart Docker infrastructure for admin E2E tests
+        run: |
+          docker compose -f docker-compose.yml -f docker-compose.ci.yml \
+            up -d --wait --wait-timeout 300 \
+            postgres keycloak redis minio redpanda mailpit loki
       - name: Run admin Playwright E2E tests
         run: pnpm --filter @plexica/admin e2e
         env:
@@ -161,16 +181,6 @@ jobs:
           CI: 'true'
           RATE_LIMIT_MAX: '1000'
           ADMIN_RATE_LIMIT_MAX: '1000'
-          DATABASE_URL: ${{ env.DATABASE_URL }}
-          KEYCLOAK_URL: ${{ env.KEYCLOAK_URL }}
-          KEYCLOAK_ADMIN_USER: ${{ env.KEYCLOAK_ADMIN_USER }}
-          KEYCLOAK_ADMIN_PASSWORD: ${{ env.KEYCLOAK_ADMIN_PASSWORD }}
-          REDIS_URL: ${{ env.REDIS_URL }}
-          MINIO_ENDPOINT: ${{ env.MINIO_ENDPOINT }}
-          MINIO_ACCESS_KEY: ${{ env.MINIO_ACCESS_KEY }}
-          MINIO_SECRET_KEY: ${{ env.MINIO_SECRET_KEY }}
-          KAFKA_BROKERS: ${{ env.KAFKA_BROKERS }}
-          LOKI_URL: ${{ env.LOKI_URL }}
           PLAYWRIGHT_LOKI_URL: ${{ env.LOKI_URL }}
       - name: Upload admin Playwright report on failure
         if: failure()

@@ -2,6 +2,7 @@
 // Page object helpers for workspace settings, delete, and restore operations.
 // Extracted from workspace.ts to keep files under 200 lines.
 
+import { expectResponseTo } from './api-response.js';
 import { openWorkspaceSettings } from './workspace.js';
 
 import type { Page } from '@playwright/test';
@@ -12,23 +13,27 @@ import type { Page } from '@playwright/test';
 
 /**
  * Updates the workspace name via the settings form.
- * Navigates to settings, updates name, saves.
+ * Navigates to settings, updates name, saves, and asserts the PATCH round-trip
+ * through the shared convention (exact pathname + 200) instead of the previous
+ * `if (status >= 400) throw`, which also accepted 204/304 and reported failures
+ * as raw stack traces.
  */
 export async function updateWorkspaceName(page: Page, newName: string): Promise<void> {
   await openWorkspaceSettings(page);
+  const workspaceId = workspaceIdFromUrl(page);
   const nameInput = page.getByLabel(/^name$/i);
   await nameInput.clear();
   await nameInput.fill(newName);
-  const saveBtn = page.getByRole('button', { name: /save/i });
-  // Wait for the PATCH response to complete
-  const [response] = await Promise.all([
-    page.waitForResponse(
-      (r) => r.url().includes('/api/v1/workspaces/') && r.request().method() === 'PATCH'
-    ),
-    saveBtn.click(),
-  ]);
-  // Ensure the update succeeded
-  if (response.status() >= 400) throw new Error(`Update failed: ${response.status()}`);
+  await expectResponseTo(page, `/api/v1/workspaces/${workspaceId}`, 'PATCH', async () => {
+    await page.getByRole('button', { name: /save/i }).click();
+  });
+}
+
+/** Extracts the workspace UUID from the current settings URL. */
+function workspaceIdFromUrl(page: Page): string {
+  const match = /\/workspaces\/([a-zA-Z0-9-]+)/.exec(page.url());
+  if (match?.[1] === undefined) throw new Error(`Not on a workspace page: ${page.url()}`);
+  return match[1];
 }
 
 // ---------------------------------------------------------------------------

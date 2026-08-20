@@ -21,14 +21,14 @@ export interface DashboardStats {
 export function useDashboardStats(): DashboardStats {
   const workspaces = useQuery({
     queryKey: ['dashboard', 'workspace-count'],
-    queryFn: () => workspaceApi.list({ limit: 1, status: 'active' }),
+    queryFn: () => workspaceApi.list({ pageSize: 1, status: 'active' }),
     staleTime: 2 * 60 * 1000,
     placeholderData: keepPreviousData,
   });
 
   const users = useQuery({
     queryKey: ['dashboard', 'user-count'],
-    queryFn: () => userApi.list({ limit: 1 }),
+    queryFn: () => userApi.list({ pageSize: 1 }),
     staleTime: 2 * 60 * 1000,
     placeholderData: keepPreviousData,
   });

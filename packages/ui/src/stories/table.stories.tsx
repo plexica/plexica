@@ -22,8 +22,8 @@ export const Default: StoryObj = {
     <Table>
       <TableHeader>
         <TableRow>
-          <TableHead sortable sortDirection="asc">Name</TableHead>
-          <TableHead sortable sortDirection="none">Role</TableHead>
+          <TableHead>Name</TableHead>
+          <TableHead>Role</TableHead>
           <TableHead>Status</TableHead>
         </TableRow>
       </TableHeader>

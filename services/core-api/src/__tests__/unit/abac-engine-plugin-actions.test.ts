@@ -27,7 +27,9 @@ const mockGetMembership = vi.mocked(getMembership);
 const mockGetPluginOverride = vi.mocked(getPluginActionOverride);
 const mockGetPluginDefaultRole = vi.mocked(getPluginActionDefaultRole);
 const fakeRedis = {} as Parameters<typeof evaluate>[2];
-const fakeTenantDb = {};
+// Never actually called (module fns are vi.mock'ed) — cast across the ADR-028
+// tenant-client type boundary.
+const fakeTenantDb = {} as unknown as Parameters<typeof evaluate>[1];
 const nonMember: CachedMembership = { role: null, isTenantAdmin: false };
 
 function makeCtx(action: string, overrides: Partial<AbacContext> = {}): AbacContext {

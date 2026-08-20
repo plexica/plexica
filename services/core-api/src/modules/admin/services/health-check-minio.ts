@@ -5,18 +5,6 @@
 
 import { pingMinio } from '../../../lib/minio-client.js';
 
-import { buildServiceResult, withProbeTimeout } from './health-checker.service.js';
+import { makeProbe, withProbeTimeout } from './health-checker.service.js';
 
-import type { HealthServiceResult } from '../schemas/health-schemas.js';
-
-export async function probeMinio(): Promise<HealthServiceResult> {
-  const name = 'minio';
-  const start = performance.now();
-
-  try {
-    await withProbeTimeout(pingMinio());
-    return buildServiceResult(name, Math.round(performance.now() - start), null);
-  } catch (error) {
-    return buildServiceResult(name, Math.round(performance.now() - start), error);
-  }
-}
+export const probeMinio = makeProbe('minio', () => withProbeTimeout(pingMinio()));

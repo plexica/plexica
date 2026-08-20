@@ -6,9 +6,11 @@ import { z } from 'zod';
 import { withCoreDb } from '../../../lib/tenant-database.js';
 import { requireSuperAdmin } from '../../../middleware/require-super-admin.js';
 import { dismissDlqEntry, retryDlqEntry } from '../events/dlq.service.js';
-import { ValidationError } from '../../../lib/app-error.js';
+import { parseOrThrow } from '../../../lib/validation.js';
+import { buildPaginatedResult } from '../../../lib/pagination.js';
 
 import type { FastifyInstance } from 'fastify';
+import type { Prisma } from '@prisma/client';
 
 const DlqPageSizeMax = 100;
 
@@ -22,19 +24,13 @@ const listQuerySchema = z.object({
 export async function dlqRoutes(fastify: FastifyInstance): Promise<void> {
   // ── GET /api/v1/admin/system/dlq ──────────────────────────────────────────
   fastify.get('/api/v1/admin/system/dlq', { preHandler: [requireSuperAdmin] }, async (request) => {
-    const parsed = listQuerySchema.safeParse(request.query);
-    if (!parsed.success) {
-      throw new ValidationError(parsed.error.issues.map((i) => i.message).join(', '));
-    }
-
-    const { status, pluginId, page, pageSize } = parsed.data;
-    const where: Record<string, unknown> = {};
+    const { status, pluginId, page, pageSize } = parseOrThrow(listQuerySchema, request.query);
+    const where: Prisma.DeadLetterQueueWhereInput = {};
     if (status) where.status = status;
     if (pluginId) where.pluginId = pluginId;
 
     return withCoreDb((prisma) =>
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (prisma as any).$transaction(async (tx: any) => {
+      prisma.$transaction(async (tx) => {
         const [data, total] = await Promise.all([
           tx.deadLetterQueue.findMany({
             where,
@@ -44,15 +40,18 @@ export async function dlqRoutes(fastify: FastifyInstance): Promise<void> {
           }),
           tx.deadLetterQueue.count({ where }),
         ]);
-        return {
-          data: data.map((entry: { originalOffset: bigint }) => ({
+        // Canonical envelope via buildPaginatedResult (Decision 4, 2026-08-18):
+        // { data, total, page, pageSize, totalPages }. The previous hand-built
+        // envelope omitted totalPages (page 2+ unreachable from the UI) and
+        // renamed limit→pageSize via a spread workaround — both eliminated.
+        return buildPaginatedResult(
+          data.map((entry) => ({
             ...entry,
             originalOffset: entry.originalOffset.toString(),
           })),
           total,
-          page,
-          pageSize,
-        };
+          { page, pageSize },
+        );
       })
     );
   });
@@ -64,9 +63,7 @@ export async function dlqRoutes(fastify: FastifyInstance): Promise<void> {
     '/api/v1/admin/system/dlq/:id/retry',
     { preHandler: [requireSuperAdmin] },
     async (request) => {
-      const parsed = idParamSchema.safeParse(request.params);
-      if (!parsed.success) throw new ValidationError('Invalid DLQ entry ID');
-      const { id } = parsed.data;
+      const { id } = parseOrThrow(idParamSchema, request.params);
 
       await withCoreDb((prisma) => retryDlqEntry(prisma, id));
       return { status: 'retried' };
@@ -78,9 +75,7 @@ export async function dlqRoutes(fastify: FastifyInstance): Promise<void> {
     '/api/v1/admin/system/dlq/:id/dismiss',
     { preHandler: [requireSuperAdmin] },
     async (request) => {
-      const parsed = idParamSchema.safeParse(request.params);
-      if (!parsed.success) throw new ValidationError('Invalid DLQ entry ID');
-      const { id } = parsed.data;
+      const { id } = parseOrThrow(idParamSchema, request.params);
 
       await withCoreDb((prisma) => dismissDlqEntry(prisma, id));
       return { status: 'dismissed' };

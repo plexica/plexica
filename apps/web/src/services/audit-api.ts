@@ -10,7 +10,7 @@ export const auditApi = {
   list: (filters?: AuditLogFilters) => {
     const params: Record<string, string> = {};
     if (filters?.page !== undefined) params['page'] = String(filters.page);
-    if (filters?.limit !== undefined) params['limit'] = String(filters.limit);
+    if (filters?.pageSize !== undefined) params['pageSize'] = String(filters.pageSize);
     if (filters?.actorId) params['actorId'] = filters.actorId;
     if (filters?.actionType) params['actionType'] = filters.actionType;
     if (filters?.fromDate) params['fromDate'] = filters.fromDate;
@@ -20,6 +20,7 @@ export const auditApi = {
       data: AuditLogEntry[];
       total: number;
       page: number;
+      pageSize: number;
       totalPages: number;
     }>(`/api/v1/tenant/audit-log${qs}`);
   },

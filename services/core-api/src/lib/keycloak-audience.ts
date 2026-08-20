@@ -1,5 +1,5 @@
 import { config } from './config.js';
-import { adminRequest } from './keycloak-admin-internal.js';
+import { adminRequestOk } from './keycloak-admin-internal.js';
 import { buildAudienceMapperPayload } from './keycloak-admin-helpers.js';
 
 interface ProtocolMapper extends Record<string, unknown> {
@@ -11,11 +11,12 @@ interface ProtocolMapper extends Record<string, unknown> {
 const MAPPER_NAME = 'audience-mapper';
 
 async function readMappers(realm: string, clientUuid: string): Promise<ProtocolMapper[]> {
-  const response = await adminRequest(
+  const response = await adminRequestOk(
     `/admin/realms/${realm}/clients/${clientUuid}/protocol-mappers/models`,
-    'GET'
+    'GET',
+    undefined,
+    { context: `Failed to read audience mapper in ${realm}` }
   );
-  if (!response.ok) throw new Error(`Failed to read audience mapper in ${realm}`);
   return (await response.json()) as ProtocolMapper[];
 }
 
@@ -25,11 +26,17 @@ export async function reconcileApiAudienceMapper(realm: string, clientUuid: stri
   const desired = buildAudienceMapperPayload(config.KEYCLOAK_API_AUDIENCE);
   const existing = matches[0];
   const path = `/admin/realms/${realm}/clients/${clientUuid}/protocol-mappers/models`;
-  const response =
-    existing === undefined
-      ? await adminRequest(path, 'POST', desired)
-      : await adminRequest(`${path}/${String(existing.id)}`, 'PUT', { ...existing, ...desired });
-  if (!response.ok) throw new Error(`Failed to reconcile API audience mapper in ${realm}`);
+  const context = `Failed to reconcile API audience mapper in ${realm}`;
+  if (existing === undefined) {
+    await adminRequestOk(path, 'POST', desired, { context });
+  } else {
+    await adminRequestOk(
+      `${path}/${String(existing.id)}`,
+      'PUT',
+      { ...existing, ...desired },
+      { context }
+    );
+  }
 
   const verified = (await readMappers(realm, clientUuid)).find(({ name }) => name === MAPPER_NAME);
   const mapperConfig = verified?.config as Record<string, unknown> | undefined;

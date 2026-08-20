@@ -10,13 +10,7 @@ import { provisionTenant } from '../../modules/tenant/tenant-provisioning.js';
 import { tenantDeleteRoutes } from '../../modules/admin/routes/tenant-delete.routes.js';
 import { deletionStatusRoutes } from '../../modules/admin/routes/deletion-status.routes.js';
 import * as eventPurgeModule from '../../modules/admin/services/deletion-step-event-data-purge.js';
-import {
-  createTestServer,
-  isDbReachable,
-  isKeycloakReachable,
-  isMinioReachable,
-  makeFullStub,
-} from '../helpers/server.helpers.js';
+import { createAdminTestServer, requireInfra } from '../helpers/server.helpers.js';
 import {
   deleteEventResidue,
   poll,
@@ -25,13 +19,7 @@ import {
 } from '../helpers/deletion.helpers.js';
 
 import type { FastifyInstance } from 'fastify';
-import type { TenantContext } from '../../lib/tenant-context-store.js';
 import type { ProvisioningResult } from '../../modules/tenant/tenant-provisioning.js';
-const SUPER_ADMIN_ACTOR = '00000000-0000-0000-0000-000000000000';
-const masterCtx: TenantContext = {
-  slug: 'system', schemaName: 'core', realmName: 'master',
-  tenantId: SUPER_ADMIN_ACTOR,
-};
 const HAPPY_SLUG = `intdel-${Date.now().toString(36)}`;
 const RETRY_SLUG = `intdelr-${Date.now().toString(36)}`;
 let server: FastifyInstance;
@@ -40,18 +28,14 @@ let retryTenant: ProvisioningResult;
 let happyRedisKeys: string[] = [];
 let happyKeyVersion = 0;
 
+const provision = (slug: string, name: string): Promise<ProvisioningResult> =>
+  provisionTenant({ slug, name, adminEmail: `admin@${slug}.example` });
+
 beforeAll(async () => {
-  const dbOk = await isDbReachable();
-  const kcOk = await isKeycloakReachable();
-  const minioOk = await isMinioReachable();
-  if (!dbOk || !kcOk || !minioOk) {
-    throw new Error(
-      'PostgreSQL + Keycloak + MinIO must all be reachable for tenant deletion integration tests.'
-    );
-  }
+  await requireInfra('tenant deletion integration tests');
   [happy, retryTenant] = await Promise.all([
-    provisionTenant({ slug: HAPPY_SLUG, name: 'Del Happy', adminEmail: `admin@${HAPPY_SLUG}.example` }),
-    provisionTenant({ slug: RETRY_SLUG, name: 'Del Retry', adminEmail: `admin@${RETRY_SLUG}.example` }),
+    provision(HAPPY_SLUG, 'Del Happy'),
+    provision(RETRY_SLUG, 'Del Retry'),
   ]);
   happyRedisKeys = await seedDeletionResidue(
     prisma,
@@ -60,20 +44,19 @@ beforeAll(async () => {
     HAPPY_SLUG,
     happy.schemaName
   );
-  happyKeyVersion = (await prisma.tenantEventKey.findFirstOrThrow({
+  const activeKey = await prisma.tenantEventKey.findFirstOrThrow({
     where: { tenantId: happy.tenantId, status: 'active' },
-  })).keyVersion;
+  });
+  happyKeyVersion = activeKey.keyVersion;
 
-  server = await createTestServer();
-  server.addHook('preHandler', makeFullStub(SUPER_ADMIN_ACTOR, masterCtx, ['super_admin']));
-  await server.register(tenantDeleteRoutes, { prefix: '/api/v1/admin' });
-  await server.register(deletionStatusRoutes, { prefix: '/api/v1/admin' });
-  await server.ready();
+  server = await createAdminTestServer([tenantDeleteRoutes, deletionStatusRoutes]);
 });
 
 afterAll(async () => {
   for (const slug of [HAPPY_SLUG, RETRY_SLUG]) {
-    await prisma.$executeRawUnsafe(`DROP SCHEMA IF EXISTS "${toSchemaName(slug)}" CASCADE`).catch(() => {});
+    await prisma
+      .$executeRawUnsafe(`DROP SCHEMA IF EXISTS "${toSchemaName(slug)}" CASCADE`)
+      .catch(() => {});
     await deleteRealm(`plexica-${slug}`).catch(() => {});
     await deleteBucket(`tenant-${slug}`).catch(() => {});
   }
@@ -83,7 +66,9 @@ afterAll(async () => {
     await prisma.platformAuditLog.deleteMany({ where: { tenantId: id } }).catch(() => {});
     await prisma.tenantConfig.deleteMany({ where: { tenantId: id } }).catch(() => {});
   }
-  await prisma.tenant.deleteMany({ where: { id: { in: [happy.tenantId, retryTenant.tenantId] } } }).catch(() => {});
+  await prisma.tenant
+    .deleteMany({ where: { id: { in: [happy.tenantId, retryTenant.tenantId] } } })
+    .catch(() => {});
   await prisma.$disconnect();
   await server.close();
 });
@@ -91,7 +76,8 @@ afterAll(async () => {
 describe('DELETE /api/v1/admin/tenants/:id — deletion saga', () => {
   it('edge: incorrect confirmSlug → 422 CONFIRMATION_REQUIRED', async () => {
     const res = await server.inject({
-      method: 'DELETE', url: `/api/v1/admin/tenants/${retryTenant.tenantId}`,
+      method: 'DELETE',
+      url: `/api/v1/admin/tenants/${retryTenant.tenantId}`,
       payload: { confirmSlug: 'wrong-slug', version: 1 },
     });
     expect(res.statusCode).toBe(422);
@@ -100,7 +86,8 @@ describe('DELETE /api/v1/admin/tenants/:id — deletion saga', () => {
 
   it('edge: version mismatch → 409', async () => {
     const res = await server.inject({
-      method: 'DELETE', url: `/api/v1/admin/tenants/${retryTenant.tenantId}`,
+      method: 'DELETE',
+      url: `/api/v1/admin/tenants/${retryTenant.tenantId}`,
       payload: { confirmSlug: RETRY_SLUG, version: 999 },
     });
     expect(res.statusCode).toBe(409);
@@ -108,29 +95,31 @@ describe('DELETE /api/v1/admin/tenants/:id — deletion saga', () => {
 
   it('happy path: correct confirmSlug → 202, 4 saga steps created + completed', async () => {
     const res = await server.inject({
-      method: 'DELETE', url: `/api/v1/admin/tenants/${happy.tenantId}`,
+      method: 'DELETE',
+      url: `/api/v1/admin/tenants/${happy.tenantId}`,
       payload: { confirmSlug: HAPPY_SLUG, version: 1 },
     });
     expect(res.statusCode).toBe(202);
     const body = JSON.parse(res.payload);
     expect(body.steps).toHaveLength(4);
-    expect(body.steps.map((s: { step: string }) => s.step).sort())
-      .toEqual(['bucket_delete', 'event_data_purge', 'realm_delete', 'schema_drop']);
+    const stepNames = body.steps.map((s: { step: string }) => s.step).sort();
+    expect(stepNames).toEqual(['bucket_delete', 'event_data_purge', 'realm_delete', 'schema_drop']);
 
     const statusRes = await server.inject({
-      method: 'GET', url: `/api/v1/admin/tenants/${happy.tenantId}/deletion-status`,
+      method: 'GET',
+      url: `/api/v1/admin/tenants/${happy.tenantId}/deletion-status`,
     });
     expect(statusRes.statusCode).toBe(200);
     expect(JSON.parse(statusRes.payload).steps).toHaveLength(4);
 
     await poll(
       () => prisma.tenant.findUnique({ where: { id: happy.tenantId }, select: { status: true } }),
-      (t) => t?.status === 'deleted',
+      (t) => t?.status === 'deleted'
     );
 
     const schemaGone = await prisma.$queryRawUnsafe<{ exists: boolean }[]>(
       `SELECT EXISTS (SELECT 1 FROM pg_namespace WHERE nspname = $1) AS exists`,
-      toSchemaName(HAPPY_SLUG),
+      toSchemaName(HAPPY_SLUG)
     );
     expect(schemaGone[0]?.exists).toBe(false);
     expect(await realmExists(`plexica-${HAPPY_SLUG}`)).toBe(false);
@@ -147,18 +136,22 @@ describe('DELETE /api/v1/admin/tenants/:id — deletion saga', () => {
     expect(residue.auditMetadata).not.toContain(HAPPY_SLUG);
     expect(residue.auditMetadata).not.toContain('Del Happy');
     expect(residue.eventResidue).toEqual({
-      credentials: 0, outbox: 0, deadLetters: 0, readableKeys: 0,
+      credentials: 0,
+      outbox: 0,
+      deadLetters: 0,
+      readableKeys: 0,
     });
     await expect(getTenantEventKey(prisma, happy.tenantId, happyKeyVersion)).rejects.toThrow();
   });
 
   it('edge: POST retry on a failed step → step reset + saga completes', async () => {
-    const spy = vi.spyOn(eventPurgeModule, 'executeEventDataPurge').mockRejectedValue(
-      new Error('injected failure for retry test'),
-    );
+    const spy = vi
+      .spyOn(eventPurgeModule, 'executeEventDataPurge')
+      .mockRejectedValue(new Error('injected failure for retry test'));
 
     const res = await server.inject({
-      method: 'DELETE', url: `/api/v1/admin/tenants/${retryTenant.tenantId}`,
+      method: 'DELETE',
+      url: `/api/v1/admin/tenants/${retryTenant.tenantId}`,
       payload: { confirmSlug: RETRY_SLUG, version: 1 },
     });
     expect(res.statusCode).toBe(202);
@@ -166,11 +159,12 @@ describe('DELETE /api/v1/admin/tenants/:id — deletion saga', () => {
     const failedStep = await poll(
       async () => {
         const r = await server.inject({
-          method: 'GET', url: `/api/v1/admin/tenants/${retryTenant.tenantId}/deletion-status`,
+          method: 'GET',
+          url: `/api/v1/admin/tenants/${retryTenant.tenantId}/deletion-status`,
         });
         return JSON.parse(r.payload).steps as { id: string; step: string; status: string }[];
       },
-       (steps) => steps.some((s) => s.step === 'event_data_purge' && s.status === 'failed'),
+      (steps) => steps.some((s) => s.step === 'event_data_purge' && s.status === 'failed')
     );
 
     spy.mockRestore();
@@ -178,14 +172,16 @@ describe('DELETE /api/v1/admin/tenants/:id — deletion saga', () => {
     const eventPurgeStep = failedStep.find((s) => s.step === 'event_data_purge')!;
 
     const retryRes = await server.inject({
-      method: 'POST', url: `/api/v1/admin/deletions/${eventPurgeStep.id}/retry`,
+      method: 'POST',
+      url: `/api/v1/admin/deletions/${eventPurgeStep.id}/retry`,
     });
     expect(retryRes.statusCode).toBe(200);
     expect(JSON.parse(retryRes.payload).status).toBe('pending');
 
     await poll(
-      () => prisma.tenant.findUnique({ where: { id: retryTenant.tenantId }, select: { status: true } }),
-      (t) => t?.status === 'deleted',
+      () =>
+        prisma.tenant.findUnique({ where: { id: retryTenant.tenantId }, select: { status: true } }),
+      (t) => t?.status === 'deleted'
     );
     expect(await realmExists(`plexica-${RETRY_SLUG}`)).toBe(false);
     expect(await bucketExists(`tenant-${RETRY_SLUG}`)).toBe(false);

@@ -4,15 +4,15 @@ import { domainEventEnvelopeSchema } from './event-envelope.js';
 
 import type { DomainEventEnvelope } from './event-envelope.js';
 
-export interface SqlExecutor {
+interface SqlExecutor {
   $executeRaw(query: Prisma.Sql): Promise<number>;
 }
 
-export interface SqlClient extends SqlExecutor {
+interface SqlClient extends SqlExecutor {
   $queryRaw<T>(query: Prisma.Sql): Promise<T>;
 }
 
-export interface ClaimedOutboxEvent extends DomainEventEnvelope {
+interface ClaimedOutboxEvent extends DomainEventEnvelope {
   topic: string;
   attempts: number;
   leaseToken: string;

@@ -11,6 +11,7 @@
     "./jwt": "./src/jwt.ts",
     "./keycloak-client": "./src/keycloak-client.ts",
     "./api-client": "./src/api-client.ts",
+    "./env-guard": "./src/env-guard.ts",
     "./auth-store": "./src/auth-store.ts",
     "./auth-flow": "./src/auth-flow.ts",
     "./auth-epoch": "./src/auth-epoch.ts",
@@ -23,20 +24,19 @@
     "test": "pnpm --dir ../sdk exec vitest run --root ../auth"
   },
   "peerDependencies": {
-    "react": "^19.2.8",
-    "react-dom": "^19.2.8",
+    "react": "catalog:",
+    "react-dom": "catalog:",
     "zustand": "*"
   },
   "dependencies": {
     "jose": "6.2.3"
   },
   "devDependencies": {
-    "@tanstack/react-router": "^1.170.18",
-    "@types/react": "^19.2.17",
-    "@types/react-dom": "^19.0.0",
-    "react": "^19.2.8",
-    "react-dom": "^19.2.8",
-    "typescript": "^5.9.0",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "typescript": "catalog:",
     "zustand": "*"
   }
 }

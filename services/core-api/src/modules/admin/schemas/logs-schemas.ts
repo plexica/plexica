@@ -31,6 +31,4 @@ export const LogsResponseSchema = z.object({
   total: z.number().int().min(0),
 });
 
-export type LogsQuery = z.infer<typeof LogsQuerySchema>;
 export type LogEntry = z.infer<typeof LogEntrySchema>;
-export type LogsResponse = z.infer<typeof LogsResponseSchema>;

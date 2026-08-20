@@ -8,11 +8,7 @@
 }
 
 body {
-  font-family:
-    'Inter',
-    system-ui,
-    -apple-system,
-    sans-serif;
+  font-family: var(--font-sans);
   background-color: var(--color-neutral-100);
   color: var(--color-neutral-900);
   margin: 0;
@@ -22,7 +18,8 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Screen-reader only utility — hides visually while keeping accessible */
+/* Screen-reader only utility — hides visually while keeping accessible.
+   NOTE: this theme does not use Tailwind — this is the only definition. */
 .sr-only {
   position: absolute;
   width: 1px;
@@ -33,19 +30,4 @@ body {
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border: 0;
-}
-
-body {
-  font-family:
-    'Inter',
-    system-ui,
-    -apple-system,
-    sans-serif;
-  background-color: var(--color-neutral-100);
-  color: var(--color-neutral-900);
-  margin: 0;
-  padding: 0;
-  min-height: 100vh;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
 }

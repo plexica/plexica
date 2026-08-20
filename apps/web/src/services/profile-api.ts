@@ -1,40 +1,58 @@
 // profile-api.ts
 // Typed API functions for user profile domain.
 // Used by TanStack Query hooks in use-profile.ts.
+//
+// API_BASE is NOT redefined here — it is imported from api-client.ts, the single
+// source of truth. The paths below already carry the /api prefix, so API_BASE
+// must not include it (empty for same-origin, an absolute origin for cross-origin).
 
-import { useAuthStore } from '../stores/auth-store.js';
+import { z } from 'zod';
+import { invalidResponseError } from '@plexica/auth/api-client';
 
-import { apiClient } from './api-client.js';
+import { apiClient, fileFormData } from './api-client.js';
 
 import type { UserProfileDto, UpdateProfilePayload } from '../types/profile.js';
 
-const API_BASE = import.meta.env.VITE_API_URL ?? '/api';
+/**
+ * SINGLE source of truth for the avatar upload constraints on the client.
+ *
+ * These values mirror the server contract and must be kept in lockstep with it:
+ *   - size    → `AVATAR_MAX_BYTES` (services/core-api/src/lib/config.ts)
+ *   - formats → `AVATAR_ALLOWED_MIME_TYPES` (services/core-api/src/lib/file-upload.ts)
+ *
+ * Everything user-facing is derived from here — the `accept` attribute, the
+ * `maxSizeBytes` prop AND the localized copy — so the three-way drift that let a
+ * 1.5 MB PNG through the client only to be rejected with a 413 cannot reappear.
+ */
+export const AVATAR_UPLOAD = {
+  maxBytes: 1_048_576,
+  mimeTypes: ['image/jpeg', 'image/png', 'image/webp'],
+} as const;
+
+/**
+ * The avatar endpoint returns only the freshly signed URL — NOT the full profile.
+ * Validated instead of cast so a silent contract drift surfaces at runtime rather
+ * than hiding behind a green typecheck.
+ */
+const avatarUploadResponseSchema = z.object({ avatarUrl: z.string() });
+
+export type AvatarUploadResponse = z.infer<typeof avatarUploadResponseSchema>;
 
 export const profileApi = {
-  // Backend returns UserProfileDto directly (no { data } wrapper)
   get: () => apiClient.get<UserProfileDto>('/api/v1/profile'),
 
-  // Backend returns UserProfileDto directly (no { data } wrapper)
   update: (payload: UpdateProfilePayload) =>
     apiClient.patch<UserProfileDto>('/api/v1/profile', payload),
 
-  // Multipart upload — uses native fetch to avoid apiClient's application/json header
-  uploadAvatar: async (file: File): Promise<{ data: UserProfileDto }> => {
-    const { accessToken, tenantSlug } = useAuthStore.getState();
-    const headers: Record<string, string> = {};
-    if (accessToken !== null) headers['Authorization'] = `Bearer ${accessToken}`;
-    if (import.meta.env.DEV && tenantSlug !== null) headers['X-Tenant-Slug'] = tenantSlug;
-    const formData = new FormData();
-    formData.append('file', file);
-    const res = await fetch(`${API_BASE}/api/v1/profile/avatar`, {
-      method: 'POST',
-      headers,
-      body: formData,
-    });
-    if (!res.ok) {
-      const err = (await res.json().catch(() => ({}))) as { error?: { message?: string } };
-      throw new Error(err.error?.message ?? `Upload failed: ${res.status}`);
+  uploadAvatar: async (file: File): Promise<AvatarUploadResponse> => {
+    // postForm — same bearer/refresh/session-expiry pipeline as every other call.
+    const body = await apiClient.postForm<unknown>('/api/v1/profile/avatar', fileFormData(file));
+    const parsed = avatarUploadResponseSchema.safeParse(body);
+    if (!parsed.success) {
+      // Non-HTTP status: a malformed 200 body is NOT a success. Machine-readable
+      // code — the component renders the localized message.
+      throw invalidResponseError();
     }
-    return res.json() as Promise<{ data: UserProfileDto }>;
+    return parsed.data;
   },
 };

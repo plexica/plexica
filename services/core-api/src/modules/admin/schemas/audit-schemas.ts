@@ -53,6 +53,7 @@ export const AuditLogResponseSchema = z.object({
   total: z.number().int().min(0),
   page: z.number().int().min(1),
   pageSize: z.number().int().min(1).max(100),
+  totalPages: z.number().int().min(0),
 });
 
 // Internal validation for writeAuditEntry calls.
@@ -70,8 +71,6 @@ export const WriteAuditEntrySchema = z.object({
     .optional(),
 });
 
-export type AuditAction = z.infer<typeof AuditActionSchema>;
-export type AuditResourceType = z.infer<typeof AuditResourceTypeSchema>;
 export type AuditQuery = z.infer<typeof AuditQuerySchema>;
 export type AuditEntry = z.infer<typeof AuditEntrySchema>;
 export type AuditLogResponse = z.infer<typeof AuditLogResponseSchema>;

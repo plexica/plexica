@@ -58,9 +58,10 @@ export const messagesWorkspaceUsers = {
   'users.remove.description': 'This user will be removed from the tenant.',
   'users.remove.confirm.instructions': 'Type CONFIRM to permanently remove this user',
   'users.remove.reassign.label': 'Reassign content to',
+  'users.remove.ariaLabel': 'Remove {name}',
   'users.status.active': 'Active',
-  'users.status.suspended': 'Suspended',
-  'users.status.pending_deletion': 'Pending deletion',
+  'users.status.invited': 'Invited',
+  'users.status.disabled': 'Disabled',
 
   // Roles
   'roles.title': 'Roles & Permissions',

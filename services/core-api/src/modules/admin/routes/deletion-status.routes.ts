@@ -11,7 +11,7 @@
 import { z } from 'zod';
 
 import { withCoreDb } from '../../../lib/tenant-database.js';
-import { ValidationError } from '../../../lib/app-error.js';
+import { parseOrThrow } from '../../../lib/validation.js';
 import { requireSuperAdmin } from '../../../middleware/require-super-admin.js';
 import { getDeletionStatus } from '../services/deletion-saga.service.js';
 import { retryFailedStep } from '../services/deletion-retry.service.js';
@@ -26,22 +26,13 @@ const StepIdParamsSchema = z.object({
   stepId: z.string().uuid(),
 });
 
-export async function deletionStatusRoutes(
-  fastify: FastifyInstance
-): Promise<void> {
+export async function deletionStatusRoutes(fastify: FastifyInstance): Promise<void> {
   // ── GET /api/v1/admin/tenants/:id/deletion-status ───────────────────────────
   fastify.get(
     '/tenants/:id/deletion-status',
     { preHandler: [requireSuperAdmin] },
     async (request) => {
-      const parsed = TenantIdParamsSchema.safeParse(request.params);
-      if (!parsed.success) {
-        throw new ValidationError(
-          parsed.error.issues.map((i) => i.message).join(', ')
-        );
-      }
-
-      const { id } = parsed.data;
+      const { id } = parseOrThrow(TenantIdParamsSchema, request.params);
 
       const steps = await withCoreDb((prisma) => getDeletionStatus(prisma, id));
 
@@ -59,29 +50,16 @@ export async function deletionStatusRoutes(
   );
 
   // ── POST /api/v1/admin/deletions/:stepId/retry ──────────────────────────────
-  fastify.post(
-    '/deletions/:stepId/retry',
-    { preHandler: [requireSuperAdmin] },
-    async (request) => {
-      const parsed = StepIdParamsSchema.safeParse(request.params);
-      if (!parsed.success) {
-        throw new ValidationError(
-          parsed.error.issues.map((i) => i.message).join(', ')
-        );
-      }
+  fastify.post('/deletions/:stepId/retry', { preHandler: [requireSuperAdmin] }, async (request) => {
+    const { stepId } = parseOrThrow(StepIdParamsSchema, request.params);
+    const actorId = request.user.keycloakUserId;
 
-      const { stepId } = parsed.data;
-      const actorId = request.user.keycloakUserId;
+    const step = await withCoreDb((prisma) => retryFailedStep(prisma, stepId, actorId));
 
-      const step = await withCoreDb((prisma) =>
-        retryFailedStep(prisma, stepId, actorId)
-      );
-
-      return {
-        step: step.step,
-        status: step.status,
-        attempts: step.attempts,
-      };
-    }
-  );
+    return {
+      step: step.step,
+      status: step.status,
+      attempts: step.attempts,
+    };
+  });
 }

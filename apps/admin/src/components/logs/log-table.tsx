@@ -20,8 +20,9 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  TableSkeleton,
+  cn,
 } from '@plexica/ui';
-import { cn } from '@plexica/ui';
 
 import type { LogLevel, LogEntry } from '../../types/admin-types.js';
 
@@ -38,8 +39,8 @@ const LEVEL_CONFIG: Record<LogLevel, LevelConfig> = {
   error: { icon: OctagonAlert, i18nKey: 'admin.logs.level.error', className: 'bg-error-light text-error-dark' },
 };
 
-function LogLevelBadge({ level }: { level: LogLevel }): JSX.Element {
-  const cfg = LEVEL_CONFIG[level];
+function LogLevelBadge({ level }: { level: string }): JSX.Element {
+  const cfg = LEVEL_CONFIG[level as LogLevel] ?? LEVEL_CONFIG.info;
   const Icon = cfg.icon;
   return (
     <span
@@ -177,17 +178,6 @@ function LogRow({ entry, isOpen, hasMeta, onToggle }: LogRowProps): JSX.Element 
 
 export function LogTableSkeleton(): JSX.Element {
   return (
-    <div className="rounded-lg border border-neutral-200">
-      <div className="divide-y divide-neutral-100">
-        {Array.from({ length: 5 }).map((_, i) => (
-          <div key={i} className="flex animate-pulse gap-4 px-4 py-3">
-            <div className="h-4 w-28 rounded bg-neutral-200" />
-            <div className="h-4 w-16 rounded bg-neutral-200" />
-            <div className="h-4 w-20 rounded bg-neutral-200" />
-            <div className="h-4 flex-1 rounded bg-neutral-200" />
-          </div>
-        ))}
-      </div>
-    </div>
+    <TableSkeleton columnWidths={['w-28', 'w-16', 'w-20', 'flex-1']} rows={5} />
   );
 }

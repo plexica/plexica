@@ -2,7 +2,7 @@
 // User profile page: avatar upload + profile form with Select for timezone/language.
 // Settings Panel pattern: two sections, isDirty indicator, save feedback.
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -10,54 +10,21 @@ import { FormattedMessage, useIntl } from 'react-intl';
 import { Input, FileUpload, Select } from '@plexica/ui';
 
 import { useProfile, useUpdateProfile, useUploadAvatar } from '../hooks/use-profile.js';
+import { AVATAR_UPLOAD } from '../services/profile-api.js';
+import { languageOptions, timezoneOptions } from '../i18n/profile-options.js';
+import {
+  acceptAttribute,
+  megabytes,
+  mimeTypeLabels,
+  uploadErrorMessageId,
+} from '../i18n/upload-messages.js';
 import { SkeletonLoader } from '../components/feedback/skeleton-loader.js';
 import { PageError } from '../components/feedback/page-error.js';
 import { SettingsSection, SaveBar, useSaveStatus } from '../components/settings/settings-section.js';
 
-// Curated IANA timezone list (most common zones)
-const TIMEZONE_VALUES = [
-  'UTC', 'Europe/London', 'Europe/Rome', 'Europe/Paris', 'Europe/Berlin',
-  'Europe/Madrid', 'Europe/Amsterdam', 'Europe/Zurich', 'Europe/Stockholm',
-  'Europe/Warsaw', 'Europe/Athens', 'Europe/Helsinki', 'Europe/Lisbon',
-  'America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles',
-  'America/Toronto', 'America/Vancouver', 'America/Sao_Paulo', 'America/Argentina/Buenos_Aires',
-  'America/Mexico_City', 'America/Bogota', 'America/Lima',
-  'Asia/Tokyo', 'Asia/Seoul', 'Asia/Shanghai', 'Asia/Singapore',
-  'Asia/Dubai', 'Asia/Kolkata', 'Asia/Bangkok', 'Asia/Jakarta',
-  'Australia/Sydney', 'Australia/Melbourne', 'Pacific/Auckland',
-  'Africa/Cairo', 'Africa/Johannesburg', 'Africa/Lagos',
-];
-
-/** Build timezone Select options, ensuring the stored value is always present */
-function timezoneOptions(stored: string | undefined): Array<{ value: string; label: string; disabled?: boolean }> {
-  const list: Array<{ value: string; label: string; disabled?: boolean }> = TIMEZONE_VALUES.map((tz) => ({ value: tz, label: tz.replace(/_/g, ' ') }));
-  if (stored !== undefined && stored !== '' && !TIMEZONE_VALUES.includes(stored)) {
-    list.push({ value: stored, label: stored.replace(/_/g, ' '), disabled: true });
-  }
-  return list;
-}
-
-// Curated supported language codes
-const LANGUAGE_VALUES: Array<{ value: string; label: string }> = [
-  { value: 'en', label: 'English' },
-  { value: 'it', label: 'Italiano' },
-  { value: 'fr', label: 'Français' },
-  { value: 'de', label: 'Deutsch' },
-  { value: 'es', label: 'Español' },
-  { value: 'pt', label: 'Português' },
-  { value: 'ja', label: '日本語' },
-  { value: 'zh', label: '中文' },
-  { value: 'ko', label: '한국어' },
-  { value: 'ar', label: 'العربية' },
-];
-
-/** Build language Select options, ensuring the stored value is always present */
-function languageOptions(stored: string | undefined): Array<{ value: string; label: string; disabled?: boolean }> {
-  if (stored === undefined || stored === '' || LANGUAGE_VALUES.some((l) => l.value === stored)) {
-    return LANGUAGE_VALUES;
-  }
-  return [...LANGUAGE_VALUES, { value: stored, label: stored, disabled: true }];
-}
+import type { SelectOption } from '../i18n/profile-options.js';
+import type { Control } from 'react-hook-form';
+import type { IntlShape } from 'react-intl';
 
 const schema = z.object({
   displayName: z.string().min(1).max(120),
@@ -65,6 +32,36 @@ const schema = z.object({
   language: z.string().min(2).max(10),
 });
 type FormValues = z.infer<typeof schema>;
+
+/** Labelled Select bound to the form — shared by timezone and language. */
+function selectField(
+  intl: IntlShape,
+  control: Control<FormValues>,
+  name: 'timezone' | 'language',
+  labelId: string,
+  options: SelectOption[]
+): JSX.Element {
+  return (
+    <div className="flex flex-col gap-1">
+      <label className="text-sm font-medium text-neutral-700">
+        <FormattedMessage id={labelId} />
+      </label>
+      <Controller
+        name={name}
+        control={control}
+        render={({ field }) => (
+          <Select
+            options={options}
+            value={field.value}
+            onValueChange={(v) => field.onChange(v)}
+            placeholder={intl.formatMessage({ id: 'common.select.placeholder' })}
+            aria-label={intl.formatMessage({ id: labelId })}
+          />
+        )}
+      />
+    </div>
+  );
+}
 
 function ProfileSkeleton(): JSX.Element {
   return (
@@ -82,7 +79,16 @@ export function ProfilePage(): JSX.Element {
   const { saveStatus, markSaved } = useSaveStatus();
   const { data, isPending, isError, refetch } = useProfile();
   const { mutate: updateProfile, isPending: isSaving } = useUpdateProfile();
-  const { mutate: uploadAvatar, isPending: isUploading } = useUploadAvatar();
+  const {
+    mutate: uploadAvatar,
+    isPending: isUploading,
+    isError: isUploadError,
+    error: uploadError,
+  } = useUploadAvatar();
+
+  // Bumped on every failed upload. Remounting FileUpload discards the optimistic
+  // `blob:` preview, so a failed upload no longer looks like a successful one.
+  const [uploadAttempt, setUploadAttempt] = useState(0);
 
   const { register, handleSubmit, reset, control, formState: { errors, isDirty } } =
     useForm<FormValues>({
@@ -104,6 +110,12 @@ export function ProfilePage(): JSX.Element {
     }
   }, [data, reset]);
 
+  // Constraints AND copy both derive from AVATAR_UPLOAD — one source of truth.
+  const uploadValues = {
+    maxMb: megabytes(AVATAR_UPLOAD.maxBytes),
+    formats: intl.formatList(mimeTypeLabels(AVATAR_UPLOAD.mimeTypes), { type: 'disjunction' }),
+  };
+
   if (isPending) return <ProfileSkeleton />;
   if (isError || data === undefined) {
     return <div className="p-6"><PageError onRetry={() => void refetch()} /></div>;
@@ -123,11 +135,24 @@ export function ProfilePage(): JSX.Element {
         {/* Avatar — independent upload */}
         <SettingsSection
           title={<FormattedMessage id="profile.avatar.label" />}
-          description={<FormattedMessage id="profile.avatar.description" />}
+          description={<FormattedMessage id="profile.avatar.description" values={uploadValues} />}
         >
           <FileUpload
-            accept="image/*" maxSizeBytes={2 * 1024 * 1024}
-            onFile={(f) => uploadAvatar(f)} disabled={isUploading}
+            key={uploadAttempt}
+            accept={acceptAttribute(AVATAR_UPLOAD.mimeTypes)}
+            maxSizeBytes={AVATAR_UPLOAD.maxBytes}
+            onFile={(f) => {
+              uploadAvatar(f, { onError: () => { setUploadAttempt((n) => n + 1); } });
+            }}
+            disabled={isUploading}
+            {...(isUploadError
+              ? {
+                  error: intl.formatMessage(
+                    { id: uploadErrorMessageId(uploadError) },
+                    uploadValues
+                  ),
+                }
+              : {})}
             {...(data.avatarUrl !== null ? { preview: data.avatarUrl } : {})}
           />
         </SettingsSection>
@@ -140,42 +165,8 @@ export function ProfilePage(): JSX.Element {
               {...register('displayName')}
               {...(errors.displayName?.message !== undefined ? { error: errors.displayName.message } : {})}
             />
-            <div className="flex flex-col gap-1">
-              <label className="text-sm font-medium text-neutral-700">
-                <FormattedMessage id="profile.timezone.label" />
-              </label>
-              <Controller
-                name="timezone"
-                control={control}
-                render={({ field }) => (
-                  <Select
-                    options={timezoneOptions(data.timezone)}
-                    value={field.value}
-                    onValueChange={(v) => field.onChange(v)}
-                    placeholder={intl.formatMessage({ id: 'common.select.placeholder' })}
-                    aria-label={intl.formatMessage({ id: 'profile.timezone.label' })}
-                  />
-                )}
-              />
-            </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-sm font-medium text-neutral-700">
-                <FormattedMessage id="profile.language.label" />
-              </label>
-              <Controller
-                name="language"
-                control={control}
-                render={({ field }) => (
-                  <Select
-                    options={languageOptions(data.language)}
-                    value={field.value}
-                    onValueChange={(v) => field.onChange(v)}
-                    placeholder={intl.formatMessage({ id: 'common.select.placeholder' })}
-                    aria-label={intl.formatMessage({ id: 'profile.language.label' })}
-                  />
-                )}
-              />
-            </div>
+            {selectField(intl, control, 'timezone', 'profile.timezone.label', timezoneOptions(data.timezone))}
+            {selectField(intl, control, 'language', 'profile.language.label', languageOptions(data.language))}
             <SaveBar isDirty={isDirty} isSaving={isSaving} saveStatus={saveStatus}
               saveLabel={<FormattedMessage id="profile.save" />} />
           </form>

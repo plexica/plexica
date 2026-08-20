@@ -23,6 +23,16 @@ export const messages = {
   'admin.nav.health': 'System Health',
   'admin.nav.logs': 'Logs',
   'admin.nav.kafka': 'Kafka',
+  'admin.nav.dlq': 'Dead Letter Queue',
+  'admin.nav.skipToContent': 'Skip to content',
+  'admin.nav.sidebarLabel': 'Navigation',
+  'admin.nav.toggleSidebar': 'Toggle sidebar',
+
+  // Error boundary (shared ErrorFallback from @plexica/ui)
+  'error.boundary.heading': 'Something went wrong',
+  'error.boundary.description': 'An unexpected error occurred. Please try refreshing the page.',
+  'error.boundary.goToDashboard': 'Go to Dashboard',
+  'error.boundary.refresh': 'Refresh page',
 
   'admin.login.title': 'Plexica Admin',
   'admin.login.subtitle': 'Sign in with your platform administrator credentials',
@@ -38,8 +48,6 @@ export const messages = {
   'admin.logout': 'Sign out',
 
   'admin.session.expired': 'Your session has expired. Redirecting to login…',
-
-  'admin.page.placeholder': 'This section is under construction',
 
   'admin.health.title': 'System Health',
   'admin.health.loading': 'Loading service status…',
@@ -71,6 +79,22 @@ export const messages = {
   'admin.kafka.error': 'Failed to load Kafka status.',
   'admin.kafka.retry': 'Retry',
   'admin.kafka.unit.messages': 'messages',
+
+  // ── DLQ page (Decision 6 — ported from apps/web) ──────────────────────────
+  'admin.dlq.title': 'Dead Letter Queue',
+  'admin.dlq.total': 'Total: {count} failed events',
+  'admin.dlq.retry': 'Retry',
+  'admin.dlq.dismiss': 'Dismiss',
+  'admin.dlq.empty': 'No failed events',
+  'admin.dlq.retryCount': 'Retry Count',
+  'admin.dlq.status': 'Status',
+  'admin.dlq.error': 'Error',
+  'admin.dlq.payload': 'Payload',
+  'admin.dlq.filterAll': 'All Statuses',
+  'admin.dlq.status.pending': 'Pending',
+  'admin.dlq.status.retried': 'Retried',
+  'admin.dlq.status.dismissed': 'Dismissed',
+  'admin.dlq.error.heading': 'Failed to load DLQ entries',
 
   'admin.provision.title': 'Provision New Tenant',
   'admin.provision.step.details': 'Details',

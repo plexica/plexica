@@ -13,13 +13,60 @@
 // (first authenticated visit), it auto-provisions one. Then it replaces
 // req.user.id with the internal user_profile.user_id so all downstream
 // code (routes, services, ABAC) uses the correct FK-compatible ID.
+//
+// SECURITY BACKSTOP (fail-closed): this middleware is also the point where a
+// user who has been removed from the tenant is refused. Every other gate on
+// that path fails OPEN:
+//   - auth-middleware.ts only verifies the JWT signature against JWKS (no
+//     introspection), so the token stays valid until `exp`;
+//   - removeUser()'s Keycloak disable + session termination are best-effort
+//     and their failures are only logged;
+//   - the ABAC membership cache is revoked by removeUser(), but that revocation
+//     depends on Redis being reachable.
+// The check below depends on none of those: it reads the tenant schema on the
+// request path, so a soft-deleted or disabled profile is rejected on the very
+// next request regardless of cache TTL, Redis health or Keycloak health.
 
 import crypto from 'node:crypto';
 
 import { logger } from '../lib/logger.js';
+import { ForbiddenError } from '../lib/app-error.js';
 import { withTenantDb } from '../lib/tenant-database.js';
 
 import type { FastifyReply, FastifyRequest } from 'fastify';
+
+interface ResolvedProfile {
+  userId: string;
+  status: string;
+  deletedAt: Date | null;
+}
+
+// user_profile.status is one of 'active' | 'invited' | 'disabled'
+// (see prisma/tenant-schema/core-models.prisma and user-management/schema.ts).
+//
+// 'invited' MUST stay allowed: the invitation accept flow creates the profile
+// with status='invited' (modules/invitation/service-accept.ts) and the account
+// keeps that status through the invitee's first authenticated request. Denying
+// it would lock every freshly invited user out of the app.
+//
+// Auto-provisioned profiles are created below with status='active', so a brand
+// new first-login user is unaffected either way.
+const ALLOWED_PROFILE_STATUSES = new Set(['active', 'invited']);
+
+function assertProfileUsable(profile: ResolvedProfile, tenantSlug: string): void {
+  // Soft-deleted (removeUser sets deleted_at + status='disabled') or otherwise
+  // disabled accounts must not resolve to a usable internal user id.
+  // No PII in the log — tenant slug and reason only (AGENTS.md § Sicurezza 6).
+  if (profile.deletedAt !== null) {
+    logger.warn({ tenantSlug }, 'Rejected request from a soft-deleted user profile');
+    throw new ForbiddenError('User account has been removed from this tenant');
+  }
+
+  if (!ALLOWED_PROFILE_STATUSES.has(profile.status)) {
+    logger.warn({ tenantSlug, status: profile.status }, 'Rejected request from a disabled profile');
+    throw new ForbiddenError('User account is disabled in this tenant');
+  }
+}
 
 export async function userProfileResolver(
   request: FastifyRequest,
@@ -30,15 +77,16 @@ export async function userProfileResolver(
 
   const keycloakUserId = request.user.id;
 
-  const internalUserId = await withTenantDb(async (tx) => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const db = tx as any;
-
+  const profile = await withTenantDb(async (db) => {
     // Upsert to avoid TOCTOU race: two concurrent requests for a new user
     // both attempt findUnique → null → create, and the second fails with a
     // unique constraint violation. Upsert is atomic at the DB level.
+    //
+    // `update: {}` means an existing row is returned untouched — including a
+    // soft-deleted one, which is exactly why deletedAt/status are selected and
+    // asserted below instead of being assumed clean.
     const newUserId = crypto.randomUUID();
-    const profile = await db.userProfile.upsert({
+    const row = await db.userProfile.upsert({
       where: { keycloakUserId },
       update: {},
       create: {
@@ -51,18 +99,20 @@ export async function userProfileResolver(
         language: 'en',
         status: 'active',
       },
-      select: { userId: true },
+      select: { userId: true, status: true, deletedAt: true },
     });
 
     // Log only on first provision (userId matches the one we generated)
-    if (profile.userId === newUserId) {
+    if (row.userId === newUserId) {
       logger.info('Auto-provisioned user profile on first tenant visit');
     }
 
-    return profile.userId as string;
+    return row;
   }, request.tenantContext);
+
+  assertProfileUsable(profile, request.tenantContext.slug);
 
   // Replace the Keycloak sub with the internal user_profile.user_id
   // so all downstream code uses the FK-compatible ID.
-  request.user.id = internalUserId;
+  request.user.id = profile.userId;
 }

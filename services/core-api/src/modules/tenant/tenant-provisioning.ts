@@ -2,13 +2,11 @@
 // Orchestrates full tenant provisioning: PostgreSQL schema + Keycloak realm + MinIO bucket + seed data.
 // Implements tracked rollback — compensates completed steps in reverse order on failure.
 
-// TODO: Run 'pnpm db:generate' to generate tenant client types before Step 4 compiles.
-
-// @ts-ignore — generated at build time via 'pnpm db:generate'; not present in git checkout
 import { PrismaClient as TenantPrismaClient } from '../../../prisma/generated/tenant-client/index.js';
 import { prisma } from '../../lib/database.js';
 import { logger } from '../../lib/logger.js';
 import { ProvisioningFailedError } from '../../lib/app-error.js';
+import { invalidateTenantDbClient } from '../../lib/tenant-database.js';
 import { createTenantSchema } from '../../lib/tenant-schema.js';
 import { createRealm, deleteRealm } from '../../lib/keycloak-admin.js';
 import { createBucket, deleteBucket } from '../../lib/minio-client.js';
@@ -52,6 +50,11 @@ async function rollback(
         logger.info({ realmName }, 'Rollback: Keycloak realm deleted');
       } else if (step === 'schema') {
         await prisma.$executeRawUnsafe(`DROP SCHEMA IF EXISTS "${schemaName}" CASCADE`);
+        // ADR-027: a cached client for a dropped schema would hold pooled
+        // connections to a schema that no longer exists. A client can only be
+        // cached if a request reached withTenantDb between schema creation and
+        // the failing step — rare, but the call is one line and idempotent.
+        await invalidateTenantDbClient(schemaName);
         await prisma.tenant.deleteMany({ where: { slug } });
         logger.info({ schemaName }, 'Rollback: PostgreSQL schema dropped');
       }
@@ -86,10 +89,10 @@ export async function provisionTenant(params: ProvisioningParams): Promise<Provi
 
     // Step 3: Create MinIO bucket + update tenant record
     await createBucket(minioBucket);
-    // Update minio_bucket column — use raw SQL until `prisma generate` refreshes types
-    await prisma.$executeRaw`
-      UPDATE core.tenants SET minio_bucket = ${minioBucket} WHERE slug = ${slug}
-    `;
+    // minioBucket is a first-class column on the generated core client
+    // (schema.prisma Tenant model) — the typed update replaces the former raw
+    // SQL workaround, which predated ADR-028 (generated types always present).
+    await prisma.tenant.update({ where: { slug }, data: { minioBucket } });
     completedSteps.push('bucket');
 
     // Step 4: Seed initial tenant data (built-in templates + default branding).

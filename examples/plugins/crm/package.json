@@ -16,30 +16,31 @@
     "migration:apply": "echo 'Apply migrations via core API'"
   },
   "dependencies": {
-    "@hookform/resolvers": "^5.4.0",
+    "@hookform/resolvers": "catalog:",
     "@fastify/cors": "^11.0.0",
+    "@plexica/sdk": "workspace:*",
     "@plexica/ui": "workspace:*",
-    "@tanstack/react-query": "latest",
-    "fastify": "^5.0.0",
-    "pg": "^8.13.0",
-    "pino": "^9.0.0",
-    "react": "^19.2.8",
-    "react-dom": "^19.2.8",
-    "react-hook-form": "^7.82.0",
-    "react-intl": "^6.6.0",
-    "zod": "^3.25.76"
+    "@tanstack/react-query": "catalog:",
+    "fastify": "catalog:",
+    "pg": "catalog:",
+    "pino": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "react-hook-form": "catalog:",
+    "react-intl": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@plexica/vite-plugin": "workspace:*",
-    "@originjs/vite-plugin-federation": "^1.4.1",
-    "@vitejs/plugin-react": "^4.0.0",
-    "@types/node": "^24.0.0",
-    "@types/pg": "^8.11.0",
-    "@types/react": "^19.2.17",
-    "@types/react-dom": "^19.0.0",
+    "@originjs/vite-plugin-federation": "catalog:",
+    "@vitejs/plugin-react": "catalog:",
+    "@types/node": "catalog:",
+    "@types/pg": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
     "concurrently": "^9.2.4",
-    "tsx": "^4.23.1",
-    "typescript": "^5.9.0",
-    "vite": "^6.0.0"
+    "tsx": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:"
   }
 }

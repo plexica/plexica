@@ -78,7 +78,7 @@ export async function authorizePluginProxy(
       workspaceRole = checkedRole(membership.role);
     }
 
-    if (!(await isPluginVisible(db as never, input.installId, input.workspaceId))) {
+    if (!(await isPluginVisible(db, input.installId, input.workspaceId))) {
       throw new ForbiddenError('Plugin is not available in this workspace');
     }
 

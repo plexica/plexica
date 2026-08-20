@@ -7,6 +7,10 @@ import { ValidationError } from '../../../lib/app-error.js';
 import { PluginBackendUnreachableError } from '../errors.js';
 
 import { shouldProbe, recordFailure, recordSuccess } from './health-check.service.js';
+import {
+  noteInstallationTenant,
+  registerHealthObservability,
+} from './health-observability.service.js';
 import { registerDevBackend, unregisterDevBackend, getDevBackend } from './dev-backends.js';
 
 import type { ProxyTarget } from './dev-backends.js';
@@ -31,6 +35,13 @@ const ALLOWED_PROXY_HOSTS = ['localhost', '127.0.0.1', 'host.docker.internal'];
 // Re-export dev backend helpers so existing imports from proxy.service remain valid.
 export { registerDevBackend, unregisterDevBackend, getDevBackend };
 export type { ProxyTarget };
+
+// Wire health-transition observability (DB persistence + Redis health gauge).
+// The proxy is the primary driver of circuit-breaker transitions and its
+// routes are always loaded, so registering here guarantees the consumer is
+// live. Idempotent, inert until a transition fires, and covers the periodic
+// poller's transitions too (shared listener set in health-check.service).
+registerHealthObservability();
 
 function sanitizeProxyPath(url: string): string {
   const pathSuffix = url.replace(/^\/api\/v1\/plugins\/[^/]+\/proxy/, '');
@@ -64,6 +75,11 @@ export async function proxyRequest(
 ): Promise<void> {
   const canProbe = await shouldProbe(target.installId);
   if (!canProbe) throw new PluginBackendUnreachableError(target.installId);
+
+  // Bookkeeping for health-change observability: lets the transition consumer
+  // attribute a future breaker transition for this install to this tenant.
+  const tenantSlug = request.tenantContext?.slug;
+  if (tenantSlug) noteInstallationTenant(target.installId, tenantSlug);
 
   const pathSuffix = sanitizeProxyPath(request.url);
   const targetUrl = `${target.baseUrl}${pathSuffix}`;

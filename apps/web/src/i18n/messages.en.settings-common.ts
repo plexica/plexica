@@ -14,7 +14,10 @@ export const messagesSettingsCommon = {
   'settings.general.save': 'Save',
   'settings.branding.title': 'Branding',
   'settings.branding.logo.label': 'Logo',
-  'settings.branding.logo.description': 'Shown in the header and login page. Max 2 MB.',
+  // {maxMb} / {formats} are derived from LOGO_UPLOAD (services/settings-api.ts),
+  // which mirrors the server contract. Never restate the numbers in the copy.
+  'settings.branding.logo.description':
+    'Shown in the header and login page. Max {maxMb} MB. {formats}.',
   'settings.branding.appearance.title': 'Appearance',
   'settings.branding.appearance.description': 'Customize your organization\'s color theme.',
   'settings.branding.primaryColor.label': 'Primary color',
@@ -28,7 +31,9 @@ export const messagesSettingsCommon = {
 
   // Profile
   'profile.title': 'Profile',
-  'profile.avatar.description': 'Upload a photo. Max 2 MB, JPEG or PNG.',
+  // {maxMb} / {formats} are derived from AVATAR_UPLOAD (services/profile-api.ts),
+  // which mirrors the server contract. Never restate the numbers in the copy.
+  'profile.avatar.description': 'Upload a photo. Max {maxMb} MB. {formats}.',
   'profile.displayName.label': 'Display name',
   'profile.timezone.label': 'Timezone',
   'profile.language.label': 'Language',
@@ -75,6 +80,17 @@ export const messagesSettingsCommon = {
   // Page-level error state (PageError component)
   'error.page.heading': 'Failed to load',
   'error.page.description': 'Something went wrong while loading this page.',
+
+  // Upload failures — rendered next to the FileUpload control.
+  // Resolved from ApiError.code by i18n/upload-messages.ts.
+  'upload.error.tooLarge': 'That file is too large. The maximum size is {maxMb} MB.',
+  'upload.error.invalidType': 'That file type is not supported. Allowed formats: {formats}.',
+  'upload.error.invalidFile': 'That file could not be accepted. Please choose another one.',
+  'upload.error.rateLimited': 'Too many uploads in a short time. Please wait and try again.',
+  'upload.error.forbidden': 'You do not have permission to upload this file.',
+  'upload.error.server': 'The upload failed because of a server error. Please try again.',
+  'upload.error.invalidResponse': 'The server returned an unexpected response. Please try again.',
+  'upload.error.generic': 'The upload failed. Please try again.',
 
   // Empty states (per-page)
   'users.list.empty': 'No users yet',

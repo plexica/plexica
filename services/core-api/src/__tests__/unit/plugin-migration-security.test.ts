@@ -14,7 +14,7 @@ vi.mock('../../modules/plugin/services/db-role.service.js', () => ({
   dropPluginRole: mocks.drop,
 }));
 vi.mock('../../lib/tenant-database.js', () => ({
-  withTenantDb: vi.fn(async (callback: (tx: unknown) => Promise<unknown>) => callback({
+  withTenantDb: vi.fn(async (callback: (db: unknown) => Promise<unknown>) => callback({
     pluginInstallation: { update: mocks.update },
     pluginContainerConfig: { deleteMany: mocks.deleteMany },
   })),

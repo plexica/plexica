@@ -16,7 +16,7 @@
 import { z } from 'zod';
 
 import { withCoreDb } from '../../../lib/tenant-database.js';
-import { ValidationError } from '../../../lib/app-error.js';
+import { parseOrThrow } from '../../../lib/validation.js';
 import { slugSchema } from '../../../lib/tenant-schema-helpers.js';
 import { requireSuperAdmin } from '../../../middleware/require-super-admin.js';
 import { provisionTenantWithAudit } from '../services/tenant-provision.service.js';
@@ -29,22 +29,13 @@ const ProvisionTenantBodySchema = z.object({
   adminEmail: z.string().email(),
 });
 
-export async function tenantProvisionRoutes(
-  fastify: FastifyInstance
-): Promise<void> {
+export async function tenantProvisionRoutes(fastify: FastifyInstance): Promise<void> {
   // ── POST /api/v1/admin/tenants ─────────────────────────────────────────────
   fastify.post(
     '/tenants',
     { preHandler: [requireSuperAdmin] },
     async (request, reply: FastifyReply) => {
-      const parsed = ProvisionTenantBodySchema.safeParse(request.body);
-      if (!parsed.success) {
-        throw new ValidationError(
-          parsed.error.issues.map((i) => i.message).join(', ')
-        );
-      }
-
-      const { slug, name, adminEmail } = parsed.data;
+      const { slug, name, adminEmail } = parseOrThrow(ProvisionTenantBodySchema, request.body);
       const actorId = request.user.keycloakUserId;
 
       const result = await withCoreDb((prisma) =>

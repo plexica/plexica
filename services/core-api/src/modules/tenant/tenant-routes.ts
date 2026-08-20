@@ -12,10 +12,10 @@
 import { authMiddleware } from '../../middleware/auth-middleware.js';
 import { requireSuperAdmin } from '../../middleware/require-super-admin.js';
 import { TenantRequiredError } from '../../lib/app-error.js';
-import { rateLimitKey } from '../../lib/rate-limit-key.js';
+import { rateLimitKey } from '../../lib/rate-limit-config.js';
 import { config } from '../../lib/config.js';
 import { prisma } from '../../lib/database.js';
-import { SLUG_REGEX } from '../../lib/tenant-schema-helpers.js';
+import { TENANT_SLUG_REGEX } from '../../lib/slug.js';
 import { migrateAll } from '../../lib/multi-schema-migrate.js';
 
 import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
@@ -25,7 +25,7 @@ const tenantRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
   // PUBLIC: GET /api/tenants/resolve?slug=…
   // Always returns HTTP 200 — never reveals whether a slug is valid or not (anti-enumeration).
   // Returns { exists: true } for known tenants, { exists: false } otherwise.
-  // NEW-H-3: (1) Validates slug with SLUG_REGEX before DB lookup to prevent injection.
+  // NEW-H-3: (1) Validates slug with TENANT_SLUG_REGEX before DB lookup to prevent injection.
   //          (2) Does NOT return keycloakRealm — frontend derives realm via toRealmName()
   //              convention; exposing the internal realm name to unauthenticated callers
   //              aids enumeration attacks.
@@ -50,7 +50,7 @@ const tenantRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
       }
 
       // NEW-H-3: validate slug format before touching the DB
-      if (!SLUG_REGEX.test(slug)) {
+      if (!TENANT_SLUG_REGEX.test(slug)) {
         throw new TenantRequiredError();
       }
 

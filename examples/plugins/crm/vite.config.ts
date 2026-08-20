@@ -7,8 +7,6 @@ export default defineConfig({
     react(),
     ...plexicaPlugin({
       manifestPath: './manifest.json',
-      devMode: process.env.NODE_ENV === 'development',
-      devServerPort: 4001,
     }),
   ],
   build: {

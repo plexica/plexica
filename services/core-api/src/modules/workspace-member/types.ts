@@ -14,17 +14,8 @@ export interface WorkspaceMemberDto {
   createdAt: string;
 }
 
-export interface AddMemberInput {
-  userId: string;
-  role: WorkspaceRole;
-}
-
-export interface ChangeMemberRoleInput {
-  role: WorkspaceRole;
-}
-
 export interface MemberListFilters {
   page?: number;
-  limit?: number;
+  pageSize?: number;
   search?: string;
 }

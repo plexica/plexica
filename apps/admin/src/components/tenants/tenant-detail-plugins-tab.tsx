@@ -3,7 +3,7 @@
 
 import { FormattedMessage } from 'react-intl';
 import { Puzzle } from 'lucide-react';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@plexica/ui';
+import { EmptyState, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@plexica/ui';
 
 import type { TenantDetail, TenantDetailPluginInstallation } from '../../types/admin-types.js';
 
@@ -33,12 +33,10 @@ export function TenantDetailPluginsTab({ detail }: TenantDetailPluginsTabProps):
         <FormattedMessage id="tenant.plugins.title" values={{ count: installs.length }} />
       </h2>
       {installs.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-neutral-300 bg-white p-10 text-center">
-          <Puzzle className="mx-auto mb-2 h-8 w-8 text-neutral-300" aria-hidden="true" />
-          <p className="text-sm text-neutral-500">
-            <FormattedMessage id="tenant.plugins.empty" />
-          </p>
-        </div>
+        <EmptyState
+          icon={Puzzle}
+          heading={<FormattedMessage id="tenant.plugins.empty" />}
+        />
       ) : (
         <Table>
           <TableHeader>

@@ -1,4 +1,3 @@
-import { generateSlug } from '../../lib/slug.js';
 import {
   WorkspaceNotFoundError,
   WorkspaceArchivedError,
@@ -17,10 +16,12 @@ import {
   createWorkspace,
   updateWorkspace,
   findMemberRole,
-  slugExists,
 } from './repository.js';
-import { findTemplateById } from './repository-templates.js';
+import { buildWorkspaceCreateAuditEntry } from './audit-entries.js';
+import { MAX_DEPTH, pathDepth } from './hierarchy.js';
+import { resolveSlug, seedTemplateChildren } from './service-create-helpers.js';
 
+import type { CreateWorkspaceResult } from './audit-entries.js';
 import type {
   WorkspaceDto,
   WorkspaceDetailDto,
@@ -28,25 +29,10 @@ import type {
   UpdateWorkspaceInput,
 } from './types.js';
 import type { PaginatedResult } from '../../lib/pagination.js';
-
-const MAX_DEPTH = 10;
-
-function pathDepth(p: string): number {
-  return p.split('/').filter(Boolean).length;
-}
-
-async function resolveSlug(tenantDb: unknown, baseName: string): Promise<string> {
-  let slug = generateSlug(baseName);
-  let suffix = 2;
-  while (await slugExists(tenantDb, slug)) {
-    slug = `${generateSlug(baseName)}-${suffix}`;
-    suffix++;
-  }
-  return slug;
-}
+import type { TenantDbClient, TenantPrismaClient } from '../../lib/tenant-database.js';
 
 export async function listWorkspaces(
-  tenantDb: unknown,
+  tenantDb: TenantDbClient,
   userId: string,
   isTenantAdmin: boolean,
   filters: {
@@ -55,7 +41,7 @@ export async function listWorkspaces(
     sort?: 'name' | 'createdAt';
     order?: 'asc' | 'desc';
     page: number;
-    limit: number;
+    pageSize: number;
   }
 ): Promise<PaginatedResult<WorkspaceDto>> {
   const { rows, total } = await findWorkspacesByUser(tenantDb, {
@@ -74,38 +60,23 @@ export async function listWorkspaces(
     memberCount: row.memberCount ?? 0,
     createdAt: row.createdAt.toISOString(),
   }));
-  return buildPaginatedResult(dtos, total, { page: filters.page, limit: filters.limit });
+  return buildPaginatedResult(dtos, total, { page: filters.page, pageSize: filters.pageSize });
 }
 
-async function seedTemplateChildren(
-  tenantDb: unknown,
-  templateId: string,
-  parentId: string,
-  parentPath: string,
-  userId: string
-): Promise<void> {
-  const template = await findTemplateById(tenantDb, templateId);
-  if (template === null) return;
-  const structure = Array.isArray(template.structure) ? template.structure : [];
-  for (const child of structure as Array<{ name: string; description?: string }>) {
-    const childSlug = await resolveSlug(tenantDb, child.name);
-    await createWorkspace(tenantDb, {
-      name: child.name,
-      slug: childSlug,
-      description: child.description ?? null,
-      parentId,
-      materializedPath: `${parentPath}/${childSlug}`,
-      createdBy: userId,
-    });
-  }
-}
-
+/**
+ * Creates a workspace and its outbox event.
+ *
+ * Runs inside an interactive `$transaction`, so it deliberately does NOT write
+ * the audit log: a swallowed audit INSERT failure would still abort the
+ * transaction in PostgreSQL. The pending entry is returned to the caller, which
+ * persists it on a non-transactional client after COMMIT.
+ */
 export async function createWorkspaceService(
-  tenantDb: unknown,
+  tenantDb: TenantDbClient,
   userId: string,
   input: CreateWorkspaceInput,
   tenantId: string
-): Promise<WorkspaceDetailDto> {
+): Promise<CreateWorkspaceResult> {
   let parentPath: string | null = null;
   if (input.parentId != null) {
     const parent = await findWorkspaceById(tenantDb, input.parentId);
@@ -128,14 +99,8 @@ export async function createWorkspaceService(
   if (input.templateId != null) {
     await seedTemplateChildren(tenantDb, input.templateId, created.id, path, userId);
   }
-  writeAuditLog(tenantDb, {
-    actorId: userId,
-    actionType: 'workspace.create',
-    targetType: 'workspace',
-    targetId: created.id,
-  });
   await enqueueEvent(
-    tenantDb as Parameters<typeof enqueueEvent>[0],
+    tenantDb,
     'plexica.workspace.created',
     buildDomainEvent({
       type: 'plexica.workspace.created',
@@ -144,11 +109,14 @@ export async function createWorkspaceService(
       payload: { id: created.id, workspaceId: created.id, slug, name: input.name },
     })
   );
-  return getWorkspaceService(tenantDb, created.id, userId);
+  return {
+    workspace: await getWorkspaceService(tenantDb, created.id, userId),
+    auditEntry: buildWorkspaceCreateAuditEntry(userId, created.id),
+  };
 }
 
 export async function getWorkspaceService(
-  tenantDb: unknown,
+  tenantDb: TenantDbClient,
   workspaceId: string,
   userId: string
 ): Promise<WorkspaceDetailDto> {
@@ -176,8 +144,9 @@ export async function getWorkspaceService(
   };
 }
 
+// TenantPrismaClient (non-transactional): this service writes the audit log.
 export async function updateWorkspaceService(
-  tenantDb: unknown,
+  tenantDb: TenantPrismaClient,
   workspaceId: string,
   userId: string,
   input: UpdateWorkspaceInput,
@@ -190,7 +159,9 @@ export async function updateWorkspaceService(
     throw new VersionConflictError();
   }
   await updateWorkspace(tenantDb, workspaceId, { ...input, version: existing.version + 1 });
-  writeAuditLog(tenantDb, {
+  // Safe: this service is invoked on a plain `withTenantDb` client, never
+  // inside an interactive $transaction — see audit-log/writer.ts.
+  await writeAuditLog(tenantDb, {
     actorId: userId,
     actionType: 'workspace.update',
     targetType: 'workspace',

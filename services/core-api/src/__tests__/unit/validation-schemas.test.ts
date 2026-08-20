@@ -11,7 +11,7 @@ import {
 } from '../../modules/workspace/schema.js';
 import { updateBrandingSchema } from '../../modules/tenant-settings/schema.js';
 import { paginationSchema } from '../../lib/pagination.js';
-import { SLUG_REGEX } from '../../lib/slug.js';
+import { RESOURCE_SLUG_REGEX } from '../../lib/slug.js';
 
 // ===========================================================================
 // Workspace name validation (createWorkspaceSchema.name)
@@ -56,43 +56,43 @@ describe('Workspace name — updateWorkspaceSchema', () => {
 });
 
 // ===========================================================================
-// Workspace slug regex (SLUG_REGEX)
+// Workspace slug regex (RESOURCE_SLUG_REGEX)
 // ===========================================================================
 
-describe('SLUG_REGEX', () => {
+describe('RESOURCE_SLUG_REGEX', () => {
   it('"valid-slug" → valid', () => {
-    expect(SLUG_REGEX.test('valid-slug')).toBe(true);
+    expect(RESOURCE_SLUG_REGEX.test('valid-slug')).toBe(true);
   });
 
   it('"1invalid" (starts with digit) → invalid', () => {
-    expect(SLUG_REGEX.test('1invalid')).toBe(false);
+    expect(RESOURCE_SLUG_REGEX.test('1invalid')).toBe(false);
   });
 
   it('"UPPER" (uppercase letters) → invalid', () => {
-    expect(SLUG_REGEX.test('UPPER')).toBe(false);
+    expect(RESOURCE_SLUG_REGEX.test('UPPER')).toBe(false);
   });
 
   it('"ab" (2 chars, minimum valid length) → valid', () => {
-    expect(SLUG_REGEX.test('ab')).toBe(true);
+    expect(RESOURCE_SLUG_REGEX.test('ab')).toBe(true);
   });
 
   it('"a" (1 char, below minimum 2 total) → invalid (regex requires 1 leading + 1 more)', () => {
-    // SLUG_REGEX = /^[a-z][a-z0-9-]{1,62}$/ — so "a" (only 1 char) fails the {1,62} part
-    expect(SLUG_REGEX.test('a')).toBe(false);
+    // RESOURCE_SLUG_REGEX = /^[a-z][a-z0-9-]{1,62}$/ — so "a" (only 1 char) fails the {1,62} part
+    expect(RESOURCE_SLUG_REGEX.test('a')).toBe(false);
   });
 
   it('"a1" → valid', () => {
-    expect(SLUG_REGEX.test('a1')).toBe(true);
+    expect(RESOURCE_SLUG_REGEX.test('a1')).toBe(true);
   });
 
   it('63-char slug → valid (max boundary: 1 + 62)', () => {
     const slug = 'a' + 'b'.repeat(62);
-    expect(SLUG_REGEX.test(slug)).toBe(true);
+    expect(RESOURCE_SLUG_REGEX.test(slug)).toBe(true);
   });
 
   it('64-char slug → invalid (exceeds 63 max)', () => {
     const slug = 'a' + 'b'.repeat(63);
-    expect(SLUG_REGEX.test(slug)).toBe(false);
+    expect(RESOURCE_SLUG_REGEX.test(slug)).toBe(false);
   });
 });
 
@@ -133,31 +133,31 @@ describe('Hex color — updateBrandingSchema.primaryColor', () => {
 
 describe('paginationSchema', () => {
   it('page=0 → invalid (min 1)', () => {
-    expect(paginationSchema.safeParse({ page: '0', limit: '10' }).success).toBe(false);
+    expect(paginationSchema.safeParse({ page: '0', pageSize: '10' }).success).toBe(false);
   });
 
   it('page=1 → valid', () => {
-    expect(paginationSchema.safeParse({ page: '1', limit: '10' }).success).toBe(true);
+    expect(paginationSchema.safeParse({ page: '1', pageSize: '10' }).success).toBe(true);
   });
 
-  it('limit=0 → invalid (min 1)', () => {
-    expect(paginationSchema.safeParse({ page: '1', limit: '0' }).success).toBe(false);
+  it('pageSize=0 → invalid (min 1)', () => {
+    expect(paginationSchema.safeParse({ page: '1', pageSize: '0' }).success).toBe(false);
   });
 
-  it('limit=101 → invalid (max 100)', () => {
-    expect(paginationSchema.safeParse({ page: '1', limit: '101' }).success).toBe(false);
+  it('pageSize=101 → invalid (max 100)', () => {
+    expect(paginationSchema.safeParse({ page: '1', pageSize: '101' }).success).toBe(false);
   });
 
-  it('limit=100 → valid (max boundary)', () => {
-    expect(paginationSchema.safeParse({ page: '1', limit: '100' }).success).toBe(true);
+  it('pageSize=100 → valid (max boundary)', () => {
+    expect(paginationSchema.safeParse({ page: '1', pageSize: '100' }).success).toBe(true);
   });
 
-  it('defaults: missing page defaults to 1, missing limit defaults to 20', () => {
+  it('defaults: missing page defaults to 1, missing pageSize defaults to 20', () => {
     const result = paginationSchema.safeParse({});
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.page).toBe(1);
-      expect(result.data.limit).toBe(20);
+      expect(result.data.pageSize).toBe(20);
     }
   });
 });

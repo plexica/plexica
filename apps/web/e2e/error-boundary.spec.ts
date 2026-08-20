@@ -30,6 +30,8 @@ async function loginAndGoTo(page: import('@playwright/test').Page, path: string)
   await page.waitForURL(`**${path}`, { timeout: 15_000 });
 }
 
+test.describe.configure({ mode: 'parallel' });
+
 test.describe('Error boundary (M-6)', () => {
   test.beforeAll(() => {
     requireKeycloakInCI();

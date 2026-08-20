@@ -12,6 +12,7 @@ import {
   type AuditQuery,
   type WriteAuditEntry,
 } from '../schemas/audit-schemas.js';
+import { buildPaginatedResult } from '../../../lib/pagination.js';
 
 import type { PrismaClient, Prisma } from '@prisma/client';
 
@@ -47,6 +48,34 @@ function toEntry(row: AuditRow): AuditEntry {
  * Inserts a platform audit log entry.
  * Validates input via WriteAuditEntrySchema; callers MUST NOT place PII in
  * metadata (Security §6). actorId is the Keycloak master realm sub.
+ *
+ * TRANSACTIONAL CONTRACT — INTENTIONALLY THE OPPOSITE OF
+ * `modules/audit-log/writer.ts#writeAuditLog`:
+ *
+ *   This writer MAY (and normally SHOULD) be called INSIDE a `$transaction`,
+ *   and it PROPAGATES errors. Accepting `Prisma.TransactionClient` in the
+ *   signature is deliberate, not an oversight.
+ *
+ * Why: platform_audit_log is compliance evidence for privileged super-admin
+ * actions — tenant suspend (tenant-suspend.service.ts), reactivate
+ * (tenant-reactivate.service.ts), deletion saga start
+ * (deletion-saga-start.service.ts), GDPR purge
+ * (deletion-step-gdpr-purge.ts). For those operations the audit row is a hard
+ * dependency of correctness, not an observation of it: an unrecorded tenant
+ * suspension is worse than a failed one. Writing in the same transaction makes
+ * "action applied" and "action recorded" atomic — if the entry cannot be
+ * written, the whole operation rolls back and the caller sees the error.
+ *
+ * By contrast `writeAuditLog` records ordinary tenant activity, runs OUTSIDE
+ * any transaction and swallows DB errors, because losing one of those rows
+ * must never fail the user action it describes. Its "DO NOT call inside
+ * $transaction" banner is specific to that writer and does NOT apply here.
+ *
+ * Rule 3 (one pattern per operation) note: the divergence is a genuine
+ * difference in requirements — availability-first vs evidence-first auditing —
+ * not two solutions to the same problem. The selection rule is: does the
+ * business operation remain correct if the audit row is lost? Yes → the tenant
+ * writer. No → this one.
  */
 export async function writeAuditEntry(
   prisma: PrismaClient | Prisma.TransactionClient,
@@ -99,10 +128,5 @@ export async function queryAuditLog(
     prisma.platformAuditLog.count({ where }),
   ]);
 
-  return {
-    data: rows.map(toEntry),
-    total,
-    page,
-    pageSize,
-  };
+  return buildPaginatedResult(rows.map(toEntry), total, { page, pageSize });
 }

@@ -12,7 +12,11 @@ import type { DeletionContext } from './deletion-context.service.js';
 
 export const GDPR_TOMBSTONE_POLICY = 'gdpr-erasure-v1';
 
-function redisPatterns(tenantId: string, context: DeletionContext): string[] {
+// The plugin health gauge (`metrics:{tenantSlug}:plugin_health:{installId}`)
+// is covered by `metrics:{tenantSlug}:*`; the tenant map
+// (`plugin:health-tenant:{installId}`) is enumerated per installation below.
+// Both keys also carry a 24h TTL as a safety net.
+export function redisPatterns(tenantId: string, context: DeletionContext): string[] {
   const patterns = [
     `abac:${context.tenantSlug}:*`,
     `tenant:context:${context.tenantSlug}`,
@@ -26,7 +30,11 @@ function redisPatterns(tenantId: string, context: DeletionContext): string[] {
     'metrics:workspace_count:total',
   ];
   for (const installId of context.pluginInstallIds) {
-    patterns.push(`plugin:vis:${installId}:*`, `plugin:cb:${installId}`);
+    patterns.push(
+      `plugin:vis:${installId}:*`,
+      `plugin:cb:${installId}`,
+      `plugin:health-tenant:${installId}`
+    );
   }
   return patterns;
 }

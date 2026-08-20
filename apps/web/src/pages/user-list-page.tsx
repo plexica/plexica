@@ -18,16 +18,21 @@ import {
   TableCell,
 } from '@plexica/ui';
 
+import { useProfile } from '../hooks/use-profile.js';
 import { useUsers } from '../hooks/use-users.js';
 import { RemoveUserDialog } from '../components/user/remove-user-dialog.js';
 import { SkeletonLoader } from '../components/feedback/skeleton-loader.js';
 import { EmptyState } from '../components/feedback/empty-state.js';
 import { PageError } from '../components/feedback/page-error.js';
 
-const STATUS_VARIANT: Record<string, 'success' | 'error' | 'default'> = {
+import type { BadgeVariant } from '@plexica/ui';
+import type { TenantUser } from '../types/user-management.js';
+
+// Mirrors the backend status union (core-api user-management/types.ts).
+const STATUS_VARIANT: Record<TenantUser['status'], BadgeVariant> = {
   active: 'success',
-  suspended: 'error',
-  pending_deletion: 'error',
+  invited: 'pending',
+  disabled: 'error',
 };
 
 function UserListSkeleton(): JSX.Element {
@@ -53,6 +58,9 @@ export function UserListPage(): JSX.Element {
 
   const filters = search ? { page, search } : { page };
   const { data, isPending, isError, refetch } = useUsers(filters);
+  // The logged-in admin must not be able to remove themselves: the route
+  // already rejects it, so the button is only hidden as defence in depth.
+  const { data: currentProfile } = useProfile();
 
   if (isPending) return <UserListSkeleton />;
   if (isError) {
@@ -123,11 +131,21 @@ export function UserListPage(): JSX.Element {
                     label={intl.formatMessage({ id: `users.status.${u.status}` })}
                   />
                 </TableCell>
-                <TableCell>
-                  <Button variant="ghost" size="sm" onClick={() => setRemoveUserId(u.userId)}>
-                    <FormattedMessage id="common.delete" />
-                  </Button>
-                </TableCell>
+                 <TableCell>
+                   {u.userId !== currentProfile?.userId && (
+                     <Button
+                       variant="ghost"
+                       size="sm"
+                       onClick={() => setRemoveUserId(u.userId)}
+                       aria-label={intl.formatMessage(
+                         { id: 'users.remove.ariaLabel' },
+                         { name: u.displayName ?? u.email }
+                       )}
+                     >
+                       <FormattedMessage id="common.delete" />
+                     </Button>
+                   )}
+                 </TableCell>
               </TableRow>
             ))}
           </TableBody>

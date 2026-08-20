@@ -14,11 +14,8 @@
 import { z } from 'zod';
 
 import { withCoreDb } from '../../../lib/tenant-database.js';
-import {
-  ConfirmationRequiredError,
-  NotFoundError,
-  ValidationError,
-} from '../../../lib/app-error.js';
+import { ConfirmationRequiredError, NotFoundError } from '../../../lib/app-error.js';
+import { parseOrThrow } from '../../../lib/validation.js';
 import { requireSuperAdmin } from '../../../middleware/require-super-admin.js';
 import { startDeletionSaga } from '../services/deletion-saga.service.js';
 
@@ -33,30 +30,14 @@ const TenantDeleteBodySchema = z.object({
   version: z.number().int().min(1),
 });
 
-export async function tenantDeleteRoutes(
-  fastify: FastifyInstance
-): Promise<void> {
+export async function tenantDeleteRoutes(fastify: FastifyInstance): Promise<void> {
   // ── DELETE /api/v1/admin/tenants/:id ────────────────────────────────────────
   fastify.delete(
     '/tenants/:id',
     { preHandler: [requireSuperAdmin] },
     async (request, reply: FastifyReply) => {
-      const paramsParsed = TenantDeleteParamsSchema.safeParse(request.params);
-      if (!paramsParsed.success) {
-        throw new ValidationError(
-          paramsParsed.error.issues.map((i) => i.message).join(', ')
-        );
-      }
-
-      const bodyParsed = TenantDeleteBodySchema.safeParse(request.body);
-      if (!bodyParsed.success) {
-        throw new ValidationError(
-          bodyParsed.error.issues.map((i) => i.message).join(', ')
-        );
-      }
-
-      const { id } = paramsParsed.data;
-      const { confirmSlug, version } = bodyParsed.data;
+      const { id } = parseOrThrow(TenantDeleteParamsSchema, request.params);
+      const { confirmSlug, version } = parseOrThrow(TenantDeleteBodySchema, request.body);
       const actorId = request.user.keycloakUserId;
 
       const result = await withCoreDb(async (prisma) => {
@@ -68,9 +49,7 @@ export async function tenantDeleteRoutes(
           throw new NotFoundError('Tenant not found');
         }
         if (tenant.slug !== confirmSlug) {
-          throw new ConfirmationRequiredError(
-            'confirmSlug does not match the tenant slug'
-          );
+          throw new ConfirmationRequiredError('confirmSlug does not match the tenant slug');
         }
 
         return startDeletionSaga(prisma, id, version, actorId);

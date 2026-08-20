@@ -14,6 +14,7 @@ import { PluginsPage } from './pages/plugins-page.js';
 import { HealthPage } from './pages/health-page.js';
 import { LogsPage } from './pages/logs-page.js';
 import { KafkaPage } from './pages/kafka-page.js';
+import { DlqPage } from './pages/dlq-page.js';
 
 export const dashboardRoute = createRoute({
   getParentRoute: () => shellRoute,
@@ -63,6 +64,12 @@ export const kafkaRoute = createRoute({
   component: KafkaPage,
 });
 
+export const dlqRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: '/dlq',
+  component: DlqPage,
+});
+
 export const shellChildRoutes = [
   dashboardRoute,
   tenantsRoute,
@@ -72,4 +79,5 @@ export const shellChildRoutes = [
   healthRoute,
   logsRoute,
   kafkaRoute,
+  dlqRoute,
 ];

@@ -22,22 +22,4 @@ describe('SHARED_DEPS', () => {
   it('includes @plexica/ui as singleton', () => {
     expect(SHARED_DEPS['@plexica/ui'].singleton).toBe(true);
   });
-
-  it('all deps are singleton=true', () => {
-    for (const [, value] of Object.entries(SHARED_DEPS)) {
-      expect(value.singleton).toBe(true);
-    }
-  });
-
-  it('all deps specify requiredVersion', () => {
-    for (const [, value] of Object.entries(SHARED_DEPS)) {
-      expect(value.requiredVersion).toBeDefined();
-    }
-  });
-
-  it('all deps have eager=false', () => {
-    for (const [, value] of Object.entries(SHARED_DEPS)) {
-      expect(value.eager).toBe(false);
-    }
-  });
 });

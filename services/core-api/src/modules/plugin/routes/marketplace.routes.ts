@@ -5,18 +5,19 @@
 import { z } from 'zod';
 
 import { withCoreDb, withTenantDb } from '../../../lib/tenant-database.js';
+import { RESOURCE_SLUG_REGEX } from '../../../lib/slug.js';
 import { requireAbac } from '../../../middleware/abac.js';
 import { ForbiddenError } from '../../../lib/app-error.js';
 import { getPresignedReadUrl } from '../../../lib/minio-client.js';
+import { buildPaginatedResult } from '../../../lib/pagination.js';
 import { PluginNotFoundError } from '../errors.js';
 import { manifestSchema } from '../schema/manifest.js';
 import { getDevBackendForInstallation } from '../services/dev-backends.js';
 import { isPluginVisible } from '../services/visibility.service.js';
 
 import type { FastifyInstance } from 'fastify';
+import type { Prisma } from '@prisma/client';
 import type { TenantPrismaClient } from '../../../lib/tenant-database.js';
-
-const SLUG_REGEX = /^[a-z][a-z0-9-]{1,62}$/;
 
 const listQuerySchema = z.object({
   page: z.coerce.number().int().min(1).max(100).default(1),
@@ -34,8 +35,8 @@ export async function marketplaceRoutes(fastify: FastifyInstance): Promise<void>
     async (request) => {
       const ctx = request.tenantContext;
 
-      const installations = await withTenantDb(async (tx: TenantPrismaClient) => {
-        return tx.pluginInstallation.findMany({
+      const installations = await withTenantDb(async (db: TenantPrismaClient) => {
+        return db.pluginInstallation.findMany({
           where: { tenantSlug: ctx.slug, status: { not: 'uninstalled' } },
           orderBy: { installedAt: 'desc' },
         });
@@ -43,19 +44,17 @@ export async function marketplaceRoutes(fastify: FastifyInstance): Promise<void>
 
       if (installations.length === 0) return [];
 
-      const pluginIds: string[] = Array.from(
-        new Set(installations.map((i: Record<string, unknown>) => i.pluginId as string))
-      );
+      const pluginIds: string[] = Array.from(new Set(installations.map((i) => i.pluginId)));
       const plugins = await withCoreDb((prisma) =>
         prisma.plugin.findMany({
           where: { id: { in: pluginIds } },
           select: { id: true, slug: true, name: true, version: true },
         })
       );
-      const pluginMap = new Map(plugins.map((p: Record<string, unknown>) => [p.id as string, p]));
+      const pluginMap = new Map(plugins.map((p) => [p.id, p]));
 
-      return installations.map((inst: Record<string, unknown>) => {
-        const plugin = pluginMap.get(inst.pluginId as string);
+      return installations.map((inst) => {
+        const plugin = pluginMap.get(inst.pluginId);
         return {
           ...inst,
           // Frontend PluginInstallation type uses `name`/`slug`; raw E2E
@@ -74,26 +73,25 @@ export async function marketplaceRoutes(fastify: FastifyInstance): Promise<void>
     const { workspaceId } = z.object({ workspaceId: z.string().uuid() }).parse(request.params);
     const ctx = request.tenantContext;
     const isTenantAdmin = request.user.roles.includes('tenant_admin');
-    const installations = await withTenantDb(async (tx: TenantPrismaClient) => {
-      const workspace = await tx.workspace.findFirst({
+    const installations = await withTenantDb(async (db: TenantPrismaClient) => {
+      const workspace = await db.workspace.findFirst({
         where: { id: workspaceId, status: 'active' },
         select: { id: true },
       });
       if (!workspace) throw new ForbiddenError('Active workspace required');
       if (!isTenantAdmin) {
-        const membership = await tx.workspaceMember.findUnique({
+        const membership = await db.workspaceMember.findUnique({
           where: { workspaceId_userId: { workspaceId, userId: request.user.id } },
           select: { id: true },
         });
         if (!membership) throw new ForbiddenError('Workspace membership required');
       }
-      const candidates = await tx.pluginInstallation.findMany({
+      const candidates = await db.pluginInstallation.findMany({
         where: { tenantSlug: ctx.slug, status: 'active' },
       });
       const visible = await Promise.all(
         candidates.map(async (item) =>
-          // Generated tenant transaction type is compatible at runtime.
-          (await isPluginVisible(tx as never, item.id, workspaceId)) ? item : null
+          (await isPluginVisible(db, item.id, workspaceId)) ? item : null
         )
       );
       return visible.filter((item): item is NonNullable<typeof item> => item !== null);
@@ -136,25 +134,24 @@ export async function marketplaceRoutes(fastify: FastifyInstance): Promise<void>
   fastify.get('/api/v1/plugins', async (request) => {
     const parsed = listQuerySchema.safeParse(request.query);
     if (!parsed.success) {
-      return { data: [], total: 0, page: 1, pageSize: 20, totalPages: 0 };
+      return buildPaginatedResult([], 0, { page: 1, pageSize: 20 });
     }
     const { page, pageSize, search, category } = parsed.data;
     const installedIds = new Set(
-      await withTenantDb(async (database) => {
-        const rows = await database.pluginInstallation.findMany({
+      await withTenantDb(async (db) => {
+        const rows = await db.pluginInstallation.findMany({
           where: { tenantSlug: request.tenantContext.slug, status: { not: 'uninstalled' } },
           select: { pluginId: true },
         });
         return rows.map((row) => row.pluginId);
       }, request.tenantContext)
     );
-    const where: Record<string, unknown> = { status: 'published' };
+    const where: Prisma.PluginWhereInput = { status: 'published' };
     if (search) where.slug = { contains: search, mode: 'insensitive' };
     if (category) where.categories = { array_contains: [category] };
 
     return withCoreDb((prisma) =>
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (prisma as any).$transaction(async (tx: any) => {
+      prisma.$transaction(async (tx) => {
         const [data, total] = await Promise.all([
           tx.plugin.findMany({
             where,
@@ -164,30 +161,30 @@ export async function marketplaceRoutes(fastify: FastifyInstance): Promise<void>
           }),
           tx.plugin.count({ where }),
         ]);
-        return {
-          data: data.map((plugin: { id: string }) => ({
+        return buildPaginatedResult(
+          data.map((plugin) => ({
             ...plugin,
             isInstalled: installedIds.has(plugin.id),
             installCount: installedIds.has(plugin.id) ? 1 : 0,
           })),
           total,
-          page,
-          pageSize,
-          totalPages: Math.ceil(total / pageSize),
-        };
+          { page, pageSize },
+        );
       })
     );
   });
 
   // ── GET /api/v1/plugins/:slug ──────────────────────────────────────────────
   fastify.get('/api/v1/plugins/:slug', async (request) => {
-    const { slug } = z.object({ slug: z.string().regex(SLUG_REGEX) }).parse(request.params);
+    const { slug } = z
+      .object({ slug: z.string().regex(RESOURCE_SLUG_REGEX) })
+      .parse(request.params);
 
     const plugin = await withCoreDb((prisma) => prisma.plugin.findUnique({ where: { slug } }));
 
     if (!plugin || plugin.status !== 'published') throw new PluginNotFoundError(slug);
 
-    const manifest = manifestSchema.safeParse(plugin.manifest as unknown);
+    const manifest = manifestSchema.safeParse(plugin.manifest);
     return {
       ...plugin,
       actions: manifest.success ? (manifest.data.actions ?? []) : [],

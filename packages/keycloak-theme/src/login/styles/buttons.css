@@ -8,11 +8,7 @@
   border-radius: var(--radius-md);
   font-size: 0.9375rem;
   font-weight: 500;
-  font-family:
-    'Inter',
-    system-ui,
-    -apple-system,
-    sans-serif;
+  font-family: var(--font-sans);
   cursor: pointer;
   border: none;
   transition:

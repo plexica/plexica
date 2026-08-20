@@ -1,7 +1,9 @@
 import { useState } from 'react';
 
 import { AuthLayout } from '../components/AuthLayout';
+import { PasswordField } from '../components/PasswordField';
 import { SocialProviders } from '../components/SocialProviders';
+import { UsernameField } from '../components/UsernameField';
 import '../styles/index.css';
 
 import type { FormEvent } from 'react';
@@ -19,7 +21,6 @@ export default function Login({ kcContext, i18n }: Props) {
 
   const { msg, msgStr } = i18n;
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [passwordVisible, setPasswordVisible] = useState(false);
 
   function handleSubmit(_e: FormEvent<HTMLFormElement>) {
     setIsSubmitting(true);
@@ -48,32 +49,15 @@ export default function Login({ kcContext, i18n }: Props) {
 
       <form action={url.loginAction} method="post" onSubmit={handleSubmit} noValidate>
         {!usernameHidden && (
-          <div className="form-group">
-            <label className="form-label" htmlFor="username">
-              {!realm.loginWithEmailAllowed
-                ? msg('username')
-                : !realm.registrationEmailAsUsername
-                  ? msg('usernameOrEmail')
-                  : msg('email')}
-            </label>
-            <input
-              id="username"
-              name="username"
-              className={`form-input${messagesPerField.existsError('username') ? ' error' : ''}`}
-              type="text"
-              autoComplete="username"
-              autoFocus
-              defaultValue={login.username ?? ''}
-              aria-describedby={
-                messagesPerField.existsError('username') ? 'username-error' : undefined
-              }
-            />
-            {messagesPerField.existsError('username') && (
-              <span id="username-error" className="form-error">
-                {messagesPerField.getFirstError('username')}
-              </span>
-            )}
-          </div>
+          <UsernameField
+            realm={realm}
+            msg={msg}
+            defaultValue={login.username ?? ''}
+            autoFocus
+            hasError={messagesPerField.existsError('username')}
+            errorId="username-error"
+            errorMessage={messagesPerField.getFirstError('username')}
+          />
         )}
 
         <div className="form-group">
@@ -87,52 +71,14 @@ export default function Login({ kcContext, i18n }: Props) {
               </a>
             )}
           </div>
-          <div className="input-wrapper">
-            <input
-              id="password"
-              name="password"
-              className={`form-input${messagesPerField.existsError('password') ? ' error' : ''}`}
-              type={passwordVisible ? 'text' : 'password'}
-              autoComplete="current-password"
-              aria-describedby={
-                messagesPerField.existsError('password') ? 'password-error' : undefined
-              }
-            />
-            <button
-              type="button"
-              className="input-toggle"
-              aria-label={passwordVisible ? msgStr('hidePassword') : msgStr('showPassword')}
-              onClick={() => setPasswordVisible((v) => !v)}
-            >
-              {passwordVisible ? (
-                <svg
-                  width="18"
-                  height="18"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  aria-hidden="true"
-                >
-                  <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
-                  <line x1="1" y1="1" x2="23" y2="23" />
-                </svg>
-              ) : (
-                <svg
-                  width="18"
-                  height="18"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  aria-hidden="true"
-                >
-                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                  <circle cx="12" cy="12" r="3" />
-                </svg>
-              )}
-            </button>
-          </div>
+          <PasswordField
+            id="password"
+            name="password"
+            hasError={messagesPerField.existsError('password')}
+            errorId="password-error"
+            ariaLabelShow={msgStr('showPassword')}
+            ariaLabelHide={msgStr('hidePassword')}
+          />
           {messagesPerField.existsError('password') && (
             <span id="password-error" className="form-error">
               {messagesPerField.getFirstError('password')}

@@ -26,6 +26,7 @@ export type AuthStatus = 'unauthenticated' | 'authenticating' | 'authenticated' 
 export interface AuthState<T extends BaseUserProfile = BaseUserProfile> {
   accessToken: string | null;
   refreshToken: string | null;
+  idToken: string | null;
   userProfile: T | null;
   status: AuthStatus;
   isAuthenticated: boolean;

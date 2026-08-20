@@ -5,7 +5,7 @@
 
 import { redis } from '../../lib/redis.js';
 import { MemberAlreadyExistsError, MemberNotFoundError } from '../../lib/app-error.js';
-import { invalidateAbacCache } from '../../middleware/abac.js';
+import { setAbacMembership } from '../../middleware/abac.js';
 import { writeAuditLog } from '../audit-log/writer.js';
 
 import {
@@ -16,6 +16,8 @@ import {
   changeMemberRole as repoChangeRole,
 } from './repository.js';
 
+import type { TenantDbClient, TenantPrismaClient } from '../../lib/tenant-database.js';
+import type { PaginatedResult } from '../../lib/pagination.js';
 import type { MemberListFilters, WorkspaceMemberDto, WorkspaceRole } from './types.js';
 
 // ---------------------------------------------------------------------------
@@ -23,19 +25,20 @@ import type { MemberListFilters, WorkspaceMemberDto, WorkspaceRole } from './typ
 // ---------------------------------------------------------------------------
 
 export async function listMembers(
-  tenantDb: unknown,
+  tenantDb: TenantDbClient,
   workspaceId: string,
   filters: MemberListFilters
-): Promise<{ data: WorkspaceMemberDto[]; total: number }> {
+): Promise<PaginatedResult<WorkspaceMemberDto>> {
   return findMembers(tenantDb, workspaceId, filters);
 }
 
 // ---------------------------------------------------------------------------
 // addMember — also called by invitation service on accept
+// TenantPrismaClient (non-transactional): writes the audit log.
 // ---------------------------------------------------------------------------
 
 export async function addMember(
-  tenantDb: unknown,
+  tenantDb: TenantPrismaClient,
   workspaceId: string,
   userId: string,
   role: WorkspaceRole,
@@ -49,9 +52,12 @@ export async function addMember(
 
   const member = await repoAdd(tenantDb, workspaceId, userId, role);
 
-  await invalidateAbacCache(tenantSlug, userId, workspaceId, redis);
+  // Write-through: publish the new role instead of deleting the key, so a
+  // concurrent ABAC reader holding the pre-mutation DB state cannot repopulate
+  // the cache with it. See setAbacMembership() / getMembership().
+  await setAbacMembership(tenantSlug, userId, workspaceId, { role, isTenantAdmin: false }, redis);
 
-  writeAuditLog(tenantDb, {
+  await writeAuditLog(tenantDb, {
     actorId,
     actionType: 'member.add',
     targetType: 'workspace_member',
@@ -65,8 +71,9 @@ export async function addMember(
 // removeMember
 // ---------------------------------------------------------------------------
 
+// TenantPrismaClient (non-transactional): writes the audit log.
 export async function removeMember(
-  tenantDb: unknown,
+  tenantDb: TenantPrismaClient,
   workspaceId: string,
   userId: string,
   actorId: string,
@@ -79,9 +86,18 @@ export async function removeMember(
 
   await repoRemove(tenantDb, workspaceId, userId);
 
-  await invalidateAbacCache(tenantSlug, userId, workspaceId, redis);
+  // Write-through with role: null (= not a member). A plain delete would let a
+  // reader that already read the pre-DELETE row republish the revoked role for
+  // a full ABAC_CACHE_TTL_SECONDS.
+  await setAbacMembership(
+    tenantSlug,
+    userId,
+    workspaceId,
+    { role: null, isTenantAdmin: false },
+    redis
+  );
 
-  writeAuditLog(tenantDb, {
+  await writeAuditLog(tenantDb, {
     actorId,
     actionType: 'member.remove',
     targetType: 'workspace_member',
@@ -93,8 +109,9 @@ export async function removeMember(
 // changeMemberRole
 // ---------------------------------------------------------------------------
 
+// TenantPrismaClient (non-transactional): writes the audit log.
 export async function changeMemberRole(
-  tenantDb: unknown,
+  tenantDb: TenantPrismaClient,
   workspaceId: string,
   userId: string,
   newRole: WorkspaceRole,
@@ -108,9 +125,16 @@ export async function changeMemberRole(
 
   const updated = await repoChangeRole(tenantDb, workspaceId, userId, newRole);
 
-  await invalidateAbacCache(tenantSlug, userId, workspaceId, redis);
+  // Write-through: a downgrade must take effect immediately, not after the TTL.
+  await setAbacMembership(
+    tenantSlug,
+    userId,
+    workspaceId,
+    { role: newRole, isTenantAdmin: false },
+    redis
+  );
 
-  writeAuditLog(tenantDb, {
+  await writeAuditLog(tenantDb, {
     actorId,
     actionType: 'member.role_change',
     targetType: 'workspace_member',

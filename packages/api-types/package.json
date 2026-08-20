@@ -1,0 +1,35 @@
+{
+  "name": "@plexica/api-types",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "development": "./src/index.ts",
+      "import": "./dist/index.js"
+    },
+    "./admin": {
+      "types": "./src/admin/index.ts",
+      "development": "./src/admin/index.ts",
+      "import": "./dist/admin/index.js"
+    },
+    "./tenant": {
+      "types": "./src/tenant/index.ts",
+      "development": "./src/tenant/index.ts",
+      "import": "./dist/tenant/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "typescript": "catalog:"
+  }
+}

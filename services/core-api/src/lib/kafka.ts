@@ -1,65 +1,30 @@
 // lib/kafka.ts
 // Kafka transport wrapper. Domain shaping belongs to the event layer.
-
-import { Kafka, logLevel } from 'kafkajs';
+// The producer lifecycle state machine lives in kafka-producer.ts and the
+// shared kafkajs client in kafka-client.ts (Rule 4: 200 lines per file).
 
 import { wireEventEnvelopeSchema } from '../events/event-envelope.js';
 
-import { config } from './config.js';
+import { kafkaClient } from './kafka-client.js';
+import { getProducer, KafkaProducerClosedError } from './kafka-producer.js';
 import { logger } from './logger.js';
 
+import type { KafkaAdmin, KafkaConsumer } from './kafka-client.js';
 import type { WireEventEnvelope } from '../events/event-envelope.js';
 
-const kafka = new Kafka({
-  clientId: 'plexica-core',
-  brokers: config.KAFKA_BROKERS.split(','),
-  logLevel: logLevel.ERROR,
-  retry: {
-    initialRetryTime: 100,
-    retries: 3,
-  },
-});
+export {
+  disconnectKafka,
+  initKafka,
+  isKafkaProducerClosed,
+  KafkaProducerClosedError,
+  resetKafkaProducerForTests,
+} from './kafka-producer.js';
 
-let producer: ReturnType<typeof kafka.producer> | null = null;
-let connectingProducer: Promise<ReturnType<typeof kafka.producer>> | null = null;
-
-// Eager connection: start connecting immediately (non-blocking — resolves in background)
-void (async function connectProducer(): Promise<void> {
-  try {
-    const p = kafka.producer({ allowAutoTopicCreation: true });
-    producer = p;
-    connectingProducer = Promise.resolve(p);
-    await p.connect();
-    logger.info('Kafka producer connected');
-  } catch (err) {
-    logger.error({ err }, 'Kafka producer initial connection failed — will retry on first emit');
-    producer = null;
-    connectingProducer = null;
-  }
-})();
-
-async function getProducer(): Promise<ReturnType<typeof kafka.producer>> {
-  if (producer) return producer;
-
-  // Guard against concurrent initialization (race condition fix)
-  if (connectingProducer) return connectingProducer;
-
-  const p = kafka.producer({ allowAutoTopicCreation: true });
-  connectingProducer = (async () => {
-    try {
-      await p.connect();
-      producer = p;
-      logger.info('Kafka producer connected (lazy)');
-      return p;
-    } catch (err) {
-      connectingProducer = null;
-      throw err;
-    }
-  })();
-
-  return connectingProducer;
-}
-
+/**
+ * Publishes one envelope. Always throws on failure — including when the
+ * producer is already closed by a shutdown in progress — so the outbox keeps
+ * the event pending instead of acknowledging an event that never left.
+ */
 export async function sendKafkaEnvelope(
   topic: string,
   input: WireEventEnvelope,
@@ -86,7 +51,14 @@ export async function sendKafkaEnvelope(
       ],
     });
   } catch (err) {
-    logger.error({ topic, code: 'KAFKA_SEND_FAILED' }, 'Failed to send Kafka envelope');
+    if (err instanceof KafkaProducerClosedError) {
+      logger.warn(
+        { topic, code: 'KAFKA_PRODUCER_CLOSED' },
+        'Kafka envelope not sent — producer closed by shutdown'
+      );
+    } else {
+      logger.error({ topic, code: 'KAFKA_SEND_FAILED' }, 'Failed to send Kafka envelope');
+    }
     throw err;
   }
 }
@@ -105,14 +77,14 @@ export const Topics = {
 } as const;
 
 /**
- * Create a consumer group for a plugin installation.
- * `topics` and `eachMessage` are unused here — the caller subscribes and
- * runs the consumer itself after connect() — but kept for API stability.
+ * Creates (but does not connect) a Kafka consumer for the given consumer group.
+ * The caller owns the lifecycle: connect(), subscribe() to its topics and run()
+ * the message handler. A `consumer.crash` listener is pre-wired for logging.
+ *
+ * @param groupId - Kafka consumer group id (one per plugin installation).
  */
-export function createConsumer(
-  groupId: string
-): ReturnType<typeof kafka.consumer> {
-  const consumer = kafka.consumer({
+export function createConsumer(groupId: string): KafkaConsumer {
+  const consumer = kafkaClient.consumer({
     groupId,
     sessionTimeout: 30_000,
     heartbeatInterval: 3_000,
@@ -129,14 +101,6 @@ export function createConsumer(
 /**
  * Returns a fresh Kafka admin client (caller must connect/disconnect).
  */
-export function getKafkaAdmin(): ReturnType<typeof kafka.admin> {
-  return kafka.admin();
-}
-
-export async function disconnectKafka(): Promise<void> {
-  if (producer) {
-    await producer.disconnect();
-    producer = null;
-    logger.info('Kafka producer disconnected');
-  }
+export function getKafkaAdmin(): KafkaAdmin {
+  return kafkaClient.admin();
 }

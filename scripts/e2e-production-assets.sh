@@ -7,7 +7,11 @@ readonly COMPOSE=(docker compose -p "$COMPOSE_PROJECT_NAME" -f docker-compose.ym
 
 pnpm --filter @plexica/vite-plugin build
 pnpm --filter @plexica/plugin-crm build:ui
-docker build -f examples/plugins/crm/Dockerfile -t plexica/crm-plugin:1.0.0 .
+# Skip Docker build if the image already exists — self-hosted CI runners with
+# persistent filesystem get a ~30 s win on every run after the first.
+if ! docker image inspect plexica/crm-plugin:1.0.0 >/dev/null 2>&1; then
+  docker build -f examples/plugins/crm/Dockerfile -t plexica/crm-plugin:1.0.0 .
+fi
 
 minio_container=$("${COMPOSE[@]}" ps -q minio)
 docker exec "$minio_container" rm -rf /tmp/crm-assets

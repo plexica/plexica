@@ -1,12 +1,13 @@
 // use-plugins.ts — TanStack Query hooks for plugin system domain (Spec 004).
-// Follows the same pattern as use-audit-log.ts, use-workspaces.ts, etc.
+// Tenant-side only: marketplace browsing, install/uninstall, visibility.
+// Super-admin features (registry, publish/unpublish, DLQ) live in apps/admin
+// (Decision 6, 2026-08-18).
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { pluginApi } from '../services/plugin-api.js';
 
 import type {
-  PluginRegisterPayload,
   PluginVisibilityUpdate,
 } from '../types/plugin.js';
 
@@ -52,28 +53,6 @@ export function usePluginVisibility(installId: string) {
     queryKey: ['plugin', 'visibility', installId],
     queryFn: () => pluginApi.getVisibility(installId),
     enabled: installId.length > 0,
-  });
-}
-
-// ── Admin registry queries ────────────────────────────────────────────────────
-
-export function usePluginRegistry(
-  params?: { page?: number; search?: string; status?: string } | undefined
-) {
-  return useQuery({
-    queryKey: ['plugins', 'registry', params],
-    queryFn: () => pluginApi.listRegistry(params),
-  });
-}
-
-// ── DLQ queries ───────────────────────────────────────────────────────────────
-
-export function useDlqEntries(
-  params?: { page?: number; status?: string; pluginId?: string } | undefined
-) {
-  return useQuery({
-    queryKey: ['dlq', params],
-    queryFn: () => pluginApi.listDlq(params),
   });
 }
 
@@ -132,62 +111,6 @@ export function useUpdatePluginVisibility(installId: string) {
       pluginApi.updateVisibility(installId, data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['plugin', 'visibility', installId] });
-    },
-  });
-}
-
-// ── Mutations: admin registry ─────────────────────────────────────────────────
-
-export function useRegisterPlugin() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (payload: PluginRegisterPayload) => pluginApi.register(payload),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['plugins', 'registry'] });
-    },
-  });
-}
-
-export function usePublishPlugin() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (slug: string) => pluginApi.publish(slug),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['plugins', 'registry'] });
-      void queryClient.invalidateQueries({ queryKey: ['plugins', 'published'] });
-    },
-  });
-}
-
-export function useUnpublishPlugin() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (slug: string) => pluginApi.unpublish(slug),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['plugins', 'registry'] });
-      void queryClient.invalidateQueries({ queryKey: ['plugins', 'published'] });
-    },
-  });
-}
-
-// ── Mutations: DLQ ────────────────────────────────────────────────────────────
-
-export function useRetryDlq() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (id: string) => pluginApi.retryDlq(id),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['dlq'] });
-    },
-  });
-}
-
-export function useDismissDlq() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (id: string) => pluginApi.dismissDlq(id),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['dlq'] });
     },
   });
 }

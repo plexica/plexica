@@ -38,7 +38,7 @@ export function AuditLogPage(): JSX.Element {
   const actionTypeRaw = filterValues.actionType as string | undefined;
   const actorIdRaw = filterValues.actorId as string | undefined;
 
-  const apiFilters: Parameters<typeof useAuditLog>[0] = { page, limit: PAGE_SIZE };
+  const apiFilters: Parameters<typeof useAuditLog>[0] = { page, pageSize: PAGE_SIZE };
   if (actorIdRaw) apiFilters.actorId = actorIdRaw;
   if (actionTypeRaw && actionTypeRaw !== '__all__') apiFilters.actionType = actionTypeRaw;
   if (dateRange?.from) apiFilters.fromDate = dateRange.from;

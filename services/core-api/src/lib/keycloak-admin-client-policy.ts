@@ -1,7 +1,7 @@
 export const ADMIN_CLIENT_ID = 'plexica-admin';
 export const ADMIN_SESSION_LIMIT_SECONDS = 3600;
 
-export interface AdminClientUris {
+interface AdminClientUris {
   callbackUri: string;
   logoutUri: string;
   origin: string;

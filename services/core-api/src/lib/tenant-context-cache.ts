@@ -7,7 +7,7 @@ import type { Redis } from 'ioredis';
 import type { TenantStatus } from '@prisma/client';
 
 const CACHE_PREFIX = 'tenant:context:';
-export const TENANT_CONTEXT_CACHE_TTL_SECONDS = 4;
+const TENANT_CONTEXT_CACHE_TTL_SECONDS = 4;
 
 export interface CachedTenantLifecycle {
   id: string;
@@ -24,28 +24,6 @@ export async function invalidateTenantLifecycle(
   client: Redis = redis
 ): Promise<void> {
   await client.del(key(slug));
-}
-
-export async function readTenantLifecycle(
-  slug: string,
-  client: Redis = redis
-): Promise<CachedTenantLifecycle | null> {
-  try {
-    const raw = await client.get(key(slug));
-    if (raw === null) return null;
-    const value = JSON.parse(raw) as Partial<CachedTenantLifecycle>;
-    if (
-      typeof value.id !== 'string' ||
-      typeof value.version !== 'number' ||
-      !['active', 'suspended', 'pending_deletion', 'deleted'].includes(value.status ?? '')
-    ) {
-      await client.del(key(slug));
-      return null;
-    }
-    return value as CachedTenantLifecycle;
-  } catch {
-    return null;
-  }
 }
 
 export async function writeTenantLifecycle(

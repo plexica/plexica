@@ -20,7 +20,11 @@ import { probePostgres } from './health-check-postgres.js';
 import { probeRedis } from './health-check-redis.js';
 
 import type { FastifyBaseLogger } from 'fastify';
-import type { HealthResponse, HealthServiceResult, HealthStatus } from '../schemas/health-schemas.js';
+import type {
+  HealthResponse,
+  HealthServiceResult,
+  HealthStatus,
+} from '../schemas/health-schemas.js';
 
 /** Per-probe timeout in milliseconds. */
 export const PROBE_TIMEOUT_MS = 200;
@@ -80,6 +84,31 @@ export function buildServiceResult(
   error: unknown
 ): HealthServiceResult {
   return { name, status: classifyProbeResult(latencyMs, error), latencyMs };
+}
+
+/**
+ * Builds a standard health probe: times `op`, maps the outcome through
+ * buildServiceResult, and never throws — failures become 'down'/'degraded'.
+ * `op` is responsible for its own timeout (withProbeTimeout, or a native
+ * AbortSignal.timeout on fetch).
+ *
+ * NOTE: this MUST stay a hoisted function declaration — the health-check-*.ts
+ * probe modules call it at module-evaluation time while this module imports
+ * them back, so a const arrow would hit the circular-import TDZ.
+ */
+export function makeProbe(
+  name: string,
+  op: () => Promise<unknown>
+): () => Promise<HealthServiceResult> {
+  return async () => {
+    const start = performance.now();
+    try {
+      await op();
+      return buildServiceResult(name, Math.round(performance.now() - start), null);
+    } catch (error) {
+      return buildServiceResult(name, Math.round(performance.now() - start), error);
+    }
+  };
 }
 
 type ProbeEntry = { name: string; run: () => Promise<HealthServiceResult> };

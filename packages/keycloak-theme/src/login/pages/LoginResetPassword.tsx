@@ -1,4 +1,5 @@
 import { AuthLayout } from '../components/AuthLayout';
+import { UsernameField } from '../components/UsernameField';
 import '../styles/index.css';
 
 import type { PageProps } from 'keycloakify/login/pages/PageProps';
@@ -29,24 +30,13 @@ export default function LoginResetPassword({ kcContext, i18n }: Props) {
       )}
 
       <form action={url.loginAction} method="post">
-        <div className="form-group">
-          <label className="form-label" htmlFor="username">
-            {!realm.loginWithEmailAllowed
-              ? msg('username')
-              : !realm.registrationEmailAsUsername
-                ? msg('usernameOrEmail')
-                : msg('email')}
-          </label>
-          <input
-            id="username"
-            name="username"
-            type="text"
-            className={`form-input${messagesPerField.existsError('username') ? ' error' : ''}`}
-            autoFocus
-            autoComplete="username"
-            defaultValue={auth.attemptedUsername ?? ''}
-          />
-        </div>
+        <UsernameField
+          realm={realm}
+          msg={msg}
+          defaultValue={auth.attemptedUsername ?? ''}
+          autoFocus
+          hasError={messagesPerField.existsError('username')}
+        />
 
         <button type="submit" className="btn btn-primary">
           {msgStr('doSubmit')}

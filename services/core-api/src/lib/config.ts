@@ -10,6 +10,12 @@ const configSchema = z
 
     // Database
     DATABASE_URL: z.string().url(),
+
+    // Tenant DB client cache (ADR-027): bounded LRU of TenantPrismaClient,
+    // one per tenant schema. MAX = hard cap (LRU eviction), TTL_MS = idle
+    // timeout after which an entry is disconnected and evicted.
+    TENANT_DB_CACHE_MAX: z.coerce.number().int().min(1).default(100),
+    TENANT_DB_CACHE_TTL_MS: z.coerce.number().int().min(1000).default(600_000),
     PLUGIN_DB_ENCRYPTION_KEY: z
       .string()
       .regex(/^[0-9a-fA-F]{64}$/)
@@ -81,9 +87,6 @@ const configSchema = z
     // Resolve endpoint rate limit — max requests per minute per IP (default 30).
     // Set higher (e.g. 1000) in dev/E2E to prevent flaky tests from shared budget.
     RATE_LIMIT_RESOLVE_MAX: z.coerce.number().int().min(1).default(30),
-
-    // JWKS cache TTL in milliseconds (default 1 hour)
-    JWKS_CACHE_TTL_MS: z.coerce.number().int().default(3_600_000),
 
     // Keycloak master realm name — used to enforce that super_admin tokens are
     // issued by the master realm, not by a tenant realm (H-03 security fix).

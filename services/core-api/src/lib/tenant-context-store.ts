@@ -30,6 +30,13 @@ export function getTenantContext(): TenantContext {
 /**
  * Runs the provided async function within the given tenant context.
  * The context is available via getTenantContext() within the function.
+ *
+ * NOTE: currently unused by HTTP request handling (which relies on
+ * enterWithTenant() via Fastify preHandler). Kept intentionally: it is the
+ * correct pattern for future Kafka consumer handlers processing multi-tenant
+ * messages, where enterWithTenant() would leak tenant context across messages
+ * sharing the same long-lived async scope. storage.run() scopes the context
+ * to fn's execution tree instead.
  */
 export async function runWithTenant<T>(context: TenantContext, fn: () => Promise<T>): Promise<T> {
   return storage.run(context, fn);

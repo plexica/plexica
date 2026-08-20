@@ -9,7 +9,8 @@
 
 import { publicInvitationTenantResolver } from '../../middleware/public-invitation-tenant.js';
 import { requireAbac } from '../../middleware/abac.js';
-import { ForbiddenError, InvitationNotFoundError, ValidationError } from '../../lib/app-error.js';
+import { ForbiddenError, InvitationNotFoundError } from '../../lib/app-error.js';
+import { parseOrThrow, stripUndefined } from '../../lib/validation.js';
 import { withTenantDb } from '../../lib/tenant-database.js';
 
 import {
@@ -34,33 +35,31 @@ export async function invitationRoutes(fastify: FastifyInstance): Promise<void> 
     { preHandler: [requireAbac('invitation:list')] },
     async (req) => {
       const { id } = req.params as { id: string };
-      const parsed = invitationListQuerySchema.safeParse(req.query);
-      if (!parsed.success)
-        throw new ValidationError(parsed.error.issues.map((i) => i.message).join(', '));
+      const query = parseOrThrow(invitationListQuerySchema, req.query);
 
-      const filters: ListInvitationsFilters = { page: parsed.data.page, limit: parsed.data.limit };
-      if (parsed.data.status !== undefined) filters.status = parsed.data.status;
+      const filters: ListInvitationsFilters = stripUndefined({
+        page: query.page,
+        pageSize: query.pageSize,
+        status: query.status,
+      });
 
-      return withTenantDb((tx) => listInvitationsService(tx, id, filters), req.tenantContext);
+      return withTenantDb((db) => listInvitationsService(db, id, filters), req.tenantContext);
     }
   );
 
   // ── Send invitation (tenant_admin or workspace admin) ─────────────────────
   fastify.post('/api/v1/users/invite', {}, async (req, reply) => {
-    const parsed = createInvitationSchema.safeParse(req.body);
-    if (!parsed.success)
-      throw new ValidationError(parsed.error.issues.map((i) => i.message).join(', '));
+    const input = parseOrThrow(createInvitationSchema, req.body);
 
     const isTenantAdmin = req.user.roles.includes('tenant_admin');
 
     if (!isTenantAdmin) {
       // Non-admins must be workspace admin in the target workspace.
-      const member = await withTenantDb(async (tx) => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        return (tx as any).workspaceMember.findUnique({
+      const member = await withTenantDb(async (db) => {
+        return db.workspaceMember.findUnique({
           where: {
             workspaceId_userId: {
-              workspaceId: parsed.data.workspaceId,
+              workspaceId: input.workspaceId,
               userId: req.user.id,
             },
           },
@@ -68,14 +67,14 @@ export async function invitationRoutes(fastify: FastifyInstance): Promise<void> 
         });
       }, req.tenantContext);
 
-      const role = (member as { role: string } | null)?.role;
+      const role = member?.role;
       if (role !== 'admin') {
         throw new ForbiddenError('Only tenant admins or workspace admins can invite users');
       }
     }
 
     const result = await withTenantDb(
-      (tx) => createInvitationService(tx, parsed.data, req.user.id, req.tenantContext),
+      (db) => createInvitationService(db, input, req.user.id, req.tenantContext),
       req.tenantContext
     );
     return reply.status(201).send(result);
@@ -88,7 +87,7 @@ export async function invitationRoutes(fastify: FastifyInstance): Promise<void> 
     async (req) => {
       const { id } = req.params as { id: string };
       return withTenantDb(
-        (tx) => resendInvitationService(tx, id, req.user.id, req.tenantContext),
+        (db) => resendInvitationService(db, id, req.user.id, req.tenantContext),
         req.tenantContext
       );
     }
@@ -112,7 +111,7 @@ export async function invitationPublicRoutes(fastify: FastifyInstance): Promise<
       if (!parsedToken.success) throw new InvitationNotFoundError();
 
       const result = await withTenantDb(
-        (tx) => acceptInvitationService(tx, parsedToken.data, req.tenantContext.realmName),
+        (db) => acceptInvitationService(db, parsedToken.data, req.tenantContext.realmName),
         req.tenantContext
       );
       return reply.status(200).send(result);

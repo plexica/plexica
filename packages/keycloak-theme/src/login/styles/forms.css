@@ -24,11 +24,7 @@
   border: 1.5px solid var(--color-neutral-200);
   border-radius: var(--radius-md);
   font-size: 0.9375rem;
-  font-family:
-    'Inter',
-    system-ui,
-    -apple-system,
-    sans-serif;
+  font-family: var(--font-sans);
   color: var(--color-neutral-900);
   background: white;
   outline: none;

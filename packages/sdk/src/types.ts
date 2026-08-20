@@ -18,6 +18,10 @@ export interface PluginConfig {
   /** Installation ID injected by the platform as PLEXICA_INSTALL_ID. */
   installId?: string;
   dbConnectionString?: string; // Injected by platform runtime — overrides process.env.DATABASE_URL
+  /** Optional error handler for background failures (e.g. idle DB pool errors).
+   *  When omitted, background errors are silently ignored — plugins that want
+   *  observability should pass a structured logger callback. */
+  onError?: (error: Error) => void;
   // Context headers injected by the platform
   plexicaHeaders?: {
     tenantId?: string;

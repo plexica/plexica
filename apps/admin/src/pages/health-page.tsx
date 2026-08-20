@@ -4,6 +4,7 @@
 // error → inline banner with retry. All strings via react-intl.
 
 import { FormattedMessage, useIntl } from 'react-intl';
+import { CardGridSkeleton, ErrorState } from '@plexica/ui';
 
 import { ServiceStatusCard } from '../components/health/service-status-card.js';
 import { useHealth } from '../hooks/use-health.js';
@@ -21,37 +22,19 @@ export function HealthPage(): JSX.Element {
       </h1>
 
       {isLoading && (
-        <div
-          className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3"
-          aria-busy="true"
-          aria-label={intl.formatMessage({ id: 'admin.health.loading' })}
-        >
-          {Array.from({ length: SKELETON_COUNT }, (_, i) => (
-            <div
-              key={i}
-              className="h-28 animate-pulse rounded-lg border border-neutral-200 bg-neutral-100"
-            />
-          ))}
-        </div>
+        <CardGridSkeleton
+          count={SKELETON_COUNT}
+          ariaLabel={intl.formatMessage({ id: 'admin.health.loading' })}
+        />
       )}
 
       {isError && (
-        <div
-          role="alert"
-          className="rounded-lg border border-red-300 bg-red-50 p-4 text-sm text-red-800"
-        >
-          <p className="font-medium">
-            <FormattedMessage id="admin.health.error" />
-          </p>
-          {error instanceof Error && <p className="mt-1 text-red-700">{error.message}</p>}
-          <button
-            type="button"
-            onClick={() => void refetch()}
-            className="mt-3 rounded-md bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700"
-          >
-            <FormattedMessage id="admin.health.retry" />
-          </button>
-        </div>
+        <ErrorState
+          heading={<FormattedMessage id="admin.health.error" />}
+          description={error instanceof Error ? error.message : undefined}
+          retryLabel={<FormattedMessage id="admin.health.retry" />}
+          onRetry={() => void refetch()}
+        />
       )}
 
       {!isLoading && !isError && data && (

@@ -3,7 +3,7 @@
 //
 // Prisma, Redis and the logger are mocked — no real DB or Redis connection.
 // tenant-schema-helpers is left real so toSchemaName + slug validation are
-// exercised against the service's internal SCHEMA_NAME_REGEX defence-in-depth.
+// exercised against the canonical SCHEMA_NAME_REGEX defence-in-depth.
 //
 // vi.hoisted is used for the mock objects so they exist when the hoisted
 // vi.mock factories execute (the integration project runs with isolate:false).
@@ -57,10 +57,7 @@ describe('toSchemaName — schema name construction (no SQL injection)', () => {
 
 describe('aggregateMetrics — happy path', () => {
   it('sums user/workspace counts across tenants and writes totals to Redis', async () => {
-    mocks.prisma.tenant.findMany.mockResolvedValue([
-      { slug: 'acme' },
-      { slug: 'globex' },
-    ]);
+    mocks.prisma.tenant.findMany.mockResolvedValue([{ slug: 'acme' }, { slug: 'globex' }]);
     // $queryRawUnsafe is called twice per tenant (user_profile, workspace).
     mocks.prisma.$queryRawUnsafe.mockImplementation(async (sql: string) => {
       if (sql.includes('user_profile')) return [{ count: 10 }];
@@ -77,23 +74,14 @@ describe('aggregateMetrics — happy path', () => {
       const sql = call[0] as string;
       expect(sql).toMatch(/"tenant_(acme|globex)"\.(user_profile|workspace)/);
     }
-    expect(mocks.redis.set).toHaveBeenCalledWith(
-      'metrics:user_count:total',
-      '20'
-    );
-    expect(mocks.redis.set).toHaveBeenCalledWith(
-      'metrics:workspace_count:total',
-      '6'
-    );
+    expect(mocks.redis.set).toHaveBeenCalledWith('metrics:user_count:total', '20');
+    expect(mocks.redis.set).toHaveBeenCalledWith('metrics:workspace_count:total', '6');
   });
 });
 
 describe('aggregateMetrics — per-tenant error handling', () => {
   it('skips a failing tenant but still counts the healthy ones', async () => {
-    mocks.prisma.tenant.findMany.mockResolvedValue([
-      { slug: 'acme' },
-      { slug: 'broken' },
-    ]);
+    mocks.prisma.tenant.findMany.mockResolvedValue([{ slug: 'acme' }, { slug: 'broken' }]);
     mocks.prisma.$queryRawUnsafe.mockImplementation(async (sql: string) => {
       if (sql.includes('tenant_broken')) {
         throw new Error('relation does not exist');
@@ -105,20 +93,14 @@ describe('aggregateMetrics — per-tenant error handling', () => {
     await aggregateMetrics();
 
     // Only acme contributed — totals reflect the surviving tenant.
-    expect(mocks.redis.set).toHaveBeenCalledWith(
-      'metrics:user_count:total',
-      '7'
-    );
-    expect(mocks.redis.set).toHaveBeenCalledWith(
-      'metrics:workspace_count:total',
-      '2'
-    );
+    expect(mocks.redis.set).toHaveBeenCalledWith('metrics:user_count:total', '7');
+    expect(mocks.redis.set).toHaveBeenCalledWith('metrics:workspace_count:total', '2');
   });
 
   it('rejects a tenant whose derived schema name fails the regex', async () => {
-    // Simulate a corrupted slug stored in core.tenants — the aggregator's
-    // internal SCHEMA_NAME_REGEX must reject it (defence-in-depth, no SQL
-    // injection via the schema identifier).
+    // Simulate a corrupted slug stored in core.tenants — the canonical
+    // SCHEMA_NAME_REGEX (imported from lib/tenant-schema-helpers) must reject
+    // it (defence-in-depth, no SQL injection via the schema identifier).
     mocks.prisma.tenant.findMany.mockResolvedValue([{ slug: 'Acme' }]);
     mocks.prisma.$queryRawUnsafe.mockResolvedValue([{ count: 99 }]);
 
@@ -126,13 +108,7 @@ describe('aggregateMetrics — per-tenant error handling', () => {
 
     // The bad tenant is skipped — no $queryRawUnsafe should have run.
     expect(mocks.prisma.$queryRawUnsafe).not.toHaveBeenCalled();
-    expect(mocks.redis.set).toHaveBeenCalledWith(
-      'metrics:user_count:total',
-      '0'
-    );
-    expect(mocks.redis.set).toHaveBeenCalledWith(
-      'metrics:workspace_count:total',
-      '0'
-    );
+    expect(mocks.redis.set).toHaveBeenCalledWith('metrics:user_count:total', '0');
+    expect(mocks.redis.set).toHaveBeenCalledWith('metrics:workspace_count:total', '0');
   });
 });

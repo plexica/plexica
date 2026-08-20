@@ -9,6 +9,7 @@ import { enqueueEvent } from '../../../../events/outbox-repository.js';
 import { requireAbac } from '../../../../middleware/abac.js';
 import { ValidationError } from '../../../../lib/app-error.js';
 import { logger } from '../../../../lib/logger.js';
+import { RESOURCE_SLUG_REGEX } from '../../../../lib/slug.js';
 import { PluginNotFoundError, PluginValidationError } from '../../errors.js';
 import { createPluginRole, grantTablePrivileges } from '../../services/db-role.service.js';
 import { runPluginMigrations } from '../../services/migration-executor.js';
@@ -21,10 +22,8 @@ import { installPluginRuntime } from '../../services/install-runtime.service.js'
 import { manifestSchema } from '../../schema/manifest.js';
 
 import type { FastifyInstance } from 'fastify';
-import type { PrismaClient } from '@prisma/client';
 import type { TenantPrismaClient } from '../../../../lib/tenant-database.js';
 
-const SLUG_REGEX = /^[a-z][a-z0-9-]{1,62}$/;
 const IMAGE_NAME_REGEX = /^[a-z0-9][a-z0-9._/-]{0,126}[a-z0-9]$/;
 const SEMVER_REGEX = /^\d+\.\d+\.\d+$/;
 
@@ -35,14 +34,14 @@ export async function installRoutes(fastify: FastifyInstance): Promise<void> {
     '/api/v1/plugins/:slug/install',
     { preHandler: [requireAbac('plugin:manage')] },
     async (request) => {
-      const { slug } = z.object({ slug: z.string().regex(SLUG_REGEX) }).parse(request.params);
+      const { slug } = z
+        .object({ slug: z.string().regex(RESOURCE_SLUG_REGEX) })
+        .parse(request.params);
       const ctx = request.tenantContext;
       const userId = request.user?.keycloakUserId;
       if (!userId) throw new ValidationError('User identity required');
 
-      const plugin = (await withCoreDb(async (prisma: PrismaClient) =>
-        prisma.plugin.findUnique({ where: { slug } })
-      )) as Record<string, unknown> | null;
+      const plugin = await withCoreDb((prisma) => prisma.plugin.findUnique({ where: { slug } }));
 
       if (!plugin) throw new PluginNotFoundError(slug);
       if (plugin.status !== 'published')
@@ -69,9 +68,9 @@ export async function installRoutes(fastify: FastifyInstance): Promise<void> {
 
       const install = await createInstallationRecord({
         context: ctx,
-        pluginId: plugin.id as string,
+        pluginId: plugin.id,
         pluginSlug: slug,
-        pluginVersion: plugin.version as string,
+        pluginVersion: plugin.version,
         hostingType,
         userId,
       });
@@ -80,8 +79,8 @@ export async function installRoutes(fastify: FastifyInstance): Promise<void> {
       const role = await createPluginRole(install.id, ctx.slug, manifest.declaredTables);
       // Persist the encrypted connection string at rest in plugin_container_config
       // (a TENANT-schema table — must use withTenantDb, not the core prisma client).
-      await withTenantDb(async (tx: TenantPrismaClient) => {
-        await tx.pluginContainerConfig.upsert({
+      await withTenantDb(async (db: TenantPrismaClient) => {
+        await db.pluginContainerConfig.upsert({
           where: { installId: install.id },
           create: {
             installId: install.id,
@@ -102,15 +101,14 @@ export async function installRoutes(fastify: FastifyInstance): Promise<void> {
       // so PostgreSQL enforces schema/table scope. The role gets CREATE on the
       // tenant schema only for the duration of the migration loop.
       await runMigrationSecurityPhase(install.id, ctx, async () => {
-        await withTenantDb(async (tenantDb) => {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          return (tenantDb as any).$transaction(async (tx: any) => {
+        await withTenantDb(async (db) => {
+          return db.$transaction(async (tx) => {
             await runPluginMigrations({
               tx,
               manifest,
               role,
               installId: install.id,
-              pluginId: plugin.id as string,
+              pluginId: plugin.id,
             });
           });
         }, ctx);
@@ -128,9 +126,9 @@ export async function installRoutes(fastify: FastifyInstance): Promise<void> {
       const degraded = await installPluginRuntime({
         context: ctx,
         installId: install.id,
-        pluginId: plugin.id as string,
+        pluginId: plugin.id,
         pluginSlug: slug,
-        pluginVersion: plugin.version as string,
+        pluginVersion: plugin.version,
         hostingType,
         imageRef,
         manifest,
@@ -152,7 +150,7 @@ export async function installRoutes(fastify: FastifyInstance): Promise<void> {
                 type: 'plexica.plugin.installed',
                 tenantId: ctx.tenantId,
                 producer: { kind: 'core', id: 'core' },
-                payload: { installId: install.id, pluginId: plugin.id as string, slug },
+                payload: { installId: install.id, pluginId: plugin.id, slug },
               })
             );
           }),

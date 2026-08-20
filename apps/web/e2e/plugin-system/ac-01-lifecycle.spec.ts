@@ -3,6 +3,7 @@
 // installation shows up on the installed-plugins page.
 
 import { expect, test } from '../helpers/base-fixture.js';
+import { expectResponseTo } from '../helpers/api-response.js';
 import { hasKeycloak, loginAsAdmin, requireKeycloakInCI } from '../helpers/admin-login.js';
 
 test.describe.serial('004 Plugin System — AC-01: Plugin Lifecycle', () => {
@@ -33,15 +34,17 @@ test.describe.serial('004 Plugin System — AC-01: Plugin Lifecycle', () => {
     await expect(crm).toHaveCount(1);
     const installBtn = crm.getByRole('button', { name: /^install$/i });
     await expect(installBtn).toBeEnabled();
-    const responsePromise = page.waitForResponse(
-      (response) =>
-        response.url().endsWith('/api/v1/plugins/crm/install') &&
-        response.request().method() === 'POST'
+    // Shared convention: exact pathname (endsWith() also matched a duplicated
+    // prefix) and an exact status — the previous 200 ≤ status < 300 range would
+    // have accepted a 204 that carries no body for the assertion below.
+    const installResponse = await expectResponseTo(
+      page,
+      '/api/v1/plugins/crm/install',
+      'POST',
+      async () => {
+        await installBtn.click();
+      }
     );
-    await installBtn.click();
-    const installResponse = await responsePromise;
-    expect(installResponse.status()).toBeGreaterThanOrEqual(200);
-    expect(installResponse.status()).toBeLessThan(300);
     expect(await installResponse.json()).toMatchObject({ slug: 'crm', status: 'active' });
     await expect(crm.getByRole('button', { name: /^installed$/i })).toBeVisible({
       timeout: 20_000,

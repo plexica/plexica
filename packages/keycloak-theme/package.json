@@ -10,17 +10,17 @@
     "storybook": "keycloakify storybook"
   },
   "dependencies": {
-    "@fontsource/inter": "^5",
+    "@fontsource/inter": "catalog:",
     "keycloakify": "^11",
-    "react": "^19",
-    "react-dom": "^19"
+    "react": "catalog:",
+    "react-dom": "catalog:"
   },
   "devDependencies": {
     "@plexica/ui": "workspace:*",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "@vitejs/plugin-react": "^4",
-    "typescript": "^5.9",
-    "vite": "^6.4.3"
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "@vitejs/plugin-react": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:"
   }
 }

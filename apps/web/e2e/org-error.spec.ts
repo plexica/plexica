@@ -4,6 +4,8 @@
 
 import { expect, test } from './helpers/base-fixture.js';
 
+test.describe.configure({ mode: 'parallel' });
+
 test.describe('Organization error pages', () => {
   test('unknown tenant slug shows org not found page', async ({ page }) => {
     // In production mode, tenant is resolved from the host subdomain.

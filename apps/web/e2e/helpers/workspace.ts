@@ -2,6 +2,7 @@
 // Page object helpers for workspace operations (E2E-01 through E2E-12).
 // All locators use accessible roles/labels per the project convention.
 
+import { expectResponseTo } from './api-response.js';
 import { waitForRouteContent } from './route-content.js';
 import { findWorkspaceInList } from './workspace-list.js';
 
@@ -49,8 +50,8 @@ export async function openCreateWorkspaceDialog(page: Page): Promise<void> {
 
 /**
  * Creates a workspace end-to-end: navigate, open dialog, fill, submit.
- * Intercepts the POST response to confirm creation succeeded.
- * Returns the created workspace ID (from the response body).
+ * Asserts the POST round-trip (exact pathname + 201) through the shared
+ * convention, then returns the created workspace ID from the response body.
  */
 export async function createWorkspace(
   page: Page,
@@ -59,20 +60,18 @@ export async function createWorkspace(
   await openCreateWorkspaceDialog(page);
   // Fill form fields first (may take time if parent select needs to load)
   await fillCreateWorkspaceForm(page, opts);
-  // Start listening for the POST response AFTER filling, right before submit
-  const responsePromise = page.waitForResponse(
-    (r) =>
-      r.url().includes('/api/v1/workspaces') &&
-      r.request().method() === 'POST' &&
-      !r.url().includes('/members') &&
-      !r.url().includes('/templates')
+  // The exact-pathname predicate replaces the previous
+  // `url().includes('/api/v1/workspaces')` plus two negative `includes` filters
+  // for /members and /templates — those are excluded by construction now.
+  const response = await expectResponseTo(
+    page,
+    '/api/v1/workspaces',
+    'POST',
+    async () => {
+      await page.getByRole('button', { name: /create/i }).click();
+    },
+    201
   );
-  await page.getByRole('button', { name: /create/i }).click();
-  const response = await responsePromise;
-  if (response.status() >= 400) {
-    const body = await response.text().catch(() => 'no body');
-    throw new Error(`Workspace creation failed: ${response.status()} — ${body}`);
-  }
   const body = (await response.json()) as { id: string };
   // Dialog closes on success — wait for the dialog content to disappear.
   await page.getByRole('dialog').waitFor({ state: 'hidden', timeout: 10_000 });

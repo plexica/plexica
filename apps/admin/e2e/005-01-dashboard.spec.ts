@@ -7,6 +7,8 @@ import { expect, test } from './helpers/base-fixture.js';
 import { loginAsAdmin, hasKeycloak, requireKeycloakInCI } from './helpers/admin-login.js';
 import { adminApi } from './helpers/api-client.js';
 
+test.describe.configure({ mode: 'parallel' });
+
 test.describe('005-01 Dashboard', () => {
   test.skip(!hasKeycloak, 'Requires live Keycloak');
   test.beforeAll(() => requireKeycloakInCI());

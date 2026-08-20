@@ -28,8 +28,8 @@ export async function uninstallRoutes(fastify: FastifyInstance): Promise<void> {
       const { installId } = z.object({ installId: uuidSchema }).parse(request.params);
       const ctx = request.tenantContext;
 
-      return withTenantDb(async (tx) => {
-        const inst = await tx.pluginInstallation.findUnique({
+      return withTenantDb(async (db) => {
+        const inst = await db.pluginInstallation.findUnique({
           where: { id: installId },
           include: { migrationLogs: true },
         });
@@ -39,7 +39,7 @@ export async function uninstallRoutes(fastify: FastifyInstance): Promise<void> {
         if (inst.status === 'uninstalled') throw new PluginValidationError('Already uninstalled');
 
         const pluginId = inst.pluginId;
-        await tx.pluginInstallation.update({
+        await db.pluginInstallation.update({
           where: { id: installId },
           data: { status: 'deactivated' },
         });
@@ -73,7 +73,7 @@ export async function uninstallRoutes(fastify: FastifyInstance): Promise<void> {
               continue;
             }
             try {
-              await tx.$executeRawUnsafe(`DROP TABLE IF EXISTS "${tableName}"`);
+              await db.$executeRawUnsafe(`DROP TABLE IF EXISTS "${tableName}"`);
               logger.info({ tableName, installId }, 'Plugin table dropped');
             } catch (err: unknown) {
               const msg = err instanceof Error ? err.message : String(err);
@@ -82,18 +82,18 @@ export async function uninstallRoutes(fastify: FastifyInstance): Promise<void> {
           }
         }
 
-        await tx.pluginWorkspaceVisibility.deleteMany({ where: { installId } });
+        await db.pluginWorkspaceVisibility.deleteMany({ where: { installId } });
 
         // AC-02: all action_registry and workspace_role_action entries for this
         // plugin must be gone after uninstall. Both tenant tables carry plugin_id.
-        await tx.actionRegistry.deleteMany({ where: { pluginId } }).catch((err: unknown) => {
+        await db.actionRegistry.deleteMany({ where: { pluginId } }).catch((err: unknown) => {
           const msg = err instanceof Error ? err.message : String(err);
           logger.warn(
             { err: msg, installId, pluginId },
             'Failed to delete plugin action_registry entries during uninstall'
           );
         });
-        await tx.workspaceRoleAction.deleteMany({ where: { pluginId } }).catch((err: unknown) => {
+        await db.workspaceRoleAction.deleteMany({ where: { pluginId } }).catch((err: unknown) => {
           const msg = err instanceof Error ? err.message : String(err);
           logger.warn(
             { err: msg, installId, pluginId },
@@ -101,7 +101,7 @@ export async function uninstallRoutes(fastify: FastifyInstance): Promise<void> {
           );
         });
 
-        await tx.pluginInstallation.update({
+        await db.pluginInstallation.update({
           where: { id: installId },
           data: { status: 'uninstalled' },
         });

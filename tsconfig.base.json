@@ -24,6 +24,7 @@
     "dist",
     "build",
     ".next",
-    "coverage"
+    "coverage",
+    "storybook-static"
   ]
 }

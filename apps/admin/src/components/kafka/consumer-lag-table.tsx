@@ -5,7 +5,16 @@
 
 import { FormattedMessage } from 'react-intl';
 import { AlertTriangle, CheckCircle2 } from 'lucide-react';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@plexica/ui';
+import {
+  SkeletonLoader,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  TableSkeleton,
+} from '@plexica/ui';
 
 import type { KafkaConsumerLag } from '../../types/admin-types.js';
 
@@ -49,9 +58,9 @@ export function ConsumerLagTable({ lags }: { lags: KafkaConsumerLag[] }): JSX.El
         {lags.map((row) => {
           const isWarning = row.lag > LAG_WARNING_THRESHOLD;
           return (
-            <TableRow key={`${row.pluginSlug}-${row.consumerGroup}`}>
+            <TableRow key={`${row.pluginSlug}-${row.topic}`}>
               <TableCell className="font-medium text-neutral-900">{row.pluginSlug}</TableCell>
-              <TableCell className="font-mono text-xs">{row.consumerGroup}</TableCell>
+              <TableCell className="font-mono text-xs">{row.topic}</TableCell>
               <TableCell
                 className={isWarning ? 'font-semibold text-warning-dark' : 'text-neutral-700'}
               >
@@ -78,17 +87,13 @@ export function ConsumerLagTable({ lags }: { lags: KafkaConsumerLag[] }): JSX.El
 export function KafkaSkeleton(): JSX.Element {
   return (
     <div className="space-y-4" aria-busy="true">
-      <div className="h-10 w-72 animate-pulse rounded-md bg-neutral-100" />
-      <div className="overflow-hidden rounded-lg border border-neutral-200">
-        <div className="border-b border-neutral-200 bg-neutral-50 px-4 py-3">
-          <div className="h-3 w-40 animate-pulse rounded bg-neutral-200" />
-        </div>
-        {Array.from({ length: SKELETON_ROWS }, (_, i) => (
-          <div key={i} className="border-b border-neutral-100 px-4 py-3">
-            <div className="h-3 w-full animate-pulse rounded bg-neutral-100" />
-          </div>
-        ))}
-      </div>
+      <SkeletonLoader className="h-10 w-72 rounded-md bg-neutral-100" />
+      <TableSkeleton
+        columnWidths={['w-full']}
+        rows={SKELETON_ROWS}
+        showHeader
+        cellClassName="h-3 bg-neutral-100"
+      />
     </div>
   );
 }

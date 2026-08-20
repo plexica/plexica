@@ -10,6 +10,7 @@ import type {
   DashboardMetrics,
   DeletionRetryResponse,
   DeletionStatusResponse,
+  DlqListResponse,
   HealthResponse,
   KafkaStatus,
   LogEntry,
@@ -118,4 +119,31 @@ export function getLogs(params: { tenant?: string; level?: string; limit?: numbe
 
 export function getKafkaStatus(): Promise<KafkaStatus> {
   return apiClient.get<KafkaStatus>(`${ADMIN_PREFIX}/system/kafka`);
+}
+
+// ── DLQ (S5-901 — dead letter queue management) ────────────────────────────
+
+export interface ListDlqParams {
+  page?: number;
+  pageSize?: number;
+  status?: 'pending' | 'retried' | 'dismissed';
+  pluginId?: string;
+}
+
+export function listDlq(params: ListDlqParams = {}): Promise<DlqListResponse> {
+  const query = new URLSearchParams();
+  if (params.page !== undefined) query.set('page', String(params.page));
+  if (params.pageSize !== undefined) query.set('pageSize', String(params.pageSize));
+  if (params.status !== undefined) query.set('status', params.status);
+  if (params.pluginId !== undefined) query.set('pluginId', params.pluginId);
+  const qs = query.toString();
+  return apiClient.get<DlqListResponse>(`${ADMIN_PREFIX}/system/dlq${qs !== '' ? `?${qs}` : ''}`);
+}
+
+export function retryDlqEntry(id: string): Promise<{ status: string }> {
+  return apiClient.post<{ status: string }>(`${ADMIN_PREFIX}/system/dlq/${id}/retry`);
+}
+
+export function dismissDlqEntry(id: string): Promise<{ status: string }> {
+  return apiClient.post<{ status: string }>(`${ADMIN_PREFIX}/system/dlq/${id}/dismiss`);
 }

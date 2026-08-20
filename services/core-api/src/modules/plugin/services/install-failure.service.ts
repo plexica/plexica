@@ -14,9 +14,9 @@ export async function cleanupFailedInstallation(
     { err: cause instanceof Error ? cause.message : String(cause), installId },
     'Plugin migration security phase failed',
   );
-  await withTenantDb(async (tx) => {
-    await tx.pluginInstallation.update({ where: { id: installId }, data: { status: 'failed' } });
-    await tx.pluginContainerConfig.deleteMany({ where: { installId } });
+  await withTenantDb(async (db) => {
+    await db.pluginInstallation.update({ where: { id: installId }, data: { status: 'failed' } });
+    await db.pluginContainerConfig.deleteMany({ where: { installId } });
   }, context).catch((error: unknown) => {
     logger.error({ err: (error as Error)?.message, installId }, 'Failed to persist failed plugin installation');
   });

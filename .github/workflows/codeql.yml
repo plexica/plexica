@@ -19,6 +19,12 @@ on:
   schedule:
     - cron: '0 3 * * 1'  # Every Monday at 3 AM
 
+# Cancel superseded runs on the same ref for pull requests; never cancel
+# runs on main or scheduled runs so their results are preserved.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   analyze:
     name: Analyze (${{ matrix.language }})
