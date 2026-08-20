@@ -11,7 +11,7 @@
   },
   "dependencies": {
     "@fontsource/inter": "catalog:",
-    "keycloakify": "^11",
+    "keycloakify": "^11.15.14",
     "react": "catalog:",
     "react-dom": "catalog:"
   },
