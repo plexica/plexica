@@ -92,11 +92,14 @@ const configSchema = z
     // issued by the master realm, not by a tenant realm (H-03 security fix).
     KEYCLOAK_MASTER_REALM: z.string().default('master'),
 
-    // Fastify trustProxy — controls how many X-Forwarded-For hops to trust.
+    // Fastify trustProxy — controls how X-Forwarded-* hops are trusted.
     // false  = trust no proxy (safe default; request.ip is the direct connection IP).
-    // 1      = trust one hop (set this when running behind a single reverse proxy).
-    // Never use `true` — it trusts the entire X-Forwarded-For chain, enabling
-    // trivial IP spoofing by any client that sends a forged X-Forwarded-For header.
+    // <ip|cidr> = comma-separated IPs/CIDRs to trust as proxies (e.g. the reverse
+    //   proxy address). Recommended when running behind a single reverse proxy.
+    // true   = trust the entire X-Forwarded-For chain. Never use — it enables
+    //   trivial IP spoofing by any client that sends a forged X-Forwarded-For header.
+    // Numeric hop counts are no longer supported: fastify 5.12+ fails closed on
+    // numeric values (security hardening), so any numeric input maps to false.
     TRUST_PROXY: z.preprocess(
       (v) =>
         v === 'true'
@@ -107,8 +110,8 @@ const configSchema = z
               ? false
               : Number.isNaN(Number(v))
                 ? v
-                : Number(v),
-      z.union([z.boolean(), z.string(), z.number()]).default(false)
+                : false,
+      z.union([z.boolean(), z.string()]).default(false)
     ),
   })
   .superRefine((value, context) => {
