@@ -6,7 +6,7 @@
 > For lessons learned from the v1 codebase, see
 > [lessons-learned.md](./lessons-learned.md).
 
-**Last Updated**: 2026-08-19 (Codebase review Fase 5 Decisions 3-10 ALL IMPLEMENTED — SDK dogfooding, pagination unified, api-types package, admin-only features, shell a11y, auth store unified, dev-server HMR removed, E2E read-only parallelized; ADR-029 registered; ADR-028 registered; TD-003 resolved; Decision 10 `workers: 2` reverted to 1 after adversarial review — Playwright runs files concurrently across workers, mutating suites are not yet isolated)
+**Last Updated**: 2026-08-20 (ADR-030 registered — `@vitest/coverage-v8` coverage provider for core-api unit tests, catalog entry, GitHub Native Code Coverage + artifact reporting; PR #102)
 
 ---
 
@@ -33,6 +33,7 @@ Foundational and current ADR lifecycle states:
 | ADR-024 | Plugin Installation Service Credentials                      | Accepted | 2026-07-23 |
 | ADR-028 | Automatic Prisma Client Generation Without a Database        | Accepted | 2026-08-11 |
 | ADR-029 | `@plexica/api-types` — Shared API Contract Package                     | Accepted | 2026-08-18  |
+| ADR-030 | `@vitest/coverage-v8` — Coverage Provider for core-api Unit Tests       | Accepted | 2026-08-20  |
 
 ---
 

@@ -1,0 +1,31 @@
+name: Coverage report
+description: Run core-api unit tests with V8 coverage and upload the Cobertura report as a GitHub artifact
+
+# ADR-030: unit coverage is reported (not gated) and uploaded as a GitHub
+# Actions artifact — no external coverage service (Codecov/Coveralls).
+# `all: false` in vitest.config.ts measures only files loaded by the unit
+# project, so the Cobertura XML reflects unit coverage. The 80% line target
+# in AGENTS.md covers unit + integration tests.
+runs:
+  using: composite
+  steps:
+    - name: Run unit tests with coverage
+      shell: bash
+      run: pnpm --filter core-api test:unit:coverage
+    - name: Verify Cobertura report exists
+      shell: bash
+      run: test -s services/core-api/coverage/unit/cobertura-coverage.xml
+    - name: Upload unit coverage report
+      if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+      uses: actions/upload-artifact@v7
+      with:
+        name: coverage-report-typescript
+        path: services/core-api/coverage/unit/
+        retention-days: 7
+    - name: Upload code coverage to GitHub
+      if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+      uses: actions/upload-code-coverage@v1
+      with:
+        file: services/core-api/coverage/unit/cobertura-coverage.xml
+        language: TypeScript
+        label: code-coverage-agent

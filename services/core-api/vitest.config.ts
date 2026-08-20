@@ -38,12 +38,24 @@ export default defineConfig(({ mode }) => {
       //           is correct and module state doesn't bleed into integration tests.
       //   integration — all other test files run sequentially (isolate:false, maxWorkers:1)
       //                 to avoid races on the shared DB, Redis, and Keycloak.
+      // ADR-030: v8 provider for unit tests (run via `test:unit:coverage`,
+      // which executes only the `unit` project). Cobertura XML feeds the CI
+      // artifact upload + GitHub native code coverage; text gives the
+      // human-readable summary. Thresholds are intentionally not enforced
+      // yet — coverage is reported, not gated (see ADR-030 trade-offs).
+      //
+      // NOTE: coverage is a ROOT-level option in Vitest 4 — it is read from
+      // ctx._coverageOptions (root config), not from individual projects.
+      // `all: false` measures only files actually loaded by the unit project;
+      // integration-only files (DB/Keycloak/Kafka paths) would otherwise be
+      // reported as 0% and dilute the unit number.
       coverage: {
         provider: 'v8',
-        reporter: ['cobertura'],
+        reporter: ['text', 'cobertura'],
         include: ['src/**/*.ts'],
-        exclude: ['src/__tests__/**', 'dist/**', 'node_modules/**'],
-        reportsDirectory: './coverage',
+        exclude: ['src/__tests__/**', 'src/cli/**', 'src/index.ts', 'src/bootstrap.ts', 'dist/**', 'node_modules/**'],
+        reportsDirectory: './coverage/unit',
+        all: false,
         reportOnFailure: true,
       },
       projects: [
