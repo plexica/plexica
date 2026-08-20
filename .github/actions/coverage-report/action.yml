@@ -12,6 +12,8 @@ runs:
     - name: Run unit tests with coverage
       shell: bash
       run: pnpm --filter core-api test:unit:coverage
+      env:
+        NODE_OPTIONS: '--trace-warnings'
     - name: Verify Cobertura report exists
       shell: bash
       run: test -s services/core-api/coverage/unit/cobertura-coverage.xml
@@ -29,3 +31,5 @@ runs:
         file: services/core-api/coverage/unit/cobertura-coverage.xml
         language: TypeScript
         label: code-coverage-agent
+        fail-on-error: false
+        wait-for-processing-timeout: 30

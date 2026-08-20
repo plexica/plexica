@@ -74,7 +74,7 @@ jobs:
         run: pnpm install --frozen-lockfile
       # ADR-028: `pnpm install` runs core-api's `prepare` → `db:generate` (no DB
       # needed). No explicit db:generate step — CI fails at the exact point a
-      # fresh clone would.
+      # fresh clone would; an explicit step would mask the prepare mechanism.
       - name: Verify generated Prisma client exists
         run: test -f services/core-api/prisma/generated/tenant-client/index.d.ts
       - name: Verify authored-file line gate
@@ -122,9 +122,10 @@ jobs:
           NODE_OPTIONS: '--trace-warnings'
 
       # Free ~2.3 GB before web E2E boots its own isolated compose stack
-      # (plexica-e2e-* ports). `stop` — not `down -v` — preserves containers
-      # and volumes: admin E2E below reuses this stack's migrated DB and
-      # Keycloak realm; the stack is restarted before that step.
+      # (plexica-e2e-* ports): two full stacks (~4.5 GB) would run in
+      # parallel on a 7 GB runner. `stop` — not `down -v` — preserves
+      # containers and volumes: admin E2E below reuses this stack's migrated
+      # DB and Keycloak realm; the stack is restarted before that step.
       - name: Stop Docker infrastructure before web E2E tests
         run: docker compose -f docker-compose.yml -f docker-compose.ci.yml stop
 
@@ -155,8 +156,10 @@ jobs:
           docker ps -aq --filter "name=plexica-e2e-" 2>/dev/null | xargs -r docker rm -f
           bash .github/actions/docker-infra/scripts/cleanup-ports.sh 3001 3002
       # Restart the stack stopped above: admin E2E targets plexica-ci ports via
-      # job-level env. Containers and volumes were preserved, so the migrated
-      # schema and Keycloak realm are intact; --wait blocks until healthy.
+      # job-level env. Preserved containers/volumes keep the migrated schema
+      # and Keycloak realm intact; --wait blocks until healthy. One-shot init
+      # containers (keycloak-init, redpanda-init) are not re-run — their
+      # side effects persist in the preserved volumes.
       - name: Restart Docker infrastructure for admin E2E tests
         run: |
           docker compose -f docker-compose.yml -f docker-compose.ci.yml \

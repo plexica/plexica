@@ -15,6 +15,10 @@ packages:
 #     a catalog entry adds no dedup value for them.
 #   - zustand in @plexica/auth ("*"): intentionally version-agnostic there.
 #
+# Exception: @vitest/coverage-v8 is single-workspace (core-api only) but sits
+# in the catalog because its version is coupled to the workspace-wide vitest
+# entry — a coordinated bump must stay atomic (see ADR-030).
+#
 # Verified against pnpm-lock.yaml before unifying: zod, @originjs/vite-plugin-federation,
 # fastify and vite already resolve to a single version across all importers, so
 # adopting "catalog:" does not change any installed tree.

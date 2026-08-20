@@ -61,7 +61,23 @@ via the V8 native coverage API (no Babel transform, no separate
 transpilation step), which is the best fit for the ESM + TypeScript setup
 of `core-api`.
 
-### 2. Catalog entry in `pnpm-workspace.yaml` — not a plain devDependency
+### 2. Vitest config
+
+The `coverage` block lives at the **root** `test` level of
+`services/core-api/vitest.config.ts` — Vitest 4 reads coverage options from
+the root config (`ctx._coverageOptions`), not from individual projects.
+`include: ['src/**/*.ts']` scopes measurement to source; `exclude` skips
+`src/__tests__/**`, `src/cli/**`, `src/index.ts`, `src/bootstrap.ts`,
+`dist/**`, `node_modules/**` (entry points and CLI are bootstrap glue, not
+unit-testable logic). `reporter: ['text', 'cobertura']` emits a human
+summary and the CI-feed XML; `reportsDirectory: './coverage/unit'`
+separates unit coverage from any future integration coverage run.
+`all: false` measures only files loaded by the unit project (integration-only
+DB/Keycloak/Kafka paths would otherwise report 0% and dilute the number).
+`reportOnFailure: true` still emits the report when a test file fails at
+setup.
+
+### 3. Catalog entry in `pnpm-workspace.yaml` — not a plain devDependency
 
 `@vitest/coverage-v8` is declared in the pnpm **catalog**
 (`pnpm-workspace.yaml`, version `4.1.10`, exact pin) and referenced from
@@ -78,7 +94,7 @@ shared by >= 2 workspaces; while coverage is currently scoped to
 "shared by >= 2 workspaces" rule on purpose and is recorded here so the
 catalog comment can be kept accurate.
 
-### 3. Report destination: GitHub Actions artifact + GitHub Native Code Coverage
+### 4. Report destination: GitHub Actions artifact + GitHub Native Code Coverage
 
 The Cobertura XML report is uploaded as a GitHub Actions artifact of the CI
 run and pushed to **GitHub Native Code Coverage** via
@@ -119,9 +135,10 @@ view gives reviewers an at-a-glance percentage on the PR.
   every CI run.
 - V8-native instrumentation is fast and requires no Babel transform —
   minimal impact on the existing unit test suite.
-- No new secrets, no external SaaS; the only new CI permission is
-  `code-quality: write` (plus the `actions: write` used by the existing
-  artifact uploads).
+- No new secrets, no external SaaS. The CI `ci` job gained `actions: write`
+  (artifact upload — previously the upload-artifact steps were unreachable
+  without it) and `code-quality: write` (native coverage upload); both are
+  added in this PR alongside the existing `contents: read`.
 - Provider version (`4.1.10`) is pinned in the catalog to the currently
   resolved `vitest` core version, avoiding provider/core drift until the
   next coordinated bump.
@@ -145,6 +162,18 @@ view gives reviewers an at-a-glance percentage on the PR.
 - **No PR diff-coverage annotations**: GitHub's native coverage view is
   not a full diff-coverage SaaS. Diff-level "new lines uncovered"
   annotations remain a SaaS feature that this decision explicitly forgoes.
+- **Supply-chain surface on the self-hosted runner**: the upload runs inside
+  the long-lived `ci` job (consolidated to keep `ci.yml` under the 200-line
+  gate) with `actions/upload-code-coverage@v1` referenced by mutable `@v1`
+  tag (the repo convention; no SHA pins elsewhere). The fork-PR guard blocks
+  untrusted forks; `fail-on-error: false` means an upload failure surfaces
+  as an annotation rather than red CI. Acceptable trade-off — the action is
+  first-party GitHub and scoped to `code-quality: write`.
+- **Cobertura path mapping unvalidated until first CI run**: the v8 provider
+  emits package-relative `filename` attributes (`src/...`); GitHub's native
+  coverage view resolves against the repo root. If the PR view shows no
+  files on the first run, normalize paths (`projectRoot: '../../'`) or
+  rewrite the XML before upload.
 - Marginal install-time and lockfile growth from the provider's transitive
   dependencies (`@bcoe/v8-coverage`, `istanbul-*` report tooling, ...).
 
