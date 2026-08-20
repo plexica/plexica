@@ -38,6 +38,14 @@ export default defineConfig(({ mode }) => {
       //           is correct and module state doesn't bleed into integration tests.
       //   integration — all other test files run sequentially (isolate:false, maxWorkers:1)
       //                 to avoid races on the shared DB, Redis, and Keycloak.
+      coverage: {
+        provider: 'v8',
+        reporter: ['cobertura'],
+        include: ['src/**/*.ts'],
+        exclude: ['src/__tests__/**', 'dist/**', 'node_modules/**'],
+        reportsDirectory: './coverage',
+        reportOnFailure: true,
+      },
       projects: [
         {
           test: {
