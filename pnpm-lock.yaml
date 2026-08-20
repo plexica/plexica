@@ -7,8 +7,8 @@ settings:
 catalogs:
   default:
     '@fontsource/inter':
-      specifier: ^5.2.8
-      version: 5.2.8
+      specifier: ^5.3.0
+      version: 5.3.0
     '@hookform/resolvers':
       specifier: ^5.4.0
       version: 5.4.0
@@ -439,7 +439,7 @@ importers:
     dependencies:
       '@fontsource/inter':
         specifier: 'catalog:'
-        version: 5.2.8
+        version: 5.3.0
       keycloakify:
         specifier: ^11
         version: 11.15.11
@@ -489,7 +489,7 @@ importers:
     dependencies:
       '@fontsource/inter':
         specifier: 'catalog:'
-        version: 5.2.8
+        version: 5.3.0
       '@radix-ui/react-dialog':
         specifier: ^1.1.22
         version: 1.1.22(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -1225,8 +1225,8 @@ packages:
   '@floating-ui/utils@0.2.12':
     resolution: {integrity: sha512-HpCo8tmWzLVad5s2d19EhAz5zqrrQ6s69qd6moPMQvkOuSwDT1YgRfWSVuc4ennqrgv3OHppiOGMQ7oC13yIww==}
 
-  '@fontsource/inter@5.2.8':
-    resolution: {integrity: sha512-P6r5WnJoKiNVV+zvW2xM13gNdFhAEpQ9dQJHt3naLvfg+LkF2ldgSLiF4T41lf1SQCM9QmkqPTn4TH568IRagg==}
+  '@fontsource/inter@5.3.0':
+    resolution: {integrity: sha512-RofMylZmjlJEfELXeNHFWBRcSs75rGU/6bV2S2jfnvv/3rPXPGe0LgUJTklcHZ9lM4OZmAVFhcJPnACfb91A3g==}
 
   '@formatjs/ecma402-abstract@2.2.4':
     resolution: {integrity: sha512-lFyiQDVvSbQOpU+WFd//ILolGj4UgA/qXrKeZxdV14uKiAUiPAtX6XAn7WBCRi7Mx6I7EybM9E5yYn4BIpZWYg==}
@@ -5628,7 +5628,7 @@ snapshots:
 
   '@floating-ui/utils@0.2.12': {}
 
-  '@fontsource/inter@5.2.8': {}
+  '@fontsource/inter@5.3.0': {}
 
   '@formatjs/ecma402-abstract@2.2.4':
     dependencies:

@@ -19,7 +19,7 @@ packages:
 # fastify and vite already resolve to a single version across all importers, so
 # adopting "catalog:" does not change any installed tree.
 catalog:
-  '@fontsource/inter': ^5.2.8
+  '@fontsource/inter': ^5.3.0
   '@hookform/resolvers': ^5.4.0
   '@originjs/vite-plugin-federation': ^1.4.1
   '@playwright/test': ^1.62.0
