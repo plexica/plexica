@@ -122,7 +122,11 @@ export default defineConfig({
         RATE_LIMIT_MAX: process.env['PLAYWRIGHT_GENERAL_RATE_LIMIT_MAX'] ?? '10000',
         ADMIN_RATE_LIMIT_MAX: process.env['PLAYWRIGHT_GENERAL_RATE_LIMIT_MAX'] ?? '10000',
         RATE_LIMIT_RESOLVE_MAX: process.env['PLAYWRIGHT_RATE_LIMIT_RESOLVE_MAX'] ?? '30',
-        TRUST_PROXY: '1',
+        // fastify 5.12+ fails closed on numeric hop counts, so '1' no longer
+        // trusts the immediate peer. Trust loopback only: the E2E stack runs on
+        // the host, so every request's direct peer is localhost and the
+        // feature tests' isolated X-Forwarded-For IPs are honoured again.
+        TRUST_PROXY: '127.0.0.1,::1,::ffff:127.0.0.1',
         LOKI_URL: process.env['LOKI_URL'] ?? 'http://localhost:3100',
       }),
     },
