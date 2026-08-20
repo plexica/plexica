@@ -153,7 +153,9 @@ describe('assertSafeSvg() — animated href in isolation (no javascript: involve
 describe('assertSafeSvg() — performance regression (real parser, linear time)', () => {
   // The lexer-era patterns needed minutes on these inputs. With the parser
   // the malformed ones are rejected in single-digit milliseconds (fail
-  // closed, no hang); the 2 s budget stays non-flaky on loaded CI runners.
+  // closed, no hang); the 3 s budget accounts for V8 coverage
+  // instrumentation overhead (unit tests run with --coverage in CI, ADR-030)
+  // on loaded runners and stays non-flaky.
   it('rejects a degenerate 2 MB buffer without ">" fast (fail closed, no scan hang)', () => {
     const size = 2_097_152; // LOGO_MAX_BYTES
     const prefix = '<set ';
@@ -162,14 +164,14 @@ describe('assertSafeSvg() — performance regression (real parser, linear time)'
     const degenerate = Buffer.from(prefix + filler, 'utf8');
     const start = Date.now();
     expect(() => assertSafeSvg(degenerate)).toThrow(InvalidFileTypeError);
-    expect(Date.now() - start).toBeLessThan(2000);
+    expect(Date.now() - start).toBeLessThan(3000);
   });
 
   it('rejects 2 MB of repeated unterminated "<image " prefixes fast', () => {
     const degenerate = Buffer.from('<image '.repeat(300_000)); // 2.1 MB, no ">"
     const start = Date.now();
     expect(() => assertSafeSvg(degenerate)).toThrow(InvalidFileTypeError);
-    expect(Date.now() - start).toBeLessThan(2000);
+    expect(Date.now() - start).toBeLessThan(3000);
   });
 
   it('accepts a well-formed 2 MB SVG with 60k elements fast', () => {
@@ -180,6 +182,6 @@ describe('assertSafeSvg() — performance regression (real parser, linear time)'
     );
     const start = Date.now();
     expect(() => assertSafeSvg(legit)).not.toThrow();
-    expect(Date.now() - start).toBeLessThan(2000);
+    expect(Date.now() - start).toBeLessThan(3000);
   });
 });
