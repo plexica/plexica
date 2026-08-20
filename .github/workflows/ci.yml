@@ -118,6 +118,7 @@ jobs:
         uses: ./.github/actions/coverage-report
       - name: Run integration tests
         run: bash scripts/check-test-env.sh && pnpm --filter core-api test:int
+        working-directory: ${{ github.workspace }}
         env:
           NODE_OPTIONS: '--trace-warnings'
 
