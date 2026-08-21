@@ -30,7 +30,7 @@
     "zustand": "*"
   },
   "dependencies": {
-    "jose": "6.2.3"
+    "jose": "6.2.9"
   },
   "devDependencies": {
     "@types/react": "catalog:",
