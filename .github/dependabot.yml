@@ -45,3 +45,26 @@ updates:
       day: monday
       time: '08:00'
     open-pull-requests-limit: 5
+
+  # Docker Compose files (filenames must match the Dependabot docker-compose
+  # fetcher regex: (docker-)?compose(-[\w]+)?(?>\.[\w-]+)?\.ya?ml)
+  - package-ecosystem: docker-compose
+    directory: '/infra/compose'
+    schedule:
+      interval: weekly
+      day: monday
+      time: '08:00'
+
+  - package-ecosystem: docker
+    directory: '/e2e/fixtures/plugin-proxy'
+    schedule:
+      interval: weekly
+      day: monday
+      time: '08:00'
+
+  - package-ecosystem: docker
+    directory: '/examples/plugins/crm'
+    schedule:
+      interval: weekly
+      day: monday
+      time: '08:00'
