@@ -6,12 +6,14 @@
 import { createKeycloakClient } from '@plexica/auth/keycloak-client';
 import { requiredOrigin } from '@plexica/auth/env-guard';
 
+import { runtimeEndpoints } from '../lib/runtime-endpoints.js';
+
 // `import.meta.env.PROD` is true for `vite build` and false for `vite dev`, so the
 // dev fallback (see requiredOrigin in @plexica/auth/env-guard) is preserved. The
 // E2E suite builds with NODE_ENV=production but injects VITE_KEYCLOAK_URL
 // (apps/web/playwright.config.ts), so it is unaffected.
 const KEYCLOAK_URL = requiredOrigin(
-  import.meta.env.VITE_KEYCLOAK_URL,
+  runtimeEndpoints().keycloakBase ?? import.meta.env.VITE_KEYCLOAK_URL,
   'VITE_KEYCLOAK_URL',
   'http://localhost:8080',
   import.meta.env.PROD

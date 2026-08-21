@@ -1,3 +1,5 @@
+import { pluginContainerIdentity } from './plugin-container-identity.js';
+
 import type Docker from 'dockerode';
 
 function mergeEnvironment(
@@ -14,7 +16,7 @@ export async function restartDockerContainer(
   installId: string,
   environment?: Record<string, string>
 ): Promise<number | undefined> {
-  const name = `plexica-plugin-${installId}`;
+  const name = pluginContainerIdentity(installId).name;
   const existing = docker.getContainer(name);
   if (environment === undefined) {
     await existing.restart();

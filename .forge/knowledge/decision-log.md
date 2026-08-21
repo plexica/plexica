@@ -6,7 +6,7 @@
 > For lessons learned from the v1 codebase, see
 > [lessons-learned.md](./lessons-learned.md).
 
-**Last Updated**: 2026-08-20 (ADR-030 registered — `@vitest/coverage-v8` coverage provider for core-api unit tests, catalog entry, GitHub Native Code Coverage + artifact reporting; PR #102)
+**Last Updated**: 2026-08-21 (ADR-031 final review revision — Keycloak request-host issuer, scoped sidecars, and dual-job runner admission for Spec 010)
 
 ---
 
@@ -34,6 +34,13 @@ Foundational and current ADR lifecycle states:
 | ADR-028 | Automatic Prisma Client Generation Without a Database        | Accepted | 2026-08-11 |
 | ADR-029 | `@plexica/api-types` — Shared API Contract Package                     | Accepted | 2026-08-18  |
 | ADR-030 | `@vitest/coverage-v8` — Coverage Provider for core-api Unit Tests       | Accepted | 2026-08-20  |
+| ADR-031 | CI Runtime Contract and Gated Compose Orchestration                     | Accepted | 2026-08-21  |
+
+### ADR Acceptance Records
+
+| ADR | Decision Date | Status | Decision |
+| --- | --- | --- | --- |
+| ADR-031 | 2026-08-21 | Accepted | Final plan names Keycloak 26 request-host mode (no hostname/proxy headers), manifest-only host provisioning, bounded scoped sidecar identity, and mandatory post-checkout admission in both labelled jobs. |
 
 ---
 
@@ -139,84 +146,6 @@ written. This section tracks the resolution of each.
 | 8 | Unify the auth store? | [04#2](../../docs/review/04-packages-condivisi.md#2) | **Implemented**: `createAuthStore` factory in `@plexica/auth` with DI for realm, profile, persist, logout. Web: 180→63 lines. Admin: 156→33 lines. Dead `createAuthBaseSlice` removed. `idToken` added to `AuthState`. **Corrections 2026-08-19**: restored `createRehydrationHandler()` invocation (D8 had dropped it — session state never restored from sessionStorage) and front-channel logout via `getLogoutUrl(realm, idToken, postLogoutUri)` (D8 had replaced it with a plain redirect; pre-D8 behavior per PR #77 tests + spec 002-04). | — | 2026-08-18 |
 | 9 | Complete or remove the "dev-server HMR" feature? | [04#3](../../docs/review/04-packages-condivisi.md#3) | **Implemented**: removed. Deleted `plugin-dev-watcher.ts` (104 LOC) from apps/web, `dev-server-registration.ts` (78 LOC) from vite-plugin. Removed `startDevWatcher()` call from main.tsx. Removed `ws` + `@types/ws` deps. Dev plugin registration uses `registerBackend()` HTTP (already working in CLI template). | — | 2026-08-18 |
 | 10 | Parallelize the 174 E2E tests? | [05#20](../../docs/review/05-build-ci-infra.md#20) | **Implemented (incremental)**: 11 read-only spec files marked `mode: 'parallel'` (8 web + 3 admin) — intra-file parallelism only. `workers` stays at 1: Playwright runs files concurrently across workers by default, so raising workers would run mutating suites in parallel against the shared tenant/DB/realm state (adversarial review 2026-08-19). Full parallelism + tenant-per-worker isolation deferred to post-v1.0 CI measurement. | — | 2026-08-19 |
-
-### Decision 3 — RESOLVED: adopt `@plexica/sdk` in the CRM plugin
-
-**Resolution date**: 2026-08-18 — **Status**: Implemented.
-
-**Rationale**: the review explicitly labels the current state — an SDK that
-is published but never executed — as "the worst of the two". Removing the
-SDK would require retiring ADR-019 and indirectly weaken ADR-008's polyglot
-commitment (the TS SDK was the privileged DX for TypeScript plugin authors).
-The failure is one of integration, not design: the abstraction exists, it
-simply has no consumer. Dogfooding fixes that.
-
-**What was done**:
-
-1. **SDK refactored** (`packages/sdk/src/`):
-   - `db.ts` (NEW, 93 lines): `PluginDb` class with typed `pg.Pool`, `query()`, `queryOne()`, `pool.on('error')` handler, `close()`. Closes finding 04#16 (`getDb(): unknown` → `getDb(): Promise<Pool>`).
-   - `http.ts` (NEW, 84 lines): `PluginHttp` class with `callApi()` and `emitEvent()` extracted from the SDK class to stay under the 200-line constitution limit.
-   - `index.ts` (REWRITTEN, 118 lines): `PluginSDK` is now a thin facade over `PluginDb` + `PluginHttp` + event handler registry. Added `query()` and `queryOne()` convenience methods. Public types (`PluginEvent`, `PluginConfig`, etc.) and error classes re-exported.
-   - `errors.ts`: `DbAccessError` is now used by `PluginDb` (was previously a dead export).
-   - Tests: 22 passing (sdk.test.ts 199 lines + db.test.ts 164 lines).
-
-2. **CRM migrated** (`examples/plugins/crm/src/`):
-   - `sdk.ts` (NEW, 32 lines): singleton `PluginSDK` instance + `initSdk()`/`destroySdk()` lifecycle.
-   - `db.ts` (REWRITTEN, 33 lines): delegates `query()`/`queryOne()`/`getPool()` to the SDK. No longer creates its own `pg.Pool` — the SDK manages it.
-   - `routes/events.ts` (REWRITTEN, 137 lines): event handler for `plexica.workspace.created` registered via `sdk.onEvent()`; HTTP route validates envelope, handles E2E failure simulation, then delegates to `sdk.dispatchEvent()`. Business logic (idempotent pipeline creation) lives in the registered handler, not in the route.
-   - `app.ts` (MODIFIED, 37 lines): SDK initialized after route registration, destroyed on `onClose`.
-   - `package.json`: `@plexica/sdk: workspace:*` added as dependency.
-
-3. **Architectural note — what was NOT migrated and why**:
-   - `crm/ui/api.ts` (`request<T>` helper): this is **browser-side** code (Module Federation remote). The SDK is Node-only (`import('pg')`, `process.env`). The review's claim that it reimplements `callApi()` was architecturally inaccurate — `callApi()` is plugin→core, `request()` is UI→backend. Different runtimes, different purposes.
-   - `crm/src/routes/context.ts` (8 lines): reads per-request HTTP headers for the UI. The SDK's `getContext()` reads from instance config (for plugin→core calls). Different use cases — the route is a header passthrough, not an SDK reimplementation.
-
-**ADR-019 amendment**: the CRM is now the first real consumer of `@plexica/sdk`. The divergence between the ADR's documented contract and the code is closed — the code now matches the ADR. No ADR text change needed; the amendment is recorded here.
-
-**Side effect**: unblocks finding [04#4](../../docs/review/04-packages-condivisi.md#4) (dev registration triplication) — the CLI template can now call `unregisterBackend()` instead of re-implementing the POST. Deferred to a separate PR.
-
-**E2E verification**: the CRM is the fixture for 5 E2E specs in `apps/web/e2e/plugin-system/`. Typecheck passes across all 10 workspace projects. E2E tests require the full Docker stack and are deferred to CI verification.
-
----
-
-### Decision 4 — RESOLVED: unify API pagination on `pageSize`
-
-**Resolution date**: 2026-08-18 — **Status**: Implemented.
-
-**Question**: the API exposes three divergent paginated envelopes:
-- Shape #1 (canonical `lib/pagination.ts`): `{ data, total, page, limit, totalPages }` — used by `workspace`, `audit-log`, `user-management` (tenant API).
-- Shape #2 (admin/plugin hand-built): `{ data, total, page, pageSize, totalPages? }` — used by `tenant-list`, `admin/audit-log`, `registry`, `marketplace`, `admin-catalog`, `dlq` (the last via a `limit`→`pageSize` rename workaround at `dlq.routes.ts:46-55`).
-- Shape #3 (no page info): `{ data, total }` — used by `workspace-member`, `invitation` (frontend cannot render `<Pagination>` — latent bug).
-
-**Resolution**: unify on **Shape target `{ data, total, page, pageSize, totalPages }`** (Opzione A — `pageSize` canonical). Big-bang migration in one coordinated release. No backward-compat alias.
-
-**Rationale**:
-1. Majority already aligned — 6+ admin/plugin modules + marketplace already use `pageSize`. Only 3 tenant modules use `limit`.
-2. `pageSize` is more expressive than `limit` (the latter is ambiguous with rate limit / SQL LIMIT).
-3. A temporary alias (Opzione C) would reintroduce the exact Rule 3 violation we are closing. Removing the alias later requires the same coordination as doing it now — it defers cost without reducing it.
-4. The backend is a single Fastify deployable — one coordinated release is feasible.
-5. Unification eliminates the `dlq.routes.ts:46-55` workaround (calls `buildPaginatedResult` then renames `limit`→`pageSize` via spread — contorted code to work around the divergence).
-6. Shape #3 (`workspace-member`, `invitation`) is a latent bug: the frontend cannot paginate without `totalPages`. This fix closes it regardless of which field name is chosen.
-
-**Non-goals**: changing the pagination semantics (still 1-indexed page, still `skip/take` under the hood), changing the per-module max limits (DLQ caps at 100, logs at 500 — preserved via `.extend()` on the base schema).
-
-**Execution order** (single PR, all steps coordinated):
-
-1. **`lib/pagination.ts`** — rename `limit`→`pageSize` in `PaginationParams`, `PaginatedResult<T>`, `buildPaginatedResult`, `paginationSchema`. Keep `buildPaginationClause` param name aligned.
-2. **Tenant modules** (Shape #1 → target): `workspace/service.ts`, `audit-log/repository.ts`, `user-management/service.ts` — they call `buildPaginatedResult`, so the change is automatic once the helper is updated. Verify no other `limit` references remain in their schemas/routes.
-3. **Admin/plugin modules** (Shape #2 → target): replace hand-built envelopes with `buildPaginatedResult` in `tenant-list.service.ts` (also adds missing `totalPages`), `admin/services/audit-log.service.ts`, `plugin/services/registry.service.ts`, `plugin/routes/marketplace.routes.ts`, `plugin/routes/admin-catalog.routes.ts`. Delete the `limit`→`pageSize` rename workaround in `plugin/routes/dlq.routes.ts`.
-4. **Shape #3 modules**: add `page`/`pageSize`/`totalPages` to the return of `workspace-member/repository.ts` and `invitation/repository.ts` via `buildPaginatedResult`. Update their route handlers to pass through pagination params.
-5. **Frontend `apps/web`**: migrate clients that read `limit` to read `pageSize` — `services/audit-api.ts`, workspace/user types and hooks. Marketplace already uses `pageSize`.
-6. **Frontend `apps/admin`**: already aligned on `pageSize`. Verify no `limit` reads remain.
-7. **Tests**: update integration tests (`__tests__/user-management.test.ts`, `admin/audit-log.routes.int.test.ts`, `admin/tenant-list.routes.int.test.ts`, `admin/dlq.routes.int.test.ts`) to assert the unified envelope. Update E2E specs if any assert pagination shape.
-8. **Typecheck + integration tests green** before merge.
-
-**Risk guardrails**:
-- This is a **breaking change of the public API**. Both apps (`web` and `admin`) must be deployed in the same release as the backend.
-- Integration tests currently assert `pageSize` for admin endpoints and `limit` for tenant endpoints — both must be updated in the same commit.
-- E2E specs in `apps/web/e2e/` that paginate (workspaces, users, audit, marketplace, DLQ) must pass against the unified envelope.
-
----
 
 ## Deferred Decisions
 

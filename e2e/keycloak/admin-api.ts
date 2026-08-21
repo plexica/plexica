@@ -1,6 +1,9 @@
+import { ciRuntimeManifest, isCiRuntimeContract } from '../ci-runtime-manifest.js';
+
 const DEFAULT_KEYCLOAK_URL = 'http://localhost:8080';
 
 export function getKeycloakUrl(): string {
+  if (isCiRuntimeContract()) return ciRuntimeManifest().KEYCLOAK_HOST_ADMIN_BASE;
   return (
     process.env['KEYCLOAK_URL'] ?? process.env['PLAYWRIGHT_KEYCLOAK_URL'] ?? DEFAULT_KEYCLOAK_URL
   );
@@ -17,6 +20,9 @@ export function assertExplicitLoopbackE2eTarget(): void {
     throw new Error(
       `Refusing E2E Keycloak provisioning against non-loopback host ${target.hostname}`
     );
+  }
+  if (isCiRuntimeContract() && process.env['KEYCLOAK_URL'] && process.env['KEYCLOAK_URL'] !== getKeycloakUrl()) {
+    throw new Error('CI host provisioning may use only KEYCLOAK_HOST_ADMIN_BASE from the manifest');
   }
 }
 

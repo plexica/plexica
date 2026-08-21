@@ -23,6 +23,8 @@ import {
   browserChannelUse,
   coreApiEnv,
   keycloakUrl,
+  ciRuntimeManifest,
+  isCiRuntimeContract,
   MONOREPO_ROOT_ENV_PATH,
   requiredRunValue,
   setDefault,
@@ -30,12 +32,16 @@ import {
 
 // Load .env from the monorepo root for local dev. No-ops in CI (file absent).
 dotenv.config({ path: MONOREPO_ROOT_ENV_PATH });
+const ciRuntime = isCiRuntimeContract();
+const runtime = ciRuntime ? ciRuntimeManifest() : undefined;
 
 const RUN_HINT = 'Use "pnpm --filter web test:e2e:production" for an isolated run.';
 const credentialPepper = requiredRunValue('PLUGIN_CREDENTIAL_PEPPER', RUN_HINT);
 const eventEncryptionKey = requiredRunValue('EVENT_KEY_ENCRYPTION_KEY', RUN_HINT);
 const pluginDbEncryptionKey = requiredRunValue('PLUGIN_DB_ENCRYPTION_KEY', RUN_HINT);
-const pluginDbCaPath = requiredRunValue('PLUGIN_DB_SSL_ROOT_CERT_PATH', RUN_HINT);
+const pluginDbCaPath = ciRuntime
+  ? process.env['PLUGIN_DB_SSL_ROOT_CERT_PATH'] ?? '/etc/ssl/certs/ca-certificates.crt'
+  : requiredRunValue('PLUGIN_DB_SSL_ROOT_CERT_PATH', RUN_HINT);
 
 // ── Hardcoded E2E defaults ────────────────────────────────────────────────────
 // These values match what global-setup.ts provisions. Setting them here (not in
@@ -49,7 +55,7 @@ setDefault('EVENT_KEY_ENCRYPTION_KEY', eventEncryptionKey);
 setDefault('PLUGIN_DB_ENCRYPTION_KEY', pluginDbEncryptionKey);
 setDefault('PLUGIN_CREDENTIAL_PEPPER', credentialPepper);
 setDefault('PLUGIN_DB_SSL_MODE', 'verify-full');
-setDefault('PLAYWRIGHT_KEYCLOAK_URL', 'http://localhost:8080');
+setDefault('PLAYWRIGHT_KEYCLOAK_URL', runtime?.KEYCLOAK_HOST_ADMIN_BASE ?? 'http://localhost:8080');
 setDefault('PLAYWRIGHT_E2E', 'true');
 setDefault('PLAYWRIGHT_RATE_LIMIT_RESOLVE_MAX', '30');
 setDefault('PLAYWRIGHT_GENERAL_RATE_LIMIT_MAX', '10000');
@@ -60,8 +66,8 @@ setDefault('PLAYWRIGHT_USER_FIRST_NAME', 'E2E');
 setDefault('PLAYWRIGHT_TENANT_A_SLUG', 'e2e');
 setDefault('PLAYWRIGHT_TENANT_B_SLUG', 'e2e-b');
 setDefault('PLAYWRIGHT_TENANT_DOMAIN', 'localhost');
-setDefault('PLAYWRIGHT_BASE_URL', 'http://e2e.localhost:3000');
-setDefault('PLAYWRIGHT_API_URL', 'http://e2e.localhost:3001');
+setDefault('PLAYWRIGHT_BASE_URL', runtime?.WEB_E2E_PUBLIC_BASE ?? 'http://e2e.localhost:3000');
+setDefault('PLAYWRIGHT_API_URL', runtime?.CORE_API_PUBLIC_BASE ?? 'http://e2e.localhost:3001');
 setDefault('PLAYWRIGHT_TEST_USER', 'test@e2e.local');
 setDefault('PLAYWRIGHT_TEST_PASSWORD', 'PlexicaE2e!1');
 setDefault('PLAYWRIGHT_FORCE_PASSWORD_USER', 'force-pwd@e2e.local');
@@ -92,7 +98,7 @@ export default defineConfig({
     },
   ],
   // CRM is installed by the production API flow and launched by DockerContainerManager.
-  webServer: [
+  webServer: ciRuntime ? [] : [
     {
       // Core-api backend — required for tenant resolution and auth
       command: coreApiCommand,

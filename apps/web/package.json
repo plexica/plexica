@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "test:e2e": "bash ../../scripts/run-web-e2e-production.sh full",
     "test:e2e:production": "bash ../../scripts/run-web-e2e-production.sh full",
-    "test:e2e:production:focused": "bash ../../scripts/run-web-e2e-production.sh focused"
+    "test:e2e:production:focused": "bash ../../scripts/run-web-e2e-production.sh focused",
+    "test": "vitest run"
   },
   "dependencies": {
     "@hookform/resolvers": "catalog:",
@@ -42,6 +43,7 @@
     "postcss": "catalog:",
     "tailwindcss": "catalog:",
     "typescript": "catalog:",
-    "vite": "catalog:"
+    "vite": "catalog:",
+    "vitest": "catalog:"
   }
 }

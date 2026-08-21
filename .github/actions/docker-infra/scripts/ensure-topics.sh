@@ -1,19 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ensure_topic() {
-  topic="$1"
-  retention_ms="$2"
-  docker exec plexica-ci-redpanda-1 rpk topic create "$topic" \
-    --brokers localhost:9092 --partitions 1 --replicas 1 || true
-  docker exec plexica-ci-redpanda-1 rpk topic alter-config "$topic" \
-    --set "retention.ms=${retention_ms}" --brokers localhost:9092
-  docker exec plexica-ci-redpanda-1 rpk topic describe "$topic" -c \
-    --brokers localhost:9092 | grep -Eq "retention.ms[[:space:]]+${retention_ms}"
-}
-
+project=${CI_COMPOSE_PROJECT:?CI_COMPOSE_PROJECT is required}
+compose=(docker compose --project-name "$project" -f docker-compose.yml -f docker-compose.ci.yml)
+container=$("${compose[@]}" ps -q redpanda)
+[[ -n "$container" ]] || { echo 'Redpanda is not running' >&2; exit 1; }
 for topic in plexica.tenant.events plexica.user.events plexica.plugin.events; do
-  ensure_topic "$topic" 604800000
+  docker exec "$container" rpk topic create "$topic" --brokers redpanda:9092 --partitions 1 --replicas 1 || true
+  docker exec "$container" rpk topic alter-config "$topic" --set retention.ms=604800000 --brokers redpanda:9092
 done
-ensure_topic plexica.plugin.dlq 2592000000
-docker exec plexica-ci-redpanda-1 rpk topic list --brokers localhost:9092
+docker exec "$container" rpk topic create plexica.plugin.dlq --brokers redpanda:9092 --partitions 1 --replicas 1 || true
+docker exec "$container" rpk topic alter-config plexica.plugin.dlq --set retention.ms=2592000000 --brokers redpanda:9092

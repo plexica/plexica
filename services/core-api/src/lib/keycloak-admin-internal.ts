@@ -4,6 +4,7 @@
 // NOT part of the public API — do not import from outside the lib directory.
 
 import { KeycloakError } from './app-error.js';
+import { keycloakContainerBase } from './ci-runtime-contract.js';
 import { config } from './config.js';
 
 interface AdminToken {
@@ -18,7 +19,7 @@ async function getAdminToken(): Promise<string> {
     return cachedToken.accessToken;
   }
 
-  const url = `${config.KEYCLOAK_URL}/realms/master/protocol/openid-connect/token`;
+  const url = `${keycloakContainerBase(config)}/realms/master/protocol/openid-connect/token`;
   const body = new URLSearchParams({
     grant_type: 'password',
     client_id: 'admin-cli',
@@ -51,7 +52,7 @@ export async function adminRequest(
   body?: unknown
 ): Promise<Response> {
   const token = await getAdminToken();
-  return fetch(`${config.KEYCLOAK_URL}${path}`, {
+  return fetch(`${keycloakContainerBase(config)}${path}`, {
     method,
     headers: {
       Authorization: `Bearer ${token}`,

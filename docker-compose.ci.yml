@@ -1,44 +1,34 @@
-# docker-compose.ci.yml
-# CI resource overrides for GitHub Actions runner (7GB total).
-# Most services get tighter limits than local dev to conserve runner memory.
-# Keycloak uses the same 1024M as the base compose — no CI override needed.
-# Port bindings are inherited from docker-compose.yml — tests connect via localhost.
-
-name: plexica-ci
+# CI-only overlay. `!override` prevents fixed local bindings from leaking into CI.
+include:
+  - path: ./infra/compose/docker-compose.ci-runtime-services.yml
+    project_directory: .
 
 services:
   postgres:
-    deploy:
-      resources:
-        limits:
-          memory: 384M
-
+    ports: !override ['127.0.0.1::5432']
+  keycloak:
+    environment:
+      KC_HTTP_ENABLED: 'true'
+      KC_HOSTNAME_STRICT: 'false'
+    ports: !override ['127.0.0.1::8080']
+  keycloak-init:
+    environment:
+      KEYCLOAK_ADMIN_ORIGIN: ${ADMIN_E2E_PUBLIC_BASE:-http://localhost:3002}
+      KEYCLOAK_WEB_ORIGIN: ${WEB_E2E_PUBLIC_BASE:-http://localhost:3000}
   redis:
-    deploy:
-      resources:
-        limits:
-          memory: 96M
-
+    ports: !override ['127.0.0.1::6379']
   minio:
-    deploy:
-      resources:
-        limits:
-          memory: 192M
-
+    ports: !override ['127.0.0.1::9000', '127.0.0.1::9001']
   redpanda:
-    deploy:
-      resources:
-        limits:
-          memory: 320M
-
+    command: !override []
+    entrypoint: ['/bin/sh', '/ci-entrypoint.sh']
+    volumes:
+      - ./infra/redpanda/ci-entrypoint.sh:/ci-entrypoint.sh:ro
+      - ${CI_RUNTIME_DIR:?CI runtime directory is required}/redpanda-listener.env:/run/plexica-ci/redpanda-listener.env:ro
+    ports: !override ['127.0.0.1::19092', '127.0.0.1::9644']
   mailpit:
-    deploy:
-      resources:
-        limits:
-          memory: 48M
-
+    ports: !override ['127.0.0.1::1025', '127.0.0.1::8025']
   loki:
-    deploy:
-      resources:
-        limits:
-          memory: 192M
+    ports: !override ['127.0.0.1::3100']
+  grafana:
+    ports: !override ['127.0.0.1::3000']

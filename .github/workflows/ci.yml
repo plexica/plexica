@@ -7,186 +7,117 @@ on:
     branches: [main]
   workflow_dispatch:
 
-# Cancel superseded PR runs; never cancel main runs so artifacts are preserved.
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
-
-env:
-  NODE_ENV: test
-  DATABASE_URL: postgresql://plexica:changeme@localhost:5432/plexica
-  KEYCLOAK_URL: http://localhost:8080
-  KEYCLOAK_ADMIN_USER: admin
-  KEYCLOAK_ADMIN_PASSWORD: changeme
-  KC_HEALTH_ENABLED: 'true'
-  KC_METRICS_ENABLED: 'false'
-  KC_HTTP_ENABLED: 'true'
-  KC_HOSTNAME_STRICT: 'false'
-  REDIS_URL: redis://localhost:6379
-  MINIO_ENDPOINT: http://localhost:9000
-  MINIO_ACCESS_KEY: minioadmin
-  MINIO_SECRET_KEY: changeme
-  KAFKA_BROKERS: localhost:19092
-  LOKI_URL: http://localhost:3100
-  PLUGIN_DB_SSL_MODE: disable
-
 jobs:
-  ci:
-    name: Build, Test, and Validate
-    runs-on: self-hosted
+  ci-runtime-contract:
+    name: Concurrent runtime contract
+    runs-on: [self-hosted, plexica-ci-concurrent-e2e]
     timeout-minutes: 90
-    permissions:
-      contents: read
-      actions: write
-      code-quality: write
     steps:
-      - name: Manual CI required for Dependabot PRs
-        if: github.actor == 'dependabot[bot]'
+      - uses: actions/checkout@v7
+      - name: Initialize and admit this runner
+        shell: bash
         run: |
-          BRANCH="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}"
-          echo "::notice title=Dependabot ::Full CI must be triggered manually"
-          echo "Run: gh workflow run ci.yml --ref ${BRANCH}"
-          echo "This check must pass before the PR can merge."
-          exit 1
-
-      - name: Checkout repository
-        uses: actions/checkout@v7
-      # No `cache: 'pnpm'`: self-hosted runner persists between runs, so the
-      # pnpm store is already warm (same rationale as docker-infra). Revisit
-      # only if the runners ever become ephemeral.
-      - name: Setup Node.js 24
-        uses: actions/setup-node@v7
+          project="plexica-ci-contract-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          runtime="$(RUNNER_TEMP="$RUNNER_TEMP" bash .github/actions/docker-infra/scripts/ci-runtime-env.sh init "$project")"
+          printf 'CI_COMPOSE_PROJECT=%s\nCI_RUNTIME_DIR=%s\n' "$project" "$runtime" >> "$GITHUB_ENV"
+          CI_RUNTIME_DIR="$runtime" bash .github/actions/docker-infra/scripts/verify-ci-runner-capacity.sh "$project"
+      - uses: actions/setup-node@v7
         with:
           node-version: '24'
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v6
+      - uses: pnpm/action-setup@v6
         with:
           version: 10
           run_install: false
       - name: Generate run-scoped encryption material
         shell: bash
         run: |
-          to_base64url() { openssl rand -base64 32 | tr '+/' '-_' | tr -d '=\n'; }
-          printf 'EVENT_KEY_ENCRYPTION_KEY=%s\n' "$(to_base64url)" >> "$GITHUB_ENV"
-          printf 'PLUGIN_DB_ENCRYPTION_KEY=%s\n' "$(openssl rand -hex 32)" >> "$GITHUB_ENV"
-          printf 'PLUGIN_CREDENTIAL_PEPPER=%s\n' "$(to_base64url)" >> "$GITHUB_ENV"
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-      # ADR-028: `pnpm install` runs core-api's `prepare` → `db:generate` (no DB
-      # needed). No explicit db:generate step — CI fails at the exact point a
-      # fresh clone would; an explicit step would mask the prepare mechanism.
-      - name: Verify generated Prisma client exists
-        run: test -f services/core-api/prisma/generated/tenant-client/index.d.ts
-      - name: Verify authored-file line gate
-        run: pnpm test:line-gate && pnpm check:lines
-      - name: Build Keycloak theme JAR
-        run: pnpm --filter @plexica/keycloak-theme build
-
-      - name: Start Docker infrastructure (detached)
-        uses: ./.github/actions/docker-infra
-        with:
-          phase: start
-          postgres-db: plexica
-          postgres-user: plexica
-          postgres-password: changeme
-          keycloak-admin-user: admin
-          keycloak-admin-password: changeme
-      - name: Lint
-        run: pnpm lint
-      - name: Build
-        run: |
-          pnpm -r --filter='!@plexica/plugin-crm' --filter='!plexica' run build
-          pnpm -r --filter '@plexica/auth' --filter '@plexica/sdk' --filter 'create-plexica-plugin' --filter '@plexica/keycloak-theme' --filter '@plexica/plugin-crm' run typecheck
-      - name: Wait for Docker infrastructure to be healthy
-        uses: ./.github/actions/docker-infra
-        with:
-          phase: wait
-          postgres-db: plexica
-          postgres-user: plexica
-          postgres-password: changeme
-          keycloak-admin-user: admin
-          keycloak-admin-password: changeme
-
-      - name: Apply database migrations
-        run: pnpm --filter core-api exec prisma migrate deploy
-        working-directory: ${{ github.workspace }}
-      - name: Verify migrations are complete and idempotent
-        run: |
-          pnpm --filter core-api exec prisma migrate deploy
-          pnpm --filter core-api exec prisma migrate status
-      - name: Run tests with coverage
-        uses: ./.github/actions/coverage-report
-      - name: Run integration tests
-        run: pnpm --filter core-api test:int
+          key() { openssl rand -base64 32 | tr '+/' '-_' | tr -d '=\n'; }
+          printf 'EVENT_KEY_ENCRYPTION_KEY=%s\nPLUGIN_DB_ENCRYPTION_KEY=%s\nPLUGIN_CREDENTIAL_PEPPER=%s\n' "$(key)" "$(openssl rand -hex 32)" "$(key)" >> "$GITHUB_ENV"
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @plexica/keycloak-theme build
+      - name: Run isolated two-project full E2E contract
         env:
-          NODE_OPTIONS: '--trace-warnings'
-
-      # Free ~2.3 GB before web E2E boots its own isolated compose stack
-      # (plexica-e2e-* ports): two full stacks (~4.5 GB) would run in
-      # parallel on a 7 GB runner. `stop` — not `down -v` — preserves
-      # containers and volumes: admin E2E below reuses this stack's migrated
-      # DB and Keycloak realm; the stack is restarted before that step.
-      - name: Stop Docker infrastructure before web E2E tests
-        run: docker compose -f docker-compose.yml -f docker-compose.ci.yml stop
-
-      - name: Clean up ports and stale E2E containers for Playwright
-        run: |
-          docker ps -aq --filter "name=plexica-e2e-" 2>/dev/null | xargs -r docker rm -f
-          bash .github/actions/docker-infra/scripts/cleanup-ports.sh 3000 3001 3002 15432 16379 18080 19000 19001 29092 13100 13301 11025 18025
-      - name: Verify preinstalled Chrome
-        run: google-chrome --version
-      - name: Run Playwright E2E tests
-        run: pnpm --filter web test:e2e
-        env:
-          PLAYWRIGHT_BASE_URL: http://localhost:3000
-          PLAYWRIGHT_BROWSER_CHANNEL: chrome
           CI: 'true'
-          RATE_LIMIT_MAX: '1000'
-          ADMIN_RATE_LIMIT_MAX: '1000'
-      - name: Upload Playwright report on failure
-        if: failure()
+          CI_RUNTIME_CONTRACT: '1'
+          PLAYWRIGHT_BROWSER_CHANNEL: chrome
+        run: bash .github/actions/docker-infra/scripts/verify-concurrent-ci-runtime.sh --full-e2e
+      - name: Upload contract diagnostics
+        if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: playwright-report
-          path: apps/web/playwright-report/
+          name: ci-runtime-contract-${{ github.run_id }}
+          path: ${{ env.CI_RUNTIME_DIR }}/diagnostics/
+          if-no-files-found: error
           retention-days: 7
 
-      - name: Clean up ports for admin Playwright
+  ci:
+    name: Build, test, and validate
+    needs: ci-runtime-contract
+    runs-on: [self-hosted, plexica-ci-concurrent-e2e]
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+      - name: Initialize and admit this runner
+        shell: bash
         run: |
-          docker ps -aq --filter "name=plexica-e2e-" 2>/dev/null | xargs -r docker rm -f
-          bash .github/actions/docker-infra/scripts/cleanup-ports.sh 3001 3002
-      # Restart the stack stopped above: admin E2E targets plexica-ci ports via
-      # job-level env. Preserved containers/volumes keep the migrated schema
-      # and Keycloak realm intact; --wait blocks until healthy. One-shot init
-      # containers (keycloak-init, redpanda-init) are not re-run — their
-      # side effects persist in the preserved volumes.
-      - name: Restart Docker infrastructure for admin E2E tests
+          project="plexica-ci-build-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          runtime="$(RUNNER_TEMP="$RUNNER_TEMP" bash .github/actions/docker-infra/scripts/ci-runtime-env.sh init "$project")"
+          printf 'CI_COMPOSE_PROJECT=%s\nCI_RUNTIME_DIR=%s\n' "$project" "$runtime" >> "$GITHUB_ENV"
+          CI_RUNTIME_DIR="$runtime" bash .github/actions/docker-infra/scripts/verify-ci-runner-capacity.sh "$project"
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 10
+          run_install: false
+      - name: Generate run-scoped encryption material
+        shell: bash
         run: |
-          docker compose -f docker-compose.yml -f docker-compose.ci.yml \
-            up -d --wait --wait-timeout 300 \
-            postgres keycloak redis minio redpanda mailpit loki
-      - name: Run admin Playwright E2E tests
-        run: pnpm --filter @plexica/admin e2e
+          key() { openssl rand -base64 32 | tr '+/' '-_' | tr -d '=\n'; }
+          printf 'EVENT_KEY_ENCRYPTION_KEY=%s\nPLUGIN_DB_ENCRYPTION_KEY=%s\nPLUGIN_CREDENTIAL_PEPPER=%s\n' "$(key)" "$(openssl rand -hex 32)" "$(key)" >> "$GITHUB_ENV"
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test:line-gate && pnpm check:lines
+      - run: pnpm --filter @plexica/keycloak-theme build
+      - run: pnpm lint
+      - run: pnpm -r --filter='!@plexica/plugin-crm' --filter='!plexica' run build
+      - name: Start independent project runtime
+        uses: ./.github/actions/docker-infra
+        with:
+          project: ${{ env.CI_COMPOSE_PROJECT }}
+          runtime-dir: ${{ env.CI_RUNTIME_DIR }}
+          phase: full
+      - name: Migrate through the host manifest
+        run: test -f "$CI_RUNTIME_DIR/host.env"
+      - run: pnpm --filter core-api test
+      - name: Run Compose-backed browser E2E
         env:
-          PLAYWRIGHT_ADMIN_BASE_URL: http://localhost:3002
-          PLAYWRIGHT_BROWSER_CHANNEL: chrome
           CI: 'true'
-          RATE_LIMIT_MAX: '1000'
-          ADMIN_RATE_LIMIT_MAX: '1000'
-          PLAYWRIGHT_LOKI_URL: ${{ env.LOKI_URL }}
-      - name: Upload admin Playwright report on failure
-        if: failure()
+          CI_RUNTIME_CONTRACT: '1'
+          PLAYWRIGHT_E2E: 'true'
+          PLAYWRIGHT_BROWSER_CHANNEL: chrome
+        run: |
+          pnpm --filter web exec playwright test
+          pnpm --filter @plexica/admin exec playwright test
+      - name: Collect scoped diagnostics
+        if: always()
+        uses: ./.github/actions/docker-infra
+        with:
+          project: ${{ env.CI_COMPOSE_PROJECT }}
+          runtime-dir: ${{ env.CI_RUNTIME_DIR }}
+          phase: diagnostics
+      - name: Upload runtime diagnostics
+        if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: admin-playwright-report
-          path: apps/admin/playwright-report/
+          name: ci-runtime-${{ github.run_id }}
+          path: ${{ env.CI_RUNTIME_DIR }}/diagnostics/
+          if-no-files-found: error
           retention-days: 7
-
-      - name: Tear down infrastructure services
+      - name: Remove scoped project runtime
         if: always()
-        run: docker compose -f docker-compose.yml -f docker-compose.ci.yml down -v --remove-orphans
-      - name: Clean up orphan processes
-        if: always()
-        run: |
-          pkill -f "node.*plexica" 2>/dev/null || true
-          bash .github/actions/docker-infra/scripts/cleanup-ports.sh 3000 3001 3002
+        uses: ./.github/actions/docker-infra
+        with:
+          project: ${{ env.CI_COMPOSE_PROJECT }}
+          runtime-dir: ${{ env.CI_RUNTIME_DIR }}
+          phase: down
