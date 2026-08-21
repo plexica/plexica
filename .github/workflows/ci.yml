@@ -7,9 +7,7 @@ on:
     branches: [main]
   workflow_dispatch:
 
-# Cancel superseded runs on the same ref: on pull requests only the latest
-# push matters, so stale in-progress runs are cancelled. Runs on main are
-# never cancelled so merge results (and this run's artifacts) are preserved.
+# Cancel superseded PR runs; never cancel main runs so artifacts are preserved.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -39,6 +37,8 @@ jobs:
     timeout-minutes: 90
     permissions:
       contents: read
+      actions: write
+      code-quality: write
     steps:
       - name: Manual CI required for Dependabot PRs
         if: github.actor == 'dependabot[bot]'
@@ -51,12 +51,9 @@ jobs:
 
       - name: Checkout repository
         uses: actions/checkout@v7
-      # No `cache: 'pnpm'` here: this job runs on a self-hosted runner whose
-      # filesystem persists between runs, so the pnpm store is already warm
-      # (same rationale as skipping the Docker image tar cache in
-      # .github/actions/docker-infra/action.yml). A tar-based actions/cache
-      # round-trip would add I/O slower than the warm local store.
-      # Revisit only if the runners ever become ephemeral.
+      # No `cache: 'pnpm'`: self-hosted runner persists between runs, so the
+      # pnpm store is already warm (same rationale as docker-infra). Revisit
+      # only if the runners ever become ephemeral.
       - name: Setup Node.js 24
         uses: actions/setup-node@v7
         with:
@@ -75,12 +72,9 @@ jobs:
           printf 'PLUGIN_CREDENTIAL_PEPPER=%s\n' "$(to_base64url)" >> "$GITHUB_ENV"
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-      # ADR-028: `pnpm install` runs the core-api `prepare` script, which runs
-      # `db:generate` (it needs no database — prisma generate only reads the
-      # schema files). No explicit `db:generate` step here on purpose: one
-      # would mask the prepare mechanism — if it ever stopped working, CI
-      # would stay green while fresh clones broke. This check fails the build
-      # at the exact point a fresh clone would fail.
+      # ADR-028: `pnpm install` runs core-api's `prepare` → `db:generate` (no DB
+      # needed). No explicit db:generate step — CI fails at the exact point a
+      # fresh clone would; an explicit step would mask the prepare mechanism.
       - name: Verify generated Prisma client exists
         run: test -f services/core-api/prisma/generated/tenant-client/index.d.ts
       - name: Verify authored-file line gate
@@ -120,18 +114,18 @@ jobs:
         run: |
           pnpm --filter core-api exec prisma migrate deploy
           pnpm --filter core-api exec prisma migrate status
-      - name: Run unit and integration tests
-        run: pnpm --filter core-api test
+      - name: Run tests with coverage
+        uses: ./.github/actions/coverage-report
+      - name: Run integration tests
+        run: pnpm --filter core-api test:int
         env:
           NODE_OPTIONS: '--trace-warnings'
 
-      # Free ~2.3 GB before the web E2E suite boots its own isolated compose
-      # stack (project plexica-e2e-*, ports 15432/16379/18080/...), otherwise
-      # two full stacks (~4.5 GB) run in parallel on a 7 GB runner.
-      # `stop` — not `down -v` — preserves containers and volumes: the admin
-      # E2E suite below still runs against this plexica-ci stack and expects
-      # the migrated database and provisioned Keycloak realm. The stack is
-      # restarted just before the admin E2E step.
+      # Free ~2.3 GB before web E2E boots its own isolated compose stack
+      # (plexica-e2e-* ports): two full stacks (~4.5 GB) would run in
+      # parallel on a 7 GB runner. `stop` — not `down -v` — preserves
+      # containers and volumes: admin E2E below reuses this stack's migrated
+      # DB and Keycloak realm; the stack is restarted before that step.
       - name: Stop Docker infrastructure before web E2E tests
         run: docker compose -f docker-compose.yml -f docker-compose.ci.yml stop
 
@@ -161,13 +155,11 @@ jobs:
         run: |
           docker ps -aq --filter "name=plexica-e2e-" 2>/dev/null | xargs -r docker rm -f
           bash .github/actions/docker-infra/scripts/cleanup-ports.sh 3001 3002
-      # Restart the stack stopped above: admin E2E targets the plexica-ci
-      # ports (postgres 5432, keycloak 8080, redis 6379, minio 9000,
-      # redpanda 19092, loki 3100) via the job-level env. Containers and
-      # volumes were preserved, so the migrated schema and Keycloak realm
-      # are intact; --wait blocks until every service is healthy again.
-      # One-shot init containers (keycloak-init, redpanda-init) are not
-      # re-run: their side effects persist in the preserved volumes.
+      # Restart the stack stopped above: admin E2E targets plexica-ci ports via
+      # job-level env. Preserved containers/volumes keep the migrated schema
+      # and Keycloak realm intact; --wait blocks until healthy. One-shot init
+      # containers (keycloak-init, redpanda-init) are not re-run — their
+      # side effects persist in the preserved volumes.
       - name: Restart Docker infrastructure for admin E2E tests
         run: |
           docker compose -f docker-compose.yml -f docker-compose.ci.yml \

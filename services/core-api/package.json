@@ -18,7 +18,8 @@
     "keycloak:reconcile-clients": "node dist/cli/reconcile-keycloak-clients.js",
     "test:unit": "vitest run --project unit",
     "test:int": "bash scripts/check-test-env.sh && vitest run --project integration",
-    "test": "vitest run --project unit && bash scripts/check-test-env.sh && vitest run --project integration"
+    "test": "vitest run --project unit && bash scripts/check-test-env.sh && vitest run --project integration",
+    "test:unit:coverage": "vitest run --project unit --coverage"
   },
   "dependencies": {
     "@fastify/multipart": "^9.4.0",
@@ -48,6 +49,7 @@
     "tsx": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",
-    "vitest": "catalog:"
+    "vitest": "catalog:",
+    "@vitest/coverage-v8": "catalog:"
   }
 }
