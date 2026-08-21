@@ -3,7 +3,7 @@ volumes:
 
 services:
   redis:
-    image: redis:7.4.8-alpine@sha256:8b81dd37ff027bec4e516d41acfbe9fe2460070dc6d4a4570a2ac5b9d59df065
+    image: redis:8.10.0-alpine@sha256:978f0e01593e65eed801f2402944efcd936d43b5027e4908a7897baf88ed6241
     ports:
       - '${REDIS_PORT:-6379}:6379'
     deploy:
