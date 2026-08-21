@@ -3,9 +3,9 @@
 name: plexica-dev
 
 include:
-  - path: ./infra/compose/database-auth.yml
+  - path: ./infra/compose/docker-compose.database-auth.yml
     project_directory: .
-  - path: ./infra/compose/platform-services.yml
+  - path: ./infra/compose/docker-compose.platform-services.yml
     project_directory: .
-  - path: ./infra/compose/observability.yml
+  - path: ./infra/compose/docker-compose.observability.yml
     project_directory: .

@@ -87,7 +87,7 @@ export PLAYWRIGHT_BASE_URL=http://e2e.localhost:3000
 export PLAYWRIGHT_API_URL=http://e2e.localhost:3001
 export VITE_PLUGIN_ASSET_ORIGIN="$MINIO_ENDPOINT"
 
-readonly COMPOSE=(docker compose -p "$COMPOSE_PROJECT_NAME" -f docker-compose.yml -f docker-compose.ci.yml -f infra/compose/e2e-production.yml)
+readonly COMPOSE=(docker compose -p "$COMPOSE_PROJECT_NAME" -f docker-compose.yml -f docker-compose.ci.yml -f infra/compose/docker-compose.e2e-production.yml)
 cleanup() {
   status=$?
   if [[ $status -ne 0 ]]; then

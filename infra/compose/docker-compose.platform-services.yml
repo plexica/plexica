@@ -3,7 +3,7 @@ volumes:
 
 services:
   redis:
-    image: redis@sha256:8b81dd37ff027bec4e516d41acfbe9fe2460070dc6d4a4570a2ac5b9d59df065
+    image: redis:7.4.8-alpine@sha256:8b81dd37ff027bec4e516d41acfbe9fe2460070dc6d4a4570a2ac5b9d59df065
     ports:
       - '${REDIS_PORT:-6379}:6379'
     deploy:
@@ -18,7 +18,7 @@ services:
       start_period: 5s
 
   minio:
-    image: minio/minio@sha256:4c4a4876193f030c81f57aabb22bcb9a73462010eb61fcab66908e03e5484af8
+    image: minio/minio:RELEASE.2024-01-16T16-07-38Z@sha256:4c4a4876193f030c81f57aabb22bcb9a73462010eb61fcab66908e03e5484af8
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
@@ -40,7 +40,7 @@ services:
       start_period: 10s
 
   redpanda:
-    image: docker.redpanda.com/redpandadata/redpanda@sha256:342d52b03d70e8c605897b1756d6faab14067af6f8a969264093dabbce1858dd
+    image: docker.redpanda.com/redpandadata/redpanda:v23.3.5@sha256:342d52b03d70e8c605897b1756d6faab14067af6f8a969264093dabbce1858dd
     command:
       - redpanda start
       - --smp 1
@@ -66,7 +66,7 @@ services:
       start_period: 20s
 
   redpanda-init:
-    image: docker.redpanda.com/redpandadata/redpanda@sha256:342d52b03d70e8c605897b1756d6faab14067af6f8a969264093dabbce1858dd
+    image: docker.redpanda.com/redpandadata/redpanda:v23.3.5@sha256:342d52b03d70e8c605897b1756d6faab14067af6f8a969264093dabbce1858dd
     depends_on:
       redpanda:
         condition: service_healthy
@@ -81,7 +81,7 @@ services:
           memory: 64M
 
   mailpit:
-    image: axllent/mailpit@sha256:c5a6d0ba4d08187f70f305471da5fd9ad424fdfc2f25a2308226a786335dfa9f
+    image: axllent/mailpit:v1.29.5@sha256:c5a6d0ba4d08187f70f305471da5fd9ad424fdfc2f25a2308226a786335dfa9f
     ports:
       - '${SMTP_PORT:-1025}:1025'
       - '${SMTP_UI_PORT:-8025}:8025'
