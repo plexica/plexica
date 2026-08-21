@@ -5,12 +5,13 @@
 // Uses AbortSignal.timeout directly on the fetch call (native support).
 
 import { config } from '../../../lib/config.js';
+import { keycloakContainerBase } from '../../../lib/ci-runtime-contract.js';
 
 import { PROBE_TIMEOUT_MS, makeProbe } from './health-checker.service.js';
 
 export const probeKeycloak = makeProbe('keycloak', async () => {
   const response = await fetch(
-    `${config.KEYCLOAK_URL}/realms/master/.well-known/openid-configuration`,
+    `${keycloakContainerBase(config)}/realms/master/.well-known/openid-configuration`,
     { signal: AbortSignal.timeout(PROBE_TIMEOUT_MS) }
   );
   if (!response.ok) {

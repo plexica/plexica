@@ -16,6 +16,7 @@
 import { createApiClient, ApiError } from '@plexica/auth/api-client';
 
 import { useAuthStore } from '../stores/auth-store.js';
+import { runtimeEndpoints } from '../lib/runtime-endpoints.js';
 
 export { ApiError };
 
@@ -29,7 +30,7 @@ export { ApiError };
  * (Vite proxy) and in single-origin production deployments. A cross-origin deploy
  * sets `VITE_API_URL=https://api.example.com` and works identically.
  */
-export const API_BASE = import.meta.env.VITE_API_URL ?? '';
+export const API_BASE = runtimeEndpoints().apiBase;
 
 export const apiClient = createApiClient({
   baseUrl: API_BASE,

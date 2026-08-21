@@ -3,6 +3,11 @@
 set -Eeo pipefail
 
 KCADM=/opt/keycloak/bin/kcadm.sh
+WEB_ORIGIN=${KEYCLOAK_WEB_ORIGIN:-http://localhost:3000}
+if [[ ! "$WEB_ORIGIN" =~ ^https?://[A-Za-z0-9.-]+(:[0-9]+)?$ ]]; then
+  printf 'keycloak-init: ERROR: web origin must be an exact HTTP(S) origin\n' >&2
+  exit 1
+fi
 
 realm_names=$("$KCADM" get realms --fields realm \
   | sed -n 's/.*"realm"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
@@ -19,15 +24,15 @@ for realm in $realm_names; do
       ;;
   esac
 
-  callback_uri=http://localhost:3000/callback
-  logout_uri="http://localhost:3000/?tenant=$slug"
+  callback_uri="$WEB_ORIGIN/callback"
+  logout_uri="$WEB_ORIGIN/?tenant=$slug"
   payload=$(printf '%s' \
     "{\"clientId\":\"plexica-web\",\"name\":\"plexica-web\",\"enabled\":true," \
     '"protocol":"openid-connect","publicClient":true,"standardFlowEnabled":true,' \
     '"implicitFlowEnabled":false,"directAccessGrantsEnabled":false,' \
     '"serviceAccountsEnabled":false,"authorizationServicesEnabled":false,' \
     '"bearerOnly":false,"fullScopeAllowed":false,' \
-    "\"redirectUris\":[\"$callback_uri\"],\"webOrigins\":[\"http://localhost:3000\"]," \
+    "\"redirectUris\":[\"$callback_uri\"],\"webOrigins\":[\"$WEB_ORIGIN\"]," \
     "\"attributes\":{\"pkce.code.challenge.method\":\"S256\"," \
     "\"post.logout.redirect.uris\":\"$logout_uri\"}}")
 
@@ -62,7 +67,7 @@ for realm in $realm_names; do
     '"directAccessGrantsEnabled":false' \
     '"fullScopeAllowed":false' \
     "\"redirectUris\":[\"$callback_uri\"]" \
-    '"webOrigins":["http://localhost:3000"]' \
+    "\"webOrigins\":[\"$WEB_ORIGIN\"]" \
     '"pkce.code.challenge.method":"S256"' \
     "\"post.logout.redirect.uris\":\"$logout_uri\""; do
     case "$compact_client" in

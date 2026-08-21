@@ -1,22 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-compose=(docker compose -f docker-compose.yml -f docker-compose.ci.yml)
-required=(postgres keycloak redis minio redpanda mailpit loki)
-
-"${compose[@]}" ps
+project=${CI_COMPOSE_PROJECT:?CI_COMPOSE_PROJECT is required}
+runtime=${CI_RUNTIME_DIR:?CI_RUNTIME_DIR is required}
+compose=(docker compose --project-name "$project" -f docker-compose.yml -f docker-compose.ci.yml)
+required=(postgres keycloak redis minio redpanda mailpit loki core-api-e2e web-e2e admin-e2e)
 for service in "${required[@]}"; do
   container=$("${compose[@]}" ps -q "$service")
-  if [[ -z "$container" ]]; then
-    printf '%s is not running.\n' "$service" >&2
-    exit 1
-  fi
-  state=$(docker inspect --format '{{.State.Status}}' "$container")
-  health=$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{end}}' "$container")
-  if [[ "$state" != "running" || "$health" != "healthy" ]]; then
-    printf '%s is not healthy (state=%s, health=%s).\n' "$service" "$state" "$health" >&2
-    docker logs "$container" >&2
-    exit 1
-  fi
-  printf '%s is healthy.\n' "$service"
+  [[ -n "$container" ]] || { echo "$service is not running" >&2; exit 1; }
+  [[ $(docker inspect --format '{{.State.Status}}' "$container") == running ]] || { echo "$service is not running" >&2; exit 1; }
+done
+set -a; source "$runtime/host.env"; set +a
+for url in "$CORE_API_PUBLIC_BASE/health" "$WEB_E2E_PUBLIC_BASE" "$ADMIN_E2E_PUBLIC_BASE"; do
+  curl --fail --silent --show-error --max-time 15 "$url" >/dev/null
 done

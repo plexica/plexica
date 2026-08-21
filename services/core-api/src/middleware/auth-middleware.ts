@@ -9,6 +9,7 @@
 import { jwtVerify, errors as joseErrors } from 'jose';
 
 import { UnauthorizedError } from '../lib/app-error.js';
+import { keycloakIssuerBase } from '../lib/ci-runtime-contract.js';
 import { config } from '../lib/config.js';
 import { logger } from '../lib/logger.js';
 
@@ -98,7 +99,7 @@ function decodePayload(token: string): Record<string, unknown> {
 
 async function verifyToken(token: string, realm: string): Promise<AuthUser> {
   const jwks = await getJWKS(realm);
-  const expectedIssuer = `${config.KEYCLOAK_URL}/realms/${realm}`;
+  const expectedIssuer = `${keycloakIssuerBase(config)}/realms/${realm}`;
 
   const verifyOptions: Parameters<typeof jwtVerify>[2] = {
     algorithms: ['RS256'],

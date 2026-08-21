@@ -3,6 +3,8 @@ import path from 'node:path';
 
 import { z } from 'zod';
 
+import { validateCiRuntimeContract } from './ci-runtime-contract.js';
+
 const configSchema = z
   .object({
     NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
@@ -30,9 +32,13 @@ const configSchema = z
       .string()
       .regex(/^[a-zA-Z0-9_.-]+$/)
       .optional(),
+    CI_RUNTIME_CONTRACT: z.literal('1').optional(),
 
     // Keycloak
     KEYCLOAK_URL: z.string().url(),
+    KEYCLOAK_PUBLIC_ISSUER_BASE: z.string().url().optional(),
+    KEYCLOAK_HOST_ADMIN_BASE: z.string().url().optional(),
+    KEYCLOAK_CONTAINER_ADMIN_JWKS_BASE: z.string().url().optional(),
     KEYCLOAK_ADMIN_USER: z.string().min(1),
     KEYCLOAK_ADMIN_PASSWORD: z.string().min(1),
     KEYCLOAK_API_AUDIENCE: z.string().min(1).default('plexica-api'),
@@ -184,6 +190,7 @@ export function parseConfig(environment: NodeJS.ProcessEnv): Config {
       .join('\n');
     throw new Error(`Invalid environment configuration:\n${issues}`);
   }
+  validateCiRuntimeContract(result.data);
   return result.data;
 }
 

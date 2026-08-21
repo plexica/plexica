@@ -19,6 +19,7 @@
 import { createRemoteJWKSet } from 'jose';
 
 import { config } from '../lib/config.js';
+import { keycloakContainerBase } from '../lib/ci-runtime-contract.js';
 import { logger } from '../lib/logger.js';
 
 type RemoteJWKSet = ReturnType<typeof createRemoteJWKSet>;
@@ -46,7 +47,7 @@ let hits = 0;
 let misses = 0;
 
 function jwksUrl(realmName: string): string {
-  return `${config.KEYCLOAK_URL}/realms/${realmName}/protocol/openid-connect/certs`;
+  return `${keycloakContainerBase(config)}/realms/${realmName}/protocol/openid-connect/certs`;
 }
 
 export async function getJWKS(realmName: string): Promise<RemoteJWKSet> {

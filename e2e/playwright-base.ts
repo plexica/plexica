@@ -27,6 +27,10 @@
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { ciRuntimeManifest, isCiRuntimeContract } from './ci-runtime-manifest.js';
+
+export { ciRuntimeManifest, isCiRuntimeContract } from './ci-runtime-manifest.js';
+
 const e2eDir = path.dirname(fileURLToPath(import.meta.url));
 
 /** Absolute path of the monorepo-root .env (loaded by each app config via dotenv). */
@@ -50,6 +54,7 @@ export function requiredRunValue(key: string, hint?: string): string {
 
 /** Keycloak URL shared by both suites. Call after the setDefault() block. */
 export function keycloakUrl(): string {
+  if (isCiRuntimeContract()) return ciRuntimeManifest().KEYCLOAK_HOST_ADMIN_BASE;
   return process.env['PLAYWRIGHT_KEYCLOAK_URL'] ?? 'http://localhost:8080';
 }
 
@@ -59,6 +64,7 @@ export function keycloakUrl(): string {
  * rate limits, TLS mode) that must stay divergent between web and admin.
  */
 export function coreApiEnv(overrides: Record<string, string>): Record<string, string> {
+  if (isCiRuntimeContract()) throw new Error('CI Playwright must use Compose Core, not a host webServer');
   return {
     DATABASE_URL:
       process.env['DATABASE_URL'] ?? 'postgresql://plexica:changeme@localhost:5432/plexica',

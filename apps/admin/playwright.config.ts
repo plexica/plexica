@@ -23,18 +23,22 @@ import {
   browserChannelUse,
   coreApiEnv,
   keycloakUrl,
+  ciRuntimeManifest,
+  isCiRuntimeContract,
   MONOREPO_ROOT_ENV_PATH,
   setDefault,
 } from '../../e2e/playwright-base.js';
 
 // Load .env from the monorepo root for local dev. No-ops in CI (file absent).
 dotenv.config({ path: MONOREPO_ROOT_ENV_PATH });
+const ciRuntime = isCiRuntimeContract();
+const runtime = ciRuntime ? ciRuntimeManifest() : undefined;
 
 // ── Hardcoded E2E defaults ────────────────────────────────────────────────────
 // These match what global-setup.ts expects. Setting them here (not in
 // globalSetup) ensures test workers read them from process.env.
 
-setDefault('PLAYWRIGHT_KEYCLOAK_URL', 'http://localhost:8080');
+setDefault('PLAYWRIGHT_KEYCLOAK_URL', runtime?.KEYCLOAK_HOST_ADMIN_BASE ?? 'http://localhost:8080');
 setDefault('PLAYWRIGHT_E2E', 'true');
 setDefault('PLAYWRIGHT_ADMIN_E2E_TENANT_SLUG', 'e2e-admin');
 setDefault('PLAYWRIGHT_ADMIN_E2E_TENANT_NAME', 'E2E Admin');
@@ -54,7 +58,7 @@ export default defineConfig({
   ...baseE2eConfig,
   use: {
     ...baseE2eConfig.use,
-    baseURL: process.env['PLAYWRIGHT_ADMIN_BASE_URL'] ?? 'http://localhost:3002',
+    baseURL: process.env['PLAYWRIGHT_ADMIN_BASE_URL'] ?? runtime?.ADMIN_E2E_PUBLIC_BASE ?? 'http://localhost:3002',
   },
   projects: [
     {
@@ -69,7 +73,7 @@ export default defineConfig({
   // Playwright starts them in array order and waits for each URL to respond.
   // globalSetup runs BEFORE webServers start, so token fetching (which hits
   // Keycloak directly) does not need the HTTP servers to be up.
-  webServer: [
+  webServer: ciRuntime ? [] : [
     {
       // Core-api backend — serves the /api/v1/admin/* endpoints.
       command: coreApiCommand,
