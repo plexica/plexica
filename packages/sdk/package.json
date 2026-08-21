@@ -20,13 +20,15 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:unit:coverage": "vitest run --coverage --coverage.reporter=cobertura --coverage.reportsDirectory=coverage/unit"
   },
   "dependencies": {
     "pg": "catalog:"
   },
   "devDependencies": {
     "@types/pg": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

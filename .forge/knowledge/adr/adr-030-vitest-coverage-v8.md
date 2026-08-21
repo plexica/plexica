@@ -77,27 +77,51 @@ DB/Keycloak/Kafka paths would otherwise report 0% and dilute the number).
 `reportOnFailure: true` still emits the report when a test file fails at
 setup.
 
-### 3. Catalog entry in `pnpm-workspace.yaml` — not a plain devDependency
+### 3. Catalog entry in `pnpm-workspace.yaml`
 
 `@vitest/coverage-v8` is declared in the pnpm **catalog**
 (`pnpm-workspace.yaml`, version `4.1.10`, exact pin) and referenced from
-`services/core-api/package.json` as `"@vitest/coverage-v8": "catalog:"`.
+every workspace that runs coverage via `"@vitest/coverage-v8": "catalog:"`
+in its devDependencies.
 
 Rationale (maintainer decision): the catalog is the single source of truth
 for dependency versions across the monorepo; declaring the provider there
 makes the coordinated bump of `vitest` + `@vitest/coverage-v8` a one-line
 change and avoids a stray version pin drifting from the rest of the tooling.
-The catalog convention comment in `pnpm-workspace.yaml` names dependencies
-shared by >= 2 workspaces; while coverage is currently scoped to
-`core-api`, the provider version is inherently coupled to the workspace-wide
-`vitest` version and belongs next to it. This deviates from the literal
-"shared by >= 2 workspaces" rule on purpose and is recorded here so the
-catalog comment can be kept accurate.
+With five workspaces (core-api, sdk, vite-plugin, cli, auth) running
+coverage, the provider now satisfies the "shared by >= 2 workspaces"
+convention outright — no exception needed.
 
-### 4. Report destination: GitHub Actions artifact + GitHub Native Code Coverage
+### 4. Coverage across workspaces + unified merge
 
-The Cobertura XML report is uploaded as a GitHub Actions artifact of the CI
-run and pushed to **GitHub Native Code Coverage** via
+All five test-bearing workspaces produce unit coverage:
+
+- **`services/core-api`** — `vitest.config.ts` (root-level `coverage` block,
+  `all: false`, `reporter: ['text', 'cobertura']`).
+- **`packages/sdk`**, **`packages/vite-plugin`**, **`packages/cli`** — a
+  `test:unit:coverage` script passing CLI flags
+  (`--coverage --coverage.reporter=cobertura
+  --coverage.reportsDirectory=coverage/unit`); no config file needed, their
+  Vitest setups use defaults.
+- **`packages/auth`** — same CLI flags via the shared sdk vitest
+  (`pnpm --dir ../sdk exec vitest run --root ../auth --coverage ...`).
+
+Each workspace writes `coverage/unit/cobertura-coverage.xml`.
+`scripts/merge-coverage.mjs` merges them into one report at
+`coverage/cobertura-coverage.xml` (repo-root-relative paths — required by
+GitHub Native Code Coverage), recomputing line/branch totals from the
+`<line>` elements and dropping test files (`__tests__/`, `*.test.ts`) that
+leak into a package report when it has no explicit `exclude` (e.g.
+`packages/auth/__tests__/test-helpers.ts`).
+
+This also closes a pre-existing gap: the packages' unit tests (sdk 22,
+vite-plugin 10, cli 10, auth 45 — 87 tests) previously ran nowhere in CI;
+the composite action now runs all five workspaces.
+
+### 5. Report destination: GitHub Actions artifact + GitHub Native Code Coverage
+
+The merged Cobertura XML report is uploaded as a GitHub Actions artifact of
+the CI run and pushed to **GitHub Native Code Coverage** via
 `actions/upload-code-coverage@v1` (label `code-coverage-agent`,
 language TypeScript). **No external coverage service** (Codecov, Coveralls,
 SonarQube) is added.
@@ -117,7 +141,9 @@ view gives reviewers an at-a-glance percentage on the PR.
 | Alternative | Tradeoff | Verdict |
 | --- | --- | --- |
 | **`@vitest/coverage-istanbul`** | Alternative provider with Babel-style instrumentation: slower on ESM, no longer the Vitest default. `@vitest/coverage-v8` is the documented default and aligns with the V8-native instrumentation already used by Node 24 | Rejected — v8 is the default, faster, and version-aligned with the vitest catalog |
-| **Inline devDependency only (no catalog)** | First draft of this ADR: single-workspace dep as a plain devDependency, per the literal catalog comment. After review, the maintainer decision is the catalog entry — provider and vitest versions stay together | Rejected — catalog entry is the decision (see Decision 2) |
+| **Inline devDependency only (no catalog)** | First draft of this ADR: single-workspace dep as a plain devDependency, per the literal catalog comment. After review, the maintainer decision is the catalog entry — provider and vitest versions stay together | Rejected — catalog entry is the decision (see Decision 3) |
+| **Per-workspace config files everywhere** | A `vitest.config.ts` with a coverage block per package. Rejected: three of the packages need no config at all — CLI flags on `test:unit:coverage` suffice and keep the package surface minimal | Rejected — CLI flags for packages, config only where already needed (core-api) |
+| **Separate report per workspace, no merge** | Each workspace uploads its own Cobertura XML. Fragments the GitHub Native view and multiplies uploads/labels | Rejected — one merged report, one label |
 | **Codecov / Coveralls upload** | Hosted coverage with PR comments, diff coverage, and trend history — but requires a repository token secret in CI, adds an external dependency, and sends coverage data outside the repo | Rejected — maintainer decision: GitHub Native only; zero tokens, zero external services |
 | **Thresholds only, no report artifact** | `coverage.thresholds` in the Vitest config enforces the 80% gate without any human-visible report; a failed gate shows only numbers in CI logs | Rejected — enforcement without a downloadable report gives reviewers no way to inspect *where* coverage is missing; the artifact is the point of the PR |
 
@@ -127,9 +153,12 @@ view gives reviewers an at-a-glance percentage on the PR.
 
 ### Positive
 
-- `vitest --coverage` works in `core-api`; the unit-test coverage of
-  `services/core-api` is now measurable via the uploaded Cobertura artifact
-  and visible in the GitHub Native Code Coverage view.
+- `vitest --coverage` works across all five test-bearing workspaces; the
+  monorepo's unit-test coverage is now measurable via the merged Cobertura
+  artifact and visible in the GitHub Native Code Coverage view.
+- Closes a pre-existing CI gap: the packages' unit tests (sdk, vite-plugin,
+  cli, auth — 87 tests) previously ran nowhere in CI; they now run with
+  coverage on every push.
 - Enables the AGENTS.md coverage metrics (>= 80% line coverage,
   unit + integration) to be **tracked** — the report is downloadable from
   every CI run.
@@ -146,16 +175,13 @@ view gives reviewers an at-a-glance percentage on the PR.
 ### Negative / Trade-offs
 
 - **Coverage is unit-only and not yet gated**: the Cobertura report measures
-  only files loaded by the unit project (`all: false` in the Vitest config) —
-  integration-only paths (DB/Keycloak/Kafka) are not measured. No
-  `coverage.thresholds` are enforced yet: enabling a gate today would fail CI
-  (measured unit line coverage is ~17%). Enforcing the Constitution's
-  >= 80% unit + integration target is a follow-up that requires running
-  coverage across both projects and setting thresholds at the measured value
-  with a ramp-up plan.
-- **Catalog convention deviation**: the provider is in the catalog although
-  only `core-api` consumes it today — justified by the version coupling with
-  the workspace-wide `vitest` entry and recorded in Decision 2.
+  only files loaded by the unit projects — integration-only paths
+  (DB/Keycloak/Kafka) are not measured. No `coverage.thresholds` are
+  enforced yet: enabling a gate today would fail CI (measured merged unit
+  line coverage is ~23%). Enforcing the Constitution's >= 80%
+  unit + integration target is a follow-up that requires running coverage
+  across both projects and setting thresholds at the measured value with a
+  ramp-up plan.
 - **No coverage trend history**: artifacts expire (7-day retention by
   convention, as used for the Playwright reports in `ci.yml`); the GitHub
   Native view keeps per-PR percentages but not a long-term trend dashboard.
@@ -169,11 +195,11 @@ view gives reviewers an at-a-glance percentage on the PR.
   untrusted forks; `fail-on-error: false` means an upload failure surfaces
   as an annotation rather than red CI. Acceptable trade-off — the action is
   first-party GitHub and scoped to `code-quality: write`.
-- **Cobertura path mapping unvalidated until first CI run**: the v8 provider
-  emits package-relative `filename` attributes (`src/...`); GitHub's native
-  coverage view resolves against the repo root. If the PR view shows no
-  files on the first run, normalize paths (`projectRoot: '../../'`) or
-  rewrite the XML before upload.
+- **Cobertura path mapping handled by the merge script**: per-workspace
+  reports carry package-relative `filename` attributes (`src/...`), which
+  GitHub's native coverage view cannot resolve against the repo root.
+  `scripts/merge-coverage.mjs` rewrites them to repo-root-relative paths
+  (`packages/sdk/src/...`), validated on the first CI run.
 - Marginal install-time and lockfile growth from the provider's transitive
   dependencies (`@bcoe/v8-coverage`, `istanbul-*` report tooling, ...).
 

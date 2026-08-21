@@ -1,34 +1,44 @@
 name: Coverage report
-description: Run core-api unit tests with V8 coverage and upload the Cobertura report as a GitHub artifact
+description: Run all workspaces' unit tests with V8 coverage, merge the Cobertura reports, and upload the unified report as a GitHub artifact
 
 # ADR-030: unit coverage is reported (not gated) and uploaded as a GitHub
-# Actions artifact — no external coverage service (Codecov/Coveralls).
-# `all: false` in vitest.config.ts measures only files loaded by the unit
-# project, so the Cobertura XML reflects unit coverage. The 80% line target
-# in AGENTS.md covers unit + integration tests.
+# Actions artifact + GitHub Native Code Coverage — no external coverage
+# service (Codecov/Coveralls). Each workspace produces its own
+# coverage/unit/cobertura-coverage.xml (core-api via vitest.config.ts; the
+# packages via the test:unit:coverage scripts); scripts/merge-coverage.mjs
+# merges them into a single repo-root-relative Cobertura XML. The 80% line
+# target in AGENTS.md covers unit + integration tests (follow-up).
 runs:
   using: composite
   steps:
     - name: Run unit tests with coverage
       shell: bash
-      run: pnpm --filter core-api test:unit:coverage
+      run: |
+        pnpm --filter core-api test:unit:coverage
+        pnpm --filter @plexica/sdk test:unit:coverage
+        pnpm --filter @plexica/vite-plugin test:unit:coverage
+        pnpm --filter create-plexica-plugin test:unit:coverage
+        pnpm --filter @plexica/auth test:unit:coverage
       env:
         NODE_OPTIONS: '--trace-warnings'
-    - name: Verify Cobertura report exists
+    - name: Merge Cobertura reports
       shell: bash
-      run: test -s services/core-api/coverage/unit/cobertura-coverage.xml
-    - name: Upload unit coverage report
+      run: node scripts/merge-coverage.mjs
+    - name: Verify merged Cobertura report exists
+      shell: bash
+      run: test -s coverage/cobertura-coverage.xml
+    - name: Upload coverage report artifact
       if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
       uses: actions/upload-artifact@v7
       with:
         name: coverage-report-typescript
-        path: services/core-api/coverage/unit/
+        path: coverage/cobertura-coverage.xml
         retention-days: 7
     - name: Upload code coverage to GitHub
       if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
       uses: actions/upload-code-coverage@v1
       with:
-        file: services/core-api/coverage/unit/cobertura-coverage.xml
+        file: coverage/cobertura-coverage.xml
         language: TypeScript
         label: code-coverage-agent
         fail-on-error: false
