@@ -40,7 +40,7 @@ references will become `image:tag@sha256:digest` (or
    aliases.
 3. **DEP-003 — Tag selection:** Use the exact supported, non-`latest` release
    tag for each image and architecture. The selected tag must be recorded in
-   the implementation report and paired with the baseline digest below.
+   the implementation report (see below) and paired with the baseline digest.
 4. **DEP-004 — No unrelated changes:** Do not alter image commands, environment,
    volumes, ports, health checks, service names, or application source code.
 
@@ -58,6 +58,25 @@ references will become `image:tag@sha256:digest` (or
 | `grafana/grafana` | `sha256:62d2b9d20a19714ebfe48d1bb405086081bc602aa053e28cf6d73c7537640dfb` | `docker-compose.observability.yml` |
 | `node:24-alpine` | `sha256:a0b9bf06e4e6193cf7a0f58816cc935ff8c2a908f81e6f1a95432d679c54fbfd` | `e2e/fixtures/plugin-proxy/Dockerfile` |
 | `node:24-alpine` | `sha256:4ba75f835bb8802193e4c114572113d4b26f95f6f094f4b5229d2a77773e0afc` | `examples/plugins/crm/Dockerfile` (2) |
+
+### Implementation Report — DEP-003 tag selection
+
+Selected non-`latest` release tags paired with their baseline digests. Tags
+were chosen so that the tag's registry index digest equals the pinned digest
+where determinable; the pinned digest remains the authority in all cases.
+
+| Image | Tag | Pinned digest | Verification |
+| --- | --- | --- | --- |
+| `redis` | `7.4.8-alpine` | `sha256:8b81dd37ff027bec4e516d41acfbe9fe2460070dc6d4a4570a2ac5b9d59df065` | Tag mutable upstream; digest authoritative |
+| `minio/minio` | `RELEASE.2024-01-16T16-07-38Z` | `sha256:4c4a4876193f030c81f57aabb22bcb9a73462010eb61fcab66908e03e5484af8` | Index digest equality confirmed (registry) |
+| `docker.redpanda.com/redpandadata/redpanda` | `v23.3.5` | `sha256:342d52b03d70e8c605897b1756d6faab14067af6f8a969264093dabbce1858dd` | Registry verification |
+| `axllent/mailpit` | `v1.29.5` | `sha256:c5a6d0ba4d08187f70f305471da5fd9ad424fdfc2f25a2308226a786335dfa9f` | Registry verification |
+| `postgres` | `15.17-alpine` | `sha256:fceb6f86328c36f2438fae3b851b0cc57c4a7e69a58c866d9ce24281f2cf0c9c` | Tag mutable upstream; digest authoritative |
+| `quay.io/keycloak/keycloak` | `26.0` | `sha256:09a381c715ab0b111835b70f2905955274843a219c6f27efb348e4d9f4086858` | Index digest equality confirmed (registry) |
+| `grafana/loki` | `3.5.0` | `sha256:4c431d2e6b9b38718694b31c5d56be7c80dc69c513215fde1aeb5b02cd4e2665` | Registry verification |
+| `grafana/grafana` | `11.6.0` | `sha256:62d2b9d20a19714ebfe48d1bb405086081bc602aa053e28cf6d73c7537640dfb` | Registry verification |
+| `node` | `24.18.0-alpine` | `sha256:a0b9bf06e4e6193cf7a0f58816cc935ff8c2a908f81e6f1a95432d679c54fbfd` | Index digest equality confirmed — multi-arch index (`e2e/fixtures/plugin-proxy/Dockerfile`) |
+| `node` | `24.18.0-alpine` | `sha256:4ba75f835bb8802193e4c114572113d4b26f95f6f094f4b5229d2a77773e0afc` | Single-platform child manifest — immutable (`examples/plugins/crm/Dockerfile`, both stages) |
 
 ## Tasks
 
