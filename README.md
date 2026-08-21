@@ -1,4 +1,5 @@
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/plexica/plexica)
+[![CI](https://github.com/plexica/plexica/actions/workflows/ci.yml/badge.svg)](https://github.com/plexica/plexica/actions/workflows/ci.yml)
 
 # Plexica v2
 
