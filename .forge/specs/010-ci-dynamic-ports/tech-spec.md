@@ -1,11 +1,11 @@
-# Tech Spec: 009 — Concurrent Self-Hosted CI Dynamic Ports
+# Tech Spec: 010 — Concurrent Self-Hosted CI Dynamic Ports
 | Field | Value |
 | --- | --- |
 | Status | Final review revision |
 | Author | forge-architect |
 | Date | 2026-08-21 |
 | Track | Quick |
-| Spec ID | 009 |
+| Spec ID | 010 |
 | Decision | ADR-031 Accepted, revised 2026-08-21 |
 
 ## Overview
@@ -156,6 +156,8 @@ ADR-013 local-process plugin development remain unchanged.
 ## Cross-References
 | Document | Path |
 | --- | --- |
-| Plan 009 | [plan.md](./plan.md) |
+| Plan 010 | [plan.md](./plan.md) |
+| Task phases 1–4 | [tasks.md](./tasks.md) |
+| Task phases 5–6 | [tasks-orchestration.md](./tasks-orchestration.md) |
 | ADR-031 | [ADR-031](../../knowledge/adr/adr-031-ci-runtime-contract-gated-orchestration.md) |
 | Constitution | [constitution.md](../../constitution.md), Rules 1, 2, 4, 5 |

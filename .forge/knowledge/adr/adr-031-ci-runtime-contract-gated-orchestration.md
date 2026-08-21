@@ -4,7 +4,7 @@
 **Date**: 2026-08-21
 **Revised**: 2026-08-21 — final review blockers resolved
 **Deciders**: Plexica Team and user
-**Related**: Spec 009; ADR-004; ADR-013
+**Related**: Spec 010; ADR-004; ADR-013
 
 ## Context
 Self-hosted jobs share Docker resources. Fixed names/ports and broad cleanup

@@ -1,6 +1,6 @@
 # CI-only overlay. `!override` prevents fixed local bindings from leaking into CI.
 include:
-  - path: ./infra/compose/ci-runtime-services.yml
+  - path: ./infra/compose/docker-compose.ci-runtime-services.yml
     project_directory: .
 
 services:

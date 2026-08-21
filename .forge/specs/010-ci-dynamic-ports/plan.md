@@ -1,4 +1,4 @@
-# Plan: 009 — Concurrent Self-Hosted CI Dynamic Ports
+# Plan: 010 — Concurrent Self-Hosted CI Dynamic Ports
 | Field | Value |
 | --- | --- |
 | Status | Final review revision |
@@ -138,7 +138,7 @@ evidence with `if-no-files-found: error`; no retry, skip, downscale, bypass, or
 | `.github/actions/docker-infra/action.yml` | Accept project/runtime directory and stage create, inspect, start, wait, and scoped down. |
 | `.github/actions/docker-infra/scripts/{verify-ci-runner-capacity,ci-runtime-env,verify-ci-compose-render,verify-concurrent-ci-runtime,start-services,wait-services}.sh` | admission; atomic dual contracts; render/DNS/loopback guards; two-project verifier/sentinels; staged lifecycle. |
 | `docker-compose.ci.yml` | Remove fixed name; override all ports; define `core-api-e2e`, `web-e2e`, `admin-e2e`; mount private runtime config; Redpanda listener gate. |
-| `infra/compose/{database-auth,platform-services}.yml` | CI-compatible Keycloak request-host and Redpanda wrapper/hooks while retaining local defaults. |
+| `infra/compose/{docker-compose.database-auth,docker-compose.platform-services}.yml` | CI-compatible Keycloak request-host and Redpanda wrapper/hooks while retaining local defaults. |
 | `infra/redpanda/ci-entrypoint.sh` | Read inspected listener file before Redpanda release; no fallback metadata. |
 | `services/core-api/src/{lib/config.ts,middleware/auth-middleware.ts,middleware/jwks-cache.ts,lib/keycloak-admin-internal.ts,modules/admin/services/health-check-keycloak.ts}` | Split public issuer from container Keycloak calls; validate contract direction. |
 | `services/core-api/src/modules/plugin/services/{plugin-container-identity.ts,docker-runtime-options.ts,container-manager.service.ts,docker-container-restart.ts,runtime-recovery.service.ts,proxy.service.ts}` | Scoped identity/network/port enforcement for all lifecycle/proxy paths. |

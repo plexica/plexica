@@ -6,7 +6,7 @@
 > For lessons learned from the v1 codebase, see
 > [lessons-learned.md](./lessons-learned.md).
 
-**Last Updated**: 2026-08-21 (ADR-031 final review revision — Keycloak request-host issuer, scoped sidecars, and dual-job runner admission for Spec 009)
+**Last Updated**: 2026-08-21 (ADR-031 final review revision — Keycloak request-host issuer, scoped sidecars, and dual-job runner admission for Spec 010)
 
 ---
 
