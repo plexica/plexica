@@ -22,7 +22,6 @@ jobs:
           node-version: '24'
       - uses: pnpm/action-setup@v6
         with:
-          version: 10
           run_install: false
       - name: Generate run-scoped encryption material
         shell: bash
@@ -67,7 +66,6 @@ jobs:
           node-version: '24'
       - uses: pnpm/action-setup@v6
         with:
-          version: 10
           run_install: false
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
@@ -97,7 +95,6 @@ jobs:
           node-version: '24'
       - uses: pnpm/action-setup@v6
         with:
-          version: 10
           run_install: false
       - name: Generate run-scoped encryption material
         shell: bash
