@@ -101,6 +101,20 @@ if command -v docker >/dev/null 2>&1 && docker version >/dev/null 2>&1; then
       }
     }
   ' "$fresh_scope" "$rendered"
+  # Read-only-workspace contract: web/admin preview must load its TS config via
+  # the in-memory runner loader. The default bundle loader writes a temp .mjs
+  # into node_modules/.vite-temp inside the :ro mount and crashes with EROFS.
+  node -e '
+    const services = JSON.parse(process.argv[1]).services;
+    for (const name of ["web-e2e", "admin-e2e"]) {
+      const command = Array.isArray(services[name].command)
+        ? services[name].command.join(" ")
+        : String(services[name].command ?? "");
+      if (!command.includes("--configLoader runner")) {
+        throw new Error(`Service ${name} does not use --configLoader runner; vite preview would crash on the read-only workspace mount`);
+      }
+    }
+  ' "$rendered"
   # Simulate late discovery with stub loopback URLs: the writer populates the env file
   # and the rendered model must embed those values for every consumer service.
   bash "$dir/ci-runtime-env.sh" write-browser-endpoints "$fresh_runtime" \
