@@ -65,10 +65,28 @@ if (/postgres-password:\n\s+default:/.test(action)) {
 if (!/POSTGRES_PASSWORD=%s/.test(ci) || !ci.includes('openssl rand -hex 24')) {
   throw new Error('CI does not generate a per-run PostgreSQL password');
 }
+// MinIO credentials follow the identical contract: generated per run, no
+// insecure default in the composite action, passed to every invocation.
+for (const input of ['minio-access-key', 'minio-secret-key']) {
+  if (!new RegExp(`${input}:\\n\\s+description:[^\\n]*\\n\\s+required: true`).test(action)) {
+    throw new Error(`docker-infra action does not require a per-run ${input}`);
+  }
+  if (new RegExp(`${input}:\\n\\s+default:`).test(action)) {
+    throw new Error(`docker-infra action keeps an insecure ${input} default`);
+  }
+}
+if (!/MINIO_ACCESS_KEY=%s\\nMINIO_SECRET_KEY=%s/.test(ci)) {
+  throw new Error('CI does not generate per-run MinIO credentials');
+}
 const runtimeInvocations = ci.split('uses: ./.github/actions/docker-infra').length - 1;
 const passedPasswords = ci.match(/postgres-password: \$\{\{ env\.POSTGRES_PASSWORD \}\}/g)?.length ?? 0;
-if (runtimeInvocations !== 3 || passedPasswords !== 3) {
+const passedAccessKeys = ci.match(/minio-access-key: \$\{\{ env\.MINIO_ACCESS_KEY \}\}/g)?.length ?? 0;
+const passedSecretKeys = ci.match(/minio-secret-key: \$\{\{ env\.MINIO_SECRET_KEY \}\}/g)?.length ?? 0;
+if (runtimeInvocations !== 3 || passedPasswords !== 3 || passedAccessKeys !== 3 || passedSecretKeys !== 3) {
   throw new Error(
-    `CI must pass the generated password to all three runtime invocations (${passedPasswords}/${runtimeInvocations})`
+    `CI must pass the generated credentials to all three runtime invocations ` +
+      `(password ${passedPasswords}/${runtimeInvocations}, ` +
+      `access key ${passedAccessKeys}/${runtimeInvocations}, ` +
+      `secret key ${passedSecretKeys}/${runtimeInvocations})`
   );
 }

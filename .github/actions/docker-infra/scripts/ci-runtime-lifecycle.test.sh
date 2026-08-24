@@ -18,6 +18,8 @@ export PLUGIN_CREDENTIAL_PEPPER=0123456789abcdef0123456789abcdef
 export KEYCLOAK_ADMIN_USER=ci-admin-0123456789abcdef
 export KEYCLOAK_ADMIN_PASSWORD=Aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 export KEYCLOAK_E2E_CLIENT_SECRET=Bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+export MINIO_ACCESS_KEY=00112233445566778899aabb
+export MINIO_SECRET_KEY=00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff
 export CI_RUNTIME_DIR="$(bash "$dir/ci-runtime-env.sh" init "$CI_COMPOSE_PROJECT")"
 runtime=$CI_RUNTIME_DIR
 export DOCKER_LOG="$temp/docker.log"
@@ -69,6 +71,8 @@ DOCKER_LOG="$temp/docker.log" PATH="$temp/bin:$PATH" bash "$dir/ci-runtime-compo
 grep -F 'POSTGRES_HOST_URL=postgresql://plexica:changeme@127.0.0.1:33001/plexica' "$runtime/host.env" >/dev/null
 grep -F 'KEYCLOAK_CONTAINER_ADMIN_JWKS_BASE=http://keycloak:8080' "$runtime/container.env" >/dev/null
 grep -Fx 'KEYCLOAK_PUBLIC_ISSUER_BASE=http://127.0.0.1:33004' "$runtime/browser-endpoints.env" >/dev/null
+grep -Fx "MINIO_ACCESS_KEY=$MINIO_ACCESS_KEY" "$runtime/host.env" >/dev/null
+grep -Fx "MINIO_SECRET_KEY=$MINIO_SECRET_KEY" "$runtime/container.env" >/dev/null
 CI_RUNTIME_DIR="$runtime" CI_RUNTIME_HOST_STAGE=infra bash -c 'source "$0"' "$dir/source-ci-runtime-host.sh" >/dev/null
 if CI_RUNTIME_DIR="$runtime" bash -c 'source "$0"' "$dir/source-ci-runtime-host.sh" >/dev/null 2>&1; then
   echo 'Complete host contract was available before Core discovery' >&2; exit 1

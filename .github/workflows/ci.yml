@@ -97,7 +97,7 @@ jobs:
         shell: bash
         run: |
           key() { openssl rand -base64 32 | tr '+/' '-_' | tr -d '=\n'; }
-          printf 'EVENT_KEY_ENCRYPTION_KEY=%s\nPLUGIN_DB_ENCRYPTION_KEY=%s\nPLUGIN_CREDENTIAL_PEPPER=%s\nPOSTGRES_PASSWORD=%s\n' "$(key)" "$(openssl rand -hex 32)" "$(key)" "$(openssl rand -hex 24)" >> "$GITHUB_ENV"
+          printf 'EVENT_KEY_ENCRYPTION_KEY=%s\nPLUGIN_DB_ENCRYPTION_KEY=%s\nPLUGIN_CREDENTIAL_PEPPER=%s\nPOSTGRES_PASSWORD=%s\nMINIO_ACCESS_KEY=%s\nMINIO_SECRET_KEY=%s\n' "$(key)" "$(openssl rand -hex 32)" "$(key)" "$(openssl rand -hex 24)" "$(openssl rand -hex 24)" "$(openssl rand -hex 32)" >> "$GITHUB_ENV"
       - run: pnpm install --frozen-lockfile
       - run: pnpm test:line-gate && pnpm check:lines
       - run: pnpm --filter @plexica/keycloak-theme build
@@ -135,6 +135,8 @@ jobs:
           project: ${{ env.CI_COMPOSE_PROJECT }}
           runtime-dir: ${{ env.CI_RUNTIME_DIR }}
           postgres-password: ${{ env.POSTGRES_PASSWORD }}
+          minio-access-key: ${{ env.MINIO_ACCESS_KEY }}
+          minio-secret-key: ${{ env.MINIO_SECRET_KEY }}
           phase: full
       - name: Migrate through the host manifest
         run: test -f "$CI_RUNTIME_DIR/host.env"
@@ -148,6 +150,8 @@ jobs:
           project: ${{ env.CI_COMPOSE_PROJECT }}
           runtime-dir: ${{ env.CI_RUNTIME_DIR }}
           postgres-password: ${{ env.POSTGRES_PASSWORD }}
+          minio-access-key: ${{ env.MINIO_ACCESS_KEY }}
+          minio-secret-key: ${{ env.MINIO_SECRET_KEY }}
           phase: diagnostics
       - name: Upload runtime diagnostics
         if: always()
@@ -166,4 +170,6 @@ jobs:
           project: ${{ env.CI_COMPOSE_PROJECT }}
           runtime-dir: ${{ env.CI_RUNTIME_DIR }}
           postgres-password: ${{ env.POSTGRES_PASSWORD }}
+          minio-access-key: ${{ env.MINIO_ACCESS_KEY }}
+          minio-secret-key: ${{ env.MINIO_SECRET_KEY }}
           phase: down

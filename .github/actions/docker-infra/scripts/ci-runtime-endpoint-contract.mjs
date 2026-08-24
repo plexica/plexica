@@ -59,7 +59,15 @@ function asUrl(input, scheme = '') {
 }
 
 function validateHost() {
-  if (['KEYCLOAK_ADMIN_USER', 'KEYCLOAK_ADMIN_PASSWORD', 'KEYCLOAK_E2E_CLIENT_SECRET'].includes(key)) {
+  if (
+    [
+      'KEYCLOAK_ADMIN_USER',
+      'KEYCLOAK_ADMIN_PASSWORD',
+      'KEYCLOAK_E2E_CLIENT_SECRET',
+      'MINIO_ACCESS_KEY',
+      'MINIO_SECRET_KEY',
+    ].includes(key)
+  ) {
     if (!containerScalars[key](value)) fail(`${key} has an invalid CI credential value`);
     return;
   }

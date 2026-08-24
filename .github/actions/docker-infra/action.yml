@@ -17,6 +17,12 @@ inputs:
   postgres-password:
     description: Per-run generated PostgreSQL superuser password
     required: true
+  minio-access-key:
+    description: Per-run generated MinIO root access key
+    required: true
+  minio-secret-key:
+    description: Per-run generated MinIO root secret key
+    required: true
 runs:
   using: composite
   steps:
@@ -40,6 +46,8 @@ runs:
         POSTGRES_DB: ${{ inputs.postgres-db }}
         POSTGRES_USER: ${{ inputs.postgres-user }}
         POSTGRES_PASSWORD: ${{ inputs.postgres-password }}
+        MINIO_ACCESS_KEY: ${{ inputs.minio-access-key }}
+        MINIO_SECRET_KEY: ${{ inputs.minio-secret-key }}
       run: bash "$ACTION_PATH/scripts/start-services.sh"
     - name: Wait for project runtime
       if: inputs.phase == 'wait' || inputs.phase == 'full'
@@ -51,6 +59,8 @@ runs:
         POSTGRES_DB: ${{ inputs.postgres-db }}
         POSTGRES_USER: ${{ inputs.postgres-user }}
         POSTGRES_PASSWORD: ${{ inputs.postgres-password }}
+        MINIO_ACCESS_KEY: ${{ inputs.minio-access-key }}
+        MINIO_SECRET_KEY: ${{ inputs.minio-secret-key }}
       run: bash "$ACTION_PATH/scripts/wait-services.sh"
     - name: Capture scoped diagnostics
       if: always() && inputs.phase == 'diagnostics'

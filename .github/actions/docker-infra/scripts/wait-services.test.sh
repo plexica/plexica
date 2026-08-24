@@ -8,6 +8,8 @@ export CI_COMPOSE_PROJECT=plexica-ci-wait-123456
 export EVENT_KEY_ENCRYPTION_KEY=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
 export PLUGIN_DB_ENCRYPTION_KEY=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 export PLUGIN_CREDENTIAL_PEPPER=0123456789abcdef0123456789abcdef
+export MINIO_ACCESS_KEY=00112233445566778899aabb
+export MINIO_SECRET_KEY=00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff
 export CI_RUNTIME_DIR="$(bash "$dir/ci-runtime-env.sh" init "$CI_COMPOSE_PROJECT")"
 cat > "$temp/bin/docker" <<'EOF'
 #!/usr/bin/env bash

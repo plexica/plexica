@@ -6,6 +6,8 @@ export RUNNER_TEMP="$temp" CI_COMPOSE_PROJECT=plexica-ci-compose-123456
 export EVENT_KEY_ENCRYPTION_KEY=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
 export PLUGIN_DB_ENCRYPTION_KEY=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 export PLUGIN_CREDENTIAL_PEPPER=0123456789abcdef0123456789abcdef
+export MINIO_ACCESS_KEY=00112233445566778899aabb
+export MINIO_SECRET_KEY=00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff
 export CI_RUNTIME_DIR="$(bash "$(dirname "$0")/ci-runtime-env.sh" init "$CI_COMPOSE_PROJECT")"
 mkdir "$temp/bin"
 cat > "$temp/bin/docker" <<'EOF'
@@ -61,6 +63,24 @@ for cwd in / /tmp "$PWD"; do
   ( cd -- "$cwd" && PATH="$temp/bin:$PATH" bash "$script" write-infra )
 done
 grep -Fx 'POSTGRES_HOST_URL=postgresql://plexica:changeme@127.0.0.1:32001/plexica' "$CI_RUNTIME_DIR/host.env" >/dev/null
+# MinIO credentials must reach BOTH manifests fail-closed; no insecure default may appear.
+for manifest in host container; do
+  grep -Fx "MINIO_ACCESS_KEY=$MINIO_ACCESS_KEY" "$CI_RUNTIME_DIR/$manifest.env" >/dev/null
+  grep -Fx "MINIO_SECRET_KEY=$MINIO_SECRET_KEY" "$CI_RUNTIME_DIR/$manifest.env" >/dev/null
+done
+if grep -Eq 'MINIO_(ACCESS_KEY|SECRET_KEY)=(minioadmin|changeme)' "$CI_RUNTIME_DIR/host.env" "$CI_RUNTIME_DIR/container.env"; then
+  echo 'CI manifests substituted an insecure MinIO default' >&2; exit 1
+fi
+for unset in MINIO_ACCESS_KEY MINIO_SECRET_KEY; do
+  other=MINIO_SECRET_KEY; [[ "$unset" == "$other" ]] && other=MINIO_ACCESS_KEY
+  label=${unset#MINIO_}; label=${label%_KEY}; printf -v label 'MinIO %s key is required' "${label,,}"
+  if env -u "$unset" "$other=${!other}" PATH="$temp/bin:$PATH" bash "$script" write-infra 2>"$temp/minio.err"; then
+    echo "write-infra accepted a missing $unset" >&2; exit 1
+  fi
+  grep -q "$label" "$temp/minio.err" || {
+    echo "Missing $unset did not fail closed with an actionable error" >&2; exit 1;
+  }
+done
 cat > "$temp/bin/docker" <<'EOF'
 #!/usr/bin/env bash
 case "$*" in
