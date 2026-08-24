@@ -87,7 +87,7 @@ function assertJsonPostsCarryBody(requests: RecordedRequest[]): void {
 }
 
 describe('plugin e2e fixtures', () => {
-  it('ensureCrmInstalled sends an explicit empty JSON body on install', async () => {
+  it('ensureCrmInstalled sends an explicit empty JSON body on install and activates on first poll', async () => {
     let installationsRequested = false;
     const { page, requests } = fakePage((req) => {
       if (req.url.endsWith('/api/v1/plugins/installed')) {
@@ -103,7 +103,7 @@ describe('plugin e2e fixtures', () => {
       throw new Error(`Unexpected request: ${req.method} ${req.url}`);
     });
 
-    const installId = await ensureCrmInstalled(page, 'token-123');
+    const installId = await ensureCrmInstalled(page, 'token-123', { pollIntervalMs: 5, timeoutMs: 5000 });
 
     expect(installId).toBe('install-1');
     const install = requests.find((req) => req.url.endsWith('/api/v1/plugins/crm/install'));
@@ -112,6 +112,73 @@ describe('plugin e2e fixtures', () => {
     // serializable (possibly empty) JSON body, never a header-only payload.
     expect(install?.options?.data).toEqual({});
     assertJsonPostsCarryBody(requests);
+  });
+
+  it('ensureCrmInstalled polls until the installation reads active on a later poll', async () => {
+    let installedReads = 0;
+    const { page, requests } = fakePage((req) => {
+      if (req.url.endsWith('/api/v1/plugins/installed')) {
+        installedReads += 1;
+        if (installedReads === 2) {
+          return {
+            status: 200,
+            body: [{ id: 'install-1', pluginSlug: 'crm', status: 'active' }],
+          };
+        }
+        return { status: 200, body: [] };
+      }
+      if (req.url.endsWith('/api/v1/plugins/crm/install')) {
+        return { status: 200, body: { status: 'installing', installId: 'install-1', slug: 'crm' } };
+      }
+      throw new Error(`Unexpected request: ${req.method} ${req.url}`);
+    });
+
+    const installId = await ensureCrmInstalled(page, 'token-123', { pollIntervalMs: 5, timeoutMs: 5000 });
+
+    expect(installId).toBe('install-1');
+    expect(installedReads).toBeGreaterThanOrEqual(2);
+    assertJsonPostsCarryBody(requests);
+  });
+
+  it('ensureCrmInstalled reports observed status and install-response fields on poll exhaustion', async () => {
+    let installedReads = 0;
+    const { page } = fakePage((req) => {
+      if (req.url.endsWith('/api/v1/plugins/installed')) {
+        installedReads += 1;
+        if (installedReads === 1) return { status: 200, body: [] };
+        return {
+          status: 200,
+          body: [{ id: 'install-1', pluginSlug: 'crm', status: 'degraded' }],
+        };
+      }
+      if (req.url.endsWith('/api/v1/plugins/crm/install')) {
+        return { status: 200, body: { status: 'degraded', degraded: true, installId: 'install-1', slug: 'crm' } };
+      }
+      throw new Error(`Unexpected request: ${req.method} ${req.url}`);
+    });
+
+    await expect(
+      ensureCrmInstalled(page, 'token-123', { pollIntervalMs: 5, timeoutMs: 30 })
+    ).rejects.toThrow(
+      /was not activated within 30ms; last observed crm installation status: 'degraded'; install response reported: status='degraded', degraded=true/
+    );
+    expect(installedReads).toBeGreaterThanOrEqual(2);
+  });
+
+  it('ensureCrmInstalled reports missing installation when no crm row ever appears', async () => {
+    const { page } = fakePage((req) => {
+      if (req.url.endsWith('/api/v1/plugins/installed')) {
+        return { status: 200, body: [] };
+      }
+      if (req.url.endsWith('/api/v1/plugins/crm/install')) {
+        return { status: 200, body: { installId: 'install-1', slug: 'crm' } };
+      }
+      throw new Error(`Unexpected request: ${req.method} ${req.url}`);
+    });
+
+    await expect(
+      ensureCrmInstalled(page, 'token-123', { pollIntervalMs: 5, timeoutMs: 30 })
+    ).rejects.toThrow(/last observed crm installation status: 'missing'; install response reported: <no status\/degraded fields>/);
   });
 
   it('createWorkspaceFixture posts its payload with a JSON body', async () => {

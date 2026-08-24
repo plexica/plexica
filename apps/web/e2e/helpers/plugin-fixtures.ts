@@ -58,7 +58,31 @@ async function listInstallations(page: Page, token: string): Promise<Installatio
   return (await response.json()) as Installation[];
 }
 
-export async function ensureCrmInstalled(page: Page, token: string): Promise<string> {
+export interface CrmInstallPollOptions {
+  pollIntervalMs?: number;
+  timeoutMs?: number;
+}
+
+const DEFAULT_POLL_INTERVAL_MS = 1000;
+const DEFAULT_POLL_TIMEOUT_MS = 15000;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function describeInstallResponse(body: Record<string, unknown>): string {
+  const parts: string[] = [];
+  if (typeof body.status === 'string') parts.push(`status='${body.status}'`);
+  if ('degraded' in body) parts.push(`degraded=${JSON.stringify(body.degraded)}`);
+  if (parts.length === 0) return '<no status/degraded fields>';
+  return parts.join(', ');
+}
+
+export async function ensureCrmInstalled(
+  page: Page,
+  token: string,
+  options: CrmInstallPollOptions = {}
+): Promise<string> {
   const existing = (await listInstallations(page, token)).find(
     (installation) => installation.pluginSlug === 'crm' && installation.status !== 'uninstalled'
   );
@@ -70,12 +94,24 @@ export async function ensureCrmInstalled(page: Page, token: string): Promise<str
   if (!response.ok()) {
     throw new Error(`CRM contract fixture provisioning failed: ${response.status()} ${await response.text()}`);
   }
-  const installed = await listInstallations(page, token);
-  const fixture = installed.find(
-    (installation) => installation.pluginSlug === 'crm' && installation.status === 'active'
+  const installBody = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+  const pollIntervalMs = options.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS;
+  const timeoutMs = options.timeoutMs ?? DEFAULT_POLL_TIMEOUT_MS;
+  const deadline = Date.now() + timeoutMs;
+  let observedStatus = 'missing';
+  while (Date.now() < deadline) {
+    const fixture = (await listInstallations(page, token)).find(
+      (installation) => installation.pluginSlug === 'crm' && installation.status !== 'uninstalled'
+    );
+    if (fixture?.status === 'active') return fixture.id;
+    observedStatus = fixture?.status ?? 'missing';
+    await sleep(pollIntervalMs);
+  }
+  throw new Error(
+    `CRM contract fixture was not activated within ${timeoutMs}ms; ` +
+      `last observed crm installation status: '${observedStatus}'; ` +
+      `install response reported: ${describeInstallResponse(installBody)}`
   );
-  if (fixture === undefined) throw new Error('CRM contract fixture was not activated');
-  return fixture.id;
 }
 
 export async function setWorkspaceMember(
