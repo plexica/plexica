@@ -3,6 +3,8 @@ set -euo pipefail
 
 readonly ROOT=${ROOT:?ROOT is required}
 readonly COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT_NAME:?COMPOSE_PROJECT_NAME is required}
+# The CI overlay requires the per-project runtime-scope label value at load time.
+export CI_RUNTIME_SCOPE="$(printf 'ci-%s' "$(printf '%s' "$COMPOSE_PROJECT_NAME" | sha256sum | cut -c1-28)")"
 readonly COMPOSE=(docker compose -p "$COMPOSE_PROJECT_NAME" -f docker-compose.yml -f docker-compose.ci.yml -f infra/compose/docker-compose.e2e-production.yml)
 
 pnpm --filter @plexica/vite-plugin build

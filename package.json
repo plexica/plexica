@@ -27,7 +27,8 @@
     "eslint-plugin-import": "^2.29.0",
     "eslint-plugin-storybook": "catalog:",
     "prettier": "^3.9.6",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "zod": "catalog:"
   },
   "pnpm": {
     "onlyBuiltDependencies": [

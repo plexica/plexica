@@ -56,6 +56,14 @@ if bash "$script" write-container "$dir" KEYCLOAK_HOST_ADMIN_BASE http://127.0.0
 for bad in http://foreign:8080 http://127.0.0.1:8080 http://[::1]:8080; do
   if bash "$script" write-container "$dir" KEYCLOAK_URL "$bad"; then exit 1; fi
 done
+# Parsed-URL container contract: case-variant host-gateway aliases, raw IPv4/IPv6
+# addresses, unspecified/loopback forms and bare localhost are all rejected.
+for bad in http://HOST.DOCKER.INTERNAL:8080 http://host.docker.internal:8080 http://x.host.docker.internal:8080 \
+  http://localhost http://localhost:8080 http://LOCALHOST:8080 http://0.0.0.0:8080 http://10.9.9.9:8080 \
+  http://[::]:8080 http://[fe80::1]:8080 https://keycloak:8080 http://redis:8080; do
+  if bash "$script" write-container "$dir" KEYCLOAK_URL "$bad"; then exit 1; fi
+done
+if bash "$script" write-container "$dir" PLUGIN_CORE_API_URL 'http://core-api-e2e.evil.test:3001'; then exit 1; fi
 for bad in http://localhost:32000 http://[::1]:32000; do
   if bash "$script" write-host "$dir" KEYCLOAK_HOST_ADMIN_BASE "$bad"; then exit 1; fi
 done

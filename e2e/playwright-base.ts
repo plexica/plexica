@@ -43,6 +43,21 @@ export function setDefault(key: string, value: string): void {
   }
 }
 
+/**
+ * Assign a value discovered from the CI runtime manifest. The manifest is
+ * authoritative under the contract: an inherited runner-env value that
+ * disagrees with it fails fast instead of being silently overridden.
+ */
+export function setFromManifest(key: string, value: string): void {
+  const inherited = process.env[key];
+  if (inherited !== undefined && inherited !== '' && inherited !== value) {
+    throw new Error(
+      `${key}=${inherited} conflicts with the CI runtime manifest; unset it or correct host.env`
+    );
+  }
+  process.env[key] = value;
+}
+
 /** Read a mandatory run-scoped env var, failing fast with an actionable hint. */
 export function requiredRunValue(key: string, hint?: string): string {
   const value = process.env[key];

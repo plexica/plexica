@@ -61,7 +61,8 @@ describe('CI runtime host manifest URL contract', () => {
 
   it.each([
     ['localhost', 'http://localhost:3001'],
-    ['::1', 'http://[::1]:3001'],
+    ['IPv6 loopback', 'http://[::1]:3001'],
+    ['IPv6 wildcard', 'http://[::]:3001'],
     ['DNS name', 'http://core-api-e2e:3001'],
     ['portless URL', 'http://127.0.0.1'],
     ['malformed garbage', 'not-a-url'],

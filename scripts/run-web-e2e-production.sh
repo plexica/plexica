@@ -20,6 +20,8 @@ fi
 readonly RUN_ID=${E2E_RUN_ID:-$(openssl rand -hex 6)}
 export COMPOSE_PROJECT_NAME="plexica-e2e-$RUN_ID"
 export PLUGIN_RUNTIME_SCOPE="$COMPOSE_PROJECT_NAME"
+# The CI overlay requires the per-project runtime-scope label value at load time.
+export CI_RUNTIME_SCOPE="$(printf 'ci-%s' "$(printf '%s' "$COMPOSE_PROJECT_NAME" | sha256sum | cut -c1-28)")"
 readonly RUN_DIR="$ROOT/.e2e/runs/$RUN_ID"
 mkdir -p "$RUN_DIR"
 chmod 700 "$RUN_DIR"

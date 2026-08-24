@@ -1,84 +1,88 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
-export interface CiRuntimeManifest {
-  POSTGRES_HOST_URL: string;
-  REDIS_HOST_URL: string;
-  MINIO_HOST_URL: string;
-  LOKI_HOST_URL: string;
-  MAILPIT_SMTP_URL: string;
-  MAILPIT_UI_BASE: string;
-  KEYCLOAK_HOST_ADMIN_BASE: string;
-  KEYCLOAK_PUBLIC_ISSUER_BASE: string;
-  KEYCLOAK_ADMIN_USER: string;
-  KEYCLOAK_ADMIN_PASSWORD: string;
-  KEYCLOAK_E2E_CLIENT_SECRET: string;
-  CORE_API_PUBLIC_BASE: string;
-  WEB_E2E_PUBLIC_BASE: string;
-  ADMIN_E2E_PUBLIC_BASE: string;
-  KAFKA_BROKERS: string;
-}
+import { z } from 'zod';
+
+export type CiRuntimeManifest = z.infer<typeof manifestSchema>;
 
 export function isCiRuntimeContract(): boolean {
   return process.env['CI_RUNTIME_CONTRACT'] === '1';
 }
 
-function strictLoopbackUrl(value: string): boolean {
+/**
+ * Strict loopback URL: the literal IPv4 contract host with an explicit,
+ * valid TCP port. Malformed URLs are rejected, and IPv6 forms are rejected
+ * explicitly because URL().hostname strips brackets ('[::1]' -> '::1').
+ */
+function isStrictLoopbackUrl(value: string): boolean {
+  let url: URL;
   try {
-    const url = new URL(value);
-    const port = Number(url.port);
-    return (
-      url.hostname === '127.0.0.1' &&
-      url.port !== '' &&
-      Number.isInteger(port) &&
-      port > 0 &&
-      port <= 65535
-    );
+    url = new URL(value);
   } catch {
     return false;
   }
+  if (url.hostname.includes(':')) return false;
+  const port = Number(url.port);
+  return (
+    url.hostname === '127.0.0.1' &&
+    url.port !== '' &&
+    Number.isInteger(port) &&
+    port > 0 &&
+    port <= 65535
+  );
 }
+
+const CREDENTIAL =
+  /^(ci-admin-[a-f0-9]{16}|[A-Za-z0-9_-]{43})$/;
+
+const hostUrl = (key: string) =>
+  z.string().refine(isStrictLoopbackUrl, `Invalid CI host manifest entry ${key}`);
+
+const credential = (key: string) =>
+  z.string().regex(CREDENTIAL, `Invalid CI host manifest entry ${key}`);
+
+const manifestSchema = z
+  .object({
+    POSTGRES_HOST_URL: hostUrl('POSTGRES_HOST_URL'),
+    REDIS_HOST_URL: hostUrl('REDIS_HOST_URL'),
+    MINIO_HOST_URL: hostUrl('MINIO_HOST_URL'),
+    LOKI_HOST_URL: hostUrl('LOKI_HOST_URL'),
+    MAILPIT_SMTP_URL: hostUrl('MAILPIT_SMTP_URL'),
+    MAILPIT_UI_BASE: hostUrl('MAILPIT_UI_BASE'),
+    KEYCLOAK_HOST_ADMIN_BASE: hostUrl('KEYCLOAK_HOST_ADMIN_BASE'),
+    KEYCLOAK_PUBLIC_ISSUER_BASE: hostUrl('KEYCLOAK_PUBLIC_ISSUER_BASE'),
+    KEYCLOAK_ADMIN_USER: credential('KEYCLOAK_ADMIN_USER'),
+    KEYCLOAK_ADMIN_PASSWORD: credential('KEYCLOAK_ADMIN_PASSWORD'),
+    KEYCLOAK_E2E_CLIENT_SECRET: credential('KEYCLOAK_E2E_CLIENT_SECRET'),
+    CORE_API_PUBLIC_BASE: hostUrl('CORE_API_PUBLIC_BASE'),
+    WEB_E2E_PUBLIC_BASE: hostUrl('WEB_E2E_PUBLIC_BASE'),
+    ADMIN_E2E_PUBLIC_BASE: hostUrl('ADMIN_E2E_PUBLIC_BASE'),
+    KAFKA_BROKERS: z
+      .string()
+      .regex(/^127\.0\.0\.1:[1-9][0-9]*$/, 'Invalid CI host manifest entry KAFKA_BROKERS'),
+  })
+  .refine(
+    (values) => values.KEYCLOAK_HOST_ADMIN_BASE === values.KEYCLOAK_PUBLIC_ISSUER_BASE,
+    'CI Keycloak host-admin must match the public issuer'
+  );
 
 export function ciRuntimeManifest(): CiRuntimeManifest {
   const runtime = process.env['CI_RUNTIME_DIR'];
   if (!runtime) throw new Error('CI runtime requires CI_RUNTIME_DIR host manifest');
   const values = Object.fromEntries(
-    readFileSync(path.join(runtime, 'host.env'), 'utf8').split('\n').filter(Boolean).map((line) => {
-      const index = line.indexOf('=');
-      return [line.slice(0, index), line.slice(index + 1)];
-    }),
-  ) as Partial<CiRuntimeManifest>;
-  const required = [
-    'POSTGRES_HOST_URL',
-    'REDIS_HOST_URL',
-    'MINIO_HOST_URL',
-    'LOKI_HOST_URL',
-    'MAILPIT_SMTP_URL',
-    'MAILPIT_UI_BASE',
-    'KEYCLOAK_HOST_ADMIN_BASE',
-    'KEYCLOAK_PUBLIC_ISSUER_BASE',
-    'KEYCLOAK_ADMIN_USER',
-    'KEYCLOAK_ADMIN_PASSWORD',
-    'KEYCLOAK_E2E_CLIENT_SECRET',
-    'CORE_API_PUBLIC_BASE',
-    'WEB_E2E_PUBLIC_BASE',
-    'ADMIN_E2E_PUBLIC_BASE',
-  ] as const;
-  for (const key of required) {
-    const credential = ['KEYCLOAK_ADMIN_USER', 'KEYCLOAK_ADMIN_PASSWORD', 'KEYCLOAK_E2E_CLIENT_SECRET'].includes(key);
-    if (
-      !values[key] ||
-      (credential && !/^(ci-admin-[a-f0-9]{16}|[A-Za-z0-9_-]{43})$/.test(values[key])) ||
-      (!credential && !strictLoopbackUrl(values[key]))
-    ) {
-      throw new Error(`Invalid CI host manifest entry ${key}`);
-    }
+    readFileSync(path.join(runtime, 'host.env'), 'utf8')
+      .split('\n')
+      .filter((line) => line.includes('='))
+      .map((line) => {
+        const index = line.indexOf('=');
+        return [line.slice(0, index), line.slice(index + 1)];
+      }),
+  );
+  const result = manifestSchema.safeParse(values);
+  if (!result.success) {
+    // Report every failing entry in one actionable error instead of only the
+    // first one, preserving the established per-entry message quality.
+    throw new Error(result.error.issues.map((issue) => issue.message).join('; '));
   }
-  if (values.KEYCLOAK_HOST_ADMIN_BASE !== values.KEYCLOAK_PUBLIC_ISSUER_BASE) {
-    throw new Error('CI Keycloak host-admin must match the public issuer');
-  }
-  if (!/^127\.0\.0\.1:[1-9][0-9]*$/.test(values.KAFKA_BROKERS ?? '')) {
-    throw new Error('Invalid CI host manifest entry KAFKA_BROKERS');
-  }
-  return values as CiRuntimeManifest;
+  return result.data;
 }

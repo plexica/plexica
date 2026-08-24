@@ -5,6 +5,7 @@ project=${CI_COMPOSE_PROJECT:?CI_COMPOSE_PROJECT is required}
 runtime=${CI_RUNTIME_DIR:?CI_RUNTIME_DIR is required}
 script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 source "$script_dir/ci-runtime-path.sh"
+export CI_RUNTIME_SCOPE="$(bash "$script_dir/ci-runtime-scope.sh" "$project")"
 wait_for_http="$script_dir/wait-for-http.sh"
 root=$(cd -- "$script_dir/../../../.." && pwd)
 compose=(docker compose --project-name "$project" -f "$root/docker-compose.yml" -f "$root/docker-compose.ci.yml")

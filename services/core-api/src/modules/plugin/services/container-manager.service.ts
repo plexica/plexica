@@ -8,10 +8,10 @@ import {
 } from '../errors.js';
 
 import { KubernetesContainerManager } from './kubernetes-container-manager.js';
-import { parseCpu, parseMemory } from './container-helpers.js';
+import { containerPort, parseCpu, parseMemory } from './container-helpers.js';
 import { restartDockerContainer } from './docker-container-restart.js';
 import { dockerRuntimeOptions } from './docker-runtime-options.js';
-import { assertCiPluginContainer } from './plugin-container-contract.js';
+import { assertCiPluginContainer, CiPluginContractViolation } from './plugin-container-contract.js';
 import { isCiPluginRuntime, pluginContainerIdentity } from './plugin-container-identity.js';
 import { resolveSidecarImage } from './sidecar-image.js';
 
@@ -39,16 +39,11 @@ export interface ContainerManager {
   restartContainer(installId: string, environment?: Record<string, string>): Promise<void>;
 }
 
-function containerPort(inspect: Docker.ContainerInspectInfo): number | undefined {
-  const exposed = Object.keys(inspect.Config.ExposedPorts ?? {})[0]?.split('/')[0];
-  if (exposed) return Number(exposed);
-  for (const bindings of Object.values(inspect.NetworkSettings.Ports ?? {})) {
-    if (bindings?.[0]?.HostPort) return Number(bindings[0].HostPort);
-  }
-  return undefined;
-}
-
+// Dockerode 304 = "already stopped", 404 = "no such container": both are
+// success for cleanup paths, which only require the container to end up gone.
 function ignoreStopError(error: unknown): void {
+  const status = (error as { statusCode?: number }).statusCode;
+  if (status === 304 || status === 404) return;
   if (!/(already stopped|is not running|not found|No such)/.test((error as Error).message))
     throw error;
 }
@@ -184,6 +179,9 @@ export class DockerContainerManager implements ContainerManager {
     try {
       await restartDockerContainer(this.docker, installId, environment);
     } catch (error) {
+      // Isolation violations are contract faults: propagate them untouched so
+      // they are never disguised as a transient backend availability problem.
+      if (error instanceof CiPluginContractViolation) throw error;
       if (!(error as Error).message.includes('not found'))
         throw new PluginBackendUnreachableError(installId);
     }

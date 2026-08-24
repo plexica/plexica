@@ -14,14 +14,17 @@ export function assertExplicitLoopbackE2eTarget(): void {
     throw new Error('Refusing E2E Keycloak provisioning without PLAYWRIGHT_E2E=true');
   }
 
-  const target = new URL(getKeycloakUrl());
+  // Resolve the target once: every admin call runs this guard and each
+  // getKeycloakUrl() re-entry would re-read and re-validate host.env.
+  const url = getKeycloakUrl();
+  const target = new URL(url);
   const loopbackHosts = new Set(['localhost', '127.0.0.1', '::1']);
   if (!loopbackHosts.has(target.hostname)) {
     throw new Error(
       `Refusing E2E Keycloak provisioning against non-loopback host ${target.hostname}`
     );
   }
-  if (isCiRuntimeContract() && process.env['KEYCLOAK_URL'] && process.env['KEYCLOAK_URL'] !== getKeycloakUrl()) {
+  if (isCiRuntimeContract() && process.env['KEYCLOAK_URL'] && process.env['KEYCLOAK_URL'] !== url) {
     throw new Error('CI host provisioning may use only KEYCLOAK_HOST_ADMIN_BASE from the manifest');
   }
 }

@@ -23,6 +23,16 @@ case "$*" in
   *' port loki 3100'*) printf '127.0.0.1:32009\n' ;;
   *' port mailpit 1025'*) printf '127.0.0.1:32010\n' ;;
   *' port mailpit 8025'*) printf '127.0.0.1:32011\n' ;;
+  # Ordering gate: any health wait that includes redpanda must observe an
+  # already-written listener contract, or Redpanda's gated entrypoint would
+  # block until the wait timeout expires in real runs.
+  *' up '*--wait*)
+    if [[ "$*" == *' redpanda'* ]]; then
+      grep -qx 'REDPANDA_EXTERNAL_LISTENER=127.0.0.1:32005' "$CI_RUNTIME_DIR/redpanda-listener.env" || {
+        echo 'redpanda waited for health before its listener contract was written' >&2
+        exit 1
+      }
+    fi ;;
   *' ps -q '*) printf 'container\n' ;;
   'wait '*|*' wait '*) printf '0\n' ;;
   *'inspect'*) printf 'running\n' ;;
@@ -42,7 +52,9 @@ printf '%s\n' "$*" >> "$COMMAND_LOG.lifecycle"
 [[ "$*" == *'--publish-only'* ]]
 EOF
 chmod +x "$temp/bin/"*
-PATH="$temp/bin:$PATH" bash "$dir/ci-runtime-compose.sh" write-redpanda
+# No listener contract is pre-written here: wait-services.sh itself must
+# create redpanda, inspect its mapping, write the contract, and only then
+# start and health-wait it (asserted by the docker mock's ordering gate).
 if CI_RUNTIME_DIR="$CI_RUNTIME_DIR" bash -c 'source "$0"' "$dir/source-ci-runtime-host.sh"; then
   echo 'Complete host contract was available before Core and browser inspection' >&2; exit 1
 fi
@@ -78,6 +90,13 @@ case "$*" in
   *' port loki 3100'*) printf '127.0.0.1:32009\n' ;;
   *' port mailpit 1025'*) printf '127.0.0.1:32010\n' ;;
   *' port mailpit 8025'*) printf '127.0.0.1:32011\n' ;;
+  *' up '*--wait*)
+    if [[ "$*" == *' redpanda'* ]]; then
+      grep -qx 'REDPANDA_EXTERNAL_LISTENER=127.0.0.1:32005' "$CI_RUNTIME_DIR/redpanda-listener.env" || {
+        echo 'redpanda waited for health before its listener contract was written' >&2
+        exit 1
+      }
+    fi ;;
   *' ps -q '*) printf 'container\n' ;;
   'wait '*|*' wait '*) printf '0\n' ;;
   *'inspect'*) printf 'running\n' ;;

@@ -14,6 +14,7 @@ initialized=(); torn_down=(); diagnostics_collected=0
 compose() {
   local project="$1" runtime="${RUNNER_TEMP}/plexica-ci/$1"
   CI_COMPOSE_PROJECT="$project" CI_RUNTIME_DIR="$runtime" \
+    CI_RUNTIME_SCOPE="$(bash "$scripts/ci-runtime-scope.sh" "$project")" \
     docker compose --project-name "$project" -f "$root/docker-compose.yml" -f "$root/docker-compose.ci.yml" "${@:2}"
 }
 # Teardown is exactly-once per project: the down script deletes the runtime
@@ -77,10 +78,16 @@ run_playwright() {
 }
 
 bootstrap() {
-  local project="$1" runtime="${RUNNER_TEMP}/plexica-ci/$1"
+  local project="$1" runtime="${RUNNER_TEMP}/plexica-ci/$1" postgres_password
+  # Per-run generated secret (never a committed default): both lifecycle
+  # invocations for this project receive the SAME value so the Postgres
+  # container init, Keycloak DB attach, and host/container.env manifests agree.
+  postgres_password=$(openssl rand -hex 24)
   CI_COMPOSE_PROJECT="$project" CI_RUNTIME_DIR="$runtime" bash "$scripts/verify-ci-runner-capacity.sh" "$project"
-  CI_COMPOSE_PROJECT="$project" CI_RUNTIME_DIR="$runtime" POSTGRES_DB=plexica POSTGRES_USER=plexica POSTGRES_PASSWORD=changeme bash "$scripts/start-services.sh"
-  CI_COMPOSE_PROJECT="$project" CI_RUNTIME_DIR="$runtime" POSTGRES_DB=plexica POSTGRES_USER=plexica POSTGRES_PASSWORD=changeme bash "$scripts/wait-services.sh"
+  CI_COMPOSE_PROJECT="$project" CI_RUNTIME_DIR="$runtime" POSTGRES_DB=plexica POSTGRES_USER=plexica POSTGRES_PASSWORD="$postgres_password" \
+    bash "$scripts/start-services.sh"
+  CI_COMPOSE_PROJECT="$project" CI_RUNTIME_DIR="$runtime" POSTGRES_DB=plexica POSTGRES_USER=plexica POSTGRES_PASSWORD="$postgres_password" \
+    bash "$scripts/wait-services.sh"
   export CI_RUNTIME_DIR="$runtime"; source "$scripts/source-ci-runtime-host.sh"
   CI_COMPOSE_PROJECT="$project" CI_RUNTIME_DIR="$runtime" bash "$scripts/ensure-topics.sh"
   pnpm --filter core-api exec node scripts/verify-kafka-roundtrip.mjs "$KAFKA_BROKERS" "$project"

@@ -1,8 +1,17 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+// Runner-supplied values must survive the suite: snapshot the inherited env
+// once and restore it after every test instead of deleting the keys.
+const ORIGINAL_ENV = {
+  CI_RUNTIME_CONTRACT: process.env.CI_RUNTIME_CONTRACT,
+  E2E_CORE_API_PROXY_TARGET: process.env.E2E_CORE_API_PROXY_TARGET,
+};
+
 afterEach(() => {
-  delete process.env.CI_RUNTIME_CONTRACT;
-  delete process.env.E2E_CORE_API_PROXY_TARGET;
+  for (const [key, value] of Object.entries(ORIGINAL_ENV)) {
+    if (value === undefined) delete process.env[key];
+    else process.env[key] = value;
+  }
   vi.resetModules();
 });
 

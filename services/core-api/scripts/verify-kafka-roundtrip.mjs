@@ -1,5 +1,4 @@
 import { randomUUID } from 'node:crypto';
-import { clearTimeout } from 'node:timers';
 
 import { Kafka } from 'kafkajs';
 
@@ -22,16 +21,39 @@ if (!metadata.brokers.some(({ host, port }) => `${host}:${port}` === broker)) {
 await admin.createTopics({ topics: [{ topic, numPartitions: 1, replicationFactor: 1 }] });
 await producer.connect();
 await consumer.connect();
-const received = new Promise((resolve, reject) => {
-  const timer = setTimeout(() => reject(new Error('Kafka round trip timed out')), 15_000);
-  void consumer.run({ eachMessage: async ({ message }) => {
-    if (message.value?.toString() === payload) { clearTimeout(timer); resolve(); }
-  } });
-});
+// KafkaJS requires subscribe() before run(): starting a consumer without a
+// subscription rejects asynchronously and the timeout below would misreport
+// the failure mode.
 await consumer.subscribe({ topic, fromBeginning: false });
-await producer.send({ topic, messages: [{ value: payload }] });
-await received;
-await consumer.disconnect();
-await producer.disconnect();
+let timedOut = false;
+let resolveReceived;
+let rejectReceived;
+const received = new Promise((resolve, reject) => {
+  resolveReceived = resolve;
+  rejectReceived = reject;
+});
+const timer = setTimeout(() => {
+  timedOut = true;
+  rejectReceived(new Error(`Kafka round trip timed out on ${topic}`));
+}, 15_000);
+timer.unref();
+await consumer.run({
+  eachMessage: async ({ message }) => {
+    if (message.value?.toString() === payload) {
+      globalThis.clearTimeout(timer);
+      resolveReceived();
+    }
+  },
+});
+try {
+  await producer.send({ topic, messages: [{ value: payload }] });
+  await received;
+} finally {
+  // Graceful disconnect on every path so a failed verification never leaves
+  // the process hanging on open sockets; the original error still propagates
+  // and exits non-zero.
+  await Promise.allSettled([consumer.disconnect(), producer.disconnect()]);
+}
+if (timedOut) process.exit(1);
 await admin.deleteTopics({ topics: [topic] });
 await admin.disconnect();

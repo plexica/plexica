@@ -1,16 +1,17 @@
 #!/usr/bin/env node
 
+import { isIP } from 'node:net';
 import { URL } from 'node:url';
 
 const [kind, key, value] = process.argv.slice(2);
 const containerHosts = {
-  DATABASE_URL: ['postgres', '5432'],
-  KEYCLOAK_URL: ['keycloak', '8080'],
-  KEYCLOAK_CONTAINER_ADMIN_JWKS_BASE: ['keycloak', '8080'],
-  REDIS_URL: ['redis', '6379'],
-  MINIO_ENDPOINT: ['minio', '9000'],
-  LOKI_URL: ['loki', '3100'],
-  PLUGIN_CORE_API_URL: ['core-api-e2e', '3001'],
+  DATABASE_URL: ['postgres', '5432', 'postgresql:'],
+  KEYCLOAK_URL: ['keycloak', '8080', 'http:'],
+  KEYCLOAK_CONTAINER_ADMIN_JWKS_BASE: ['keycloak', '8080', 'http:'],
+  REDIS_URL: ['redis', '6379', 'redis:'],
+  MINIO_ENDPOINT: ['minio', '9000', 'http:'],
+  LOKI_URL: ['loki', '3100', 'http:'],
+  PLUGIN_CORE_API_URL: ['core-api-e2e', '3001', 'http:'],
 };
 const hostProtocols = {
   POSTGRES_HOST_URL: 'postgresql:',
@@ -92,11 +93,29 @@ function validateContainer() {
   const expected = containerHosts[key];
   if (!expected) fail(`${key} is not an approved container endpoint`);
   const url = asUrl(value);
-  if (url.hostname !== expected[0] || url.port !== expected[1] || url.username === 'host-gateway') {
+  // Parse, don't substring-match: URL normalization lowercases the hostname and
+  // strips brackets from IPv6 literals. Every host form outside the per-key
+  // Compose DNS allowlist (the exact service name) is rejected — including
+  // case-variant host.docker.internal hosts, raw IPv4/IPv6 addresses,
+  // unspecified/loopback forms (0.0.0.0, ::, [::1]) and bare localhost with or
+  // without a port.
+  const hostname = url.hostname.toLowerCase();
+  const bareHost = hostname.replace(/^\[/, '').replace(/\]$/, '');
+  if (
+    url.hostname !== expected[0] ||
+    url.port !== expected[1] ||
+    (expected[2] && url.protocol !== expected[2]) ||
+    bareHost === 'localhost' ||
+    bareHost.endsWith('.localhost') ||
+    bareHost.includes('host.docker.internal') ||
+    bareHost === 'host-gateway' ||
+    bareHost === '0.0.0.0' ||
+    bareHost === '::' ||
+    isIP(bareHost) ||
+    /[[\]:%]/.test(url.hostname) ||
+    url.username === 'host-gateway'
+  ) {
     fail(`${key} must use its approved Compose DNS endpoint`);
-  }
-  if (/localhost|host\.docker\.internal|gateway|^\d|\[/.test(url.hostname)) {
-    fail(`${key} must not use a host or IP endpoint`);
   }
 }
 

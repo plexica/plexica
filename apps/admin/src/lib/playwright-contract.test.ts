@@ -26,17 +26,28 @@ afterEach(() => {
 });
 
 describe('admin CI Playwright contract', () => {
-  it('overrides localhost values with discovered manifest endpoints', async () => {
+  it('keeps inherited runner endpoints that match the discovered manifest', async () => {
+    const runtime = writeManifest();
+    process.env.CI_RUNTIME_CONTRACT = '1';
+    process.env.CI_RUNTIME_DIR = runtime;
+    process.env.PLUGIN_CREDENTIAL_PEPPER = '0123456789abcdef0123456789abcdef';
+    process.env.PLAYWRIGHT_KEYCLOAK_URL = 'http://127.0.0.1:32000';
+    process.env.PLAYWRIGHT_LOKI_URL = 'http://127.0.0.1:32013';
+    const config = (await import('../../playwright.config.js')).default;
+    expect(config.use?.baseURL).toBe('http://127.0.0.1:32003');
+    expect(process.env.PLAYWRIGHT_KEYCLOAK_URL).toBe('http://127.0.0.1:32000');
+    expect(process.env.PLAYWRIGHT_LOKI_URL).toBe('http://127.0.0.1:32013');
+    rmSync(runtime, { recursive: true, force: true });
+  });
+  it('rejects an inherited endpoint that conflicts with the authoritative manifest', async () => {
     const runtime = writeManifest();
     process.env.CI_RUNTIME_CONTRACT = '1';
     process.env.CI_RUNTIME_DIR = runtime;
     process.env.PLUGIN_CREDENTIAL_PEPPER = '0123456789abcdef0123456789abcdef';
     process.env.PLAYWRIGHT_KEYCLOAK_URL = 'http://localhost:8080';
-    process.env.PLAYWRIGHT_LOKI_URL = 'http://localhost:3100';
-    const config = (await import('../../playwright.config.js')).default;
-    expect(config.use?.baseURL).toBe('http://127.0.0.1:32003');
-    expect(process.env.PLAYWRIGHT_KEYCLOAK_URL).toBe('http://127.0.0.1:32000');
-    expect(process.env.PLAYWRIGHT_LOKI_URL).toBe('http://127.0.0.1:32013');
+    await expect(import('../../playwright.config.js')).rejects.toThrow(
+      /conflicts with the CI runtime manifest/
+    );
     rmSync(runtime, { recursive: true, force: true });
   });
   it('rejects a final admin reconciliation that overwrites the discovered origin', () => {

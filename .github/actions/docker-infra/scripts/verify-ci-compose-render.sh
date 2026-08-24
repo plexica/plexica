@@ -21,7 +21,9 @@ grep -Eq '^name:' "$root/docker-compose.ci.yml" && { echo 'CI overlay contains a
 # post-discovery variable exported — their values arrive via the pre-created
 # browser-endpoints.env env_file, populated by later lifecycle stages.
 rendered=$(env -u WEB_E2E_PUBLIC_BASE -u ADMIN_E2E_PUBLIC_BASE -u KEYCLOAK_PUBLIC_ISSUER_BASE \
-  CI_COMPOSE_PROJECT="$project" CI_RUNTIME_DIR="$runtime" docker compose --project-name "$project" -f "$root/docker-compose.yml" -f "$root/docker-compose.ci.yml" config --format json)
+  CI_COMPOSE_PROJECT="$project" CI_RUNTIME_DIR="$runtime" \
+  CI_RUNTIME_SCOPE="$(bash "$script_dir/ci-runtime-scope.sh" "$project")" \
+  docker compose --project-name "$project" -f "$root/docker-compose.yml" -f "$root/docker-compose.ci.yml" config --format json)
 node -e '
 const config = JSON.parse(process.argv[1]);
 for (const [service, value] of Object.entries(config.services)) {

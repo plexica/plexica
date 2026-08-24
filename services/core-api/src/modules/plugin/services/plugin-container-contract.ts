@@ -15,6 +15,18 @@ interface ContainerInspection {
   };
 }
 
+/**
+ * Thrown when an inspected sidecar violates the CI isolation contract.
+ * Callers must propagate it untouched — it is a security fault, not a
+ * Docker availability fault.
+ */
+export class CiPluginContractViolation extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'CiPluginContractViolation';
+  }
+}
+
 export function assertCiPluginContainer(
   identity: PluginContainerIdentity,
   inspect: ContainerInspection,
@@ -30,14 +42,14 @@ export function assertCiPluginContainer(
   );
   const expectedBind = `${config.PLUGIN_DB_SSL_ROOT_CERT_PATH}:${PLUGIN_CONTAINER_CA_PATH}:ro`;
   if (inspect.Name && inspect.Name !== `/${identity.name}`) {
-    throw new Error('CI plugin container name does not match its identity');
+    throw new CiPluginContractViolation('CI plugin container name does not match its identity');
   }
   if (
     Object.keys(networks).length !== 1 ||
     endpoint?.Aliases?.length !== 1 ||
     endpoint.Aliases[0] !== identity.alias
   ) {
-    throw new Error('CI plugin container has an invalid network or alias');
+    throw new CiPluginContractViolation('CI plugin container has an invalid network or alias');
   }
   if (
     labels['io.plexica.runtime-scope'] !== identity.labels['io.plexica.runtime-scope'] ||
@@ -52,6 +64,8 @@ export function assertCiPluginContainer(
     hasGateway ||
     hasHostEndpoint
   ) {
-    throw new Error('CI plugin container has unsafe labels, host access, or port bindings');
+    throw new CiPluginContractViolation(
+      'CI plugin container has unsafe labels, host access, or port bindings'
+    );
   }
 }

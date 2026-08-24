@@ -8,19 +8,22 @@ inputs:
     description: Private per-run runtime directory
     required: true
   phase:
-    description: admission, start, wait, full, diagnostics, or down
+    description: admission, start, wait, full (admission + start + wait), diagnostics, or down
     default: full
   postgres-db:
     default: plexica
   postgres-user:
     default: plexica
   postgres-password:
-    default: changeme
+    description: Per-run generated PostgreSQL superuser password
+    required: true
 runs:
   using: composite
   steps:
     - name: Admit concurrent E2E runner
-      if: inputs.phase == 'admission'
+      # `full` must gate on runner admission too: a caller omitting `phase`
+      # otherwise starts+waits the runtime without the capacity contract.
+      if: inputs.phase == 'admission' || inputs.phase == 'full'
       shell: bash
       env:
         ACTION_PATH: ${{ github.action_path }}

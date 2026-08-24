@@ -28,6 +28,46 @@ for (const [key, value] of [
 if (acceptsContainer('KAFKA_BROKERS', 'http://redpanda:9092')) {
   throw new Error('Accepted a URL where the Kafka scalar contract is required');
 }
+// Every per-key Compose DNS service endpoint must be accepted verbatim.
+for (const [key, value] of [
+  ['DATABASE_URL', 'postgresql://plexica:secret@postgres:5432/plexica'],
+  ['KEYCLOAK_URL', 'http://keycloak:8080'],
+  ['KEYCLOAK_CONTAINER_ADMIN_JWKS_BASE', 'http://keycloak:8080'],
+  ['REDIS_URL', 'redis://redis:6379'],
+  ['MINIO_ENDPOINT', 'http://minio:9000'],
+  ['LOKI_URL', 'http://loki:3100'],
+  ['PLUGIN_CORE_API_URL', 'http://core-api-e2e:3001'],
+]) {
+  if (!acceptsContainer(key, value)) throw new Error(`Rejected approved Compose DNS endpoint ${key}`);
+}
+// Parsed-URL hardening: host forms outside the per-key allowlist must be
+// rejected regardless of case, brackets, ports or credentials.
+for (const [key, value] of [
+  ['KEYCLOAK_URL', 'http://HOST.DOCKER.INTERNAL:8080'],
+  ['KEYCLOAK_URL', 'http://host.docker.internal:8080'],
+  ['KEYCLOAK_URL', 'http://x.host.docker.internal:8080'],
+  ['KEYCLOAK_URL', 'http://localhost'],
+  ['KEYCLOAK_URL', 'http://localhost:8080'],
+  ['KEYCLOAK_URL', 'http://LOCALHOST:8080'],
+  ['KEYCLOAK_URL', 'http://0.0.0.0:8080'],
+  ['KEYCLOAK_URL', 'http://127.0.0.1:8080'],
+  ['KEYCLOAK_URL', 'http://10.0.0.5:8080'],
+  ['KEYCLOAK_URL', 'http://192.168.1.14:8080'],
+  ['KEYCLOAK_URL', 'http://[::1]:8080'],
+  ['KEYCLOAK_URL', 'http://[::]:8080'],
+  ['KEYCLOAK_URL', 'http://[fe80::1]:8080'],
+  ['KEYCLOAK_URL', 'http://::1:8080'],
+  ['KEYCLOAK_URL', 'http://keycloak.evil.test:8080'],
+  ['KEYCLOAK_URL', 'http://redis:8080'],
+  ['KEYCLOAK_URL', 'https://keycloak:8080'],
+  ['KEYCLOAK_URL', 'host-gateway://keycloak:8080'],
+  ['PLUGIN_CORE_API_URL', 'http://web-e2e:3000'],
+  ['PLUGIN_CORE_API_URL', 'ftp://core-api-e2e:3001'],
+  ['DATABASE_URL', 'http://postgres:5432/plexica'],
+  ['MINIO_ENDPOINT', 'http://keycloak:9000'],
+]) {
+  if (acceptsContainer(key, value)) throw new Error(`Accepted non-Compose container endpoint for ${key}: ${value}`);
+}
 for (const [key, value] of [
   ['POSTGRES_HOST_URL', 'postgresql://user@127.0.0.1:32123/plexica'],
   ['POSTGRES_HOST_URL', 'postgresql://user:password@postgres:5432/plexica'],

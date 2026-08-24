@@ -27,23 +27,24 @@ import {
   isCiRuntimeContract,
   MONOREPO_ROOT_ENV_PATH,
   requiredRunValue,
+  setFromManifest,
   setDefault,
 } from '../../e2e/playwright-base.js';
 
 // Load .env from the monorepo root for local dev. No-ops in CI (file absent).
 dotenv.config({ path: MONOREPO_ROOT_ENV_PATH });
-const ciRuntime = isCiRuntimeContract();
-const runtime = ciRuntime ? ciRuntimeManifest() : undefined;
+const CI_RUNTIME = isCiRuntimeContract();
+const RUNTIME_MANIFEST = CI_RUNTIME ? ciRuntimeManifest() : undefined;
 const ciValue = (value: string | undefined): string => {
   if (!value) throw new Error('CI runtime manifest is incomplete');
   return value;
 };
 
 const RUN_HINT = 'Use "pnpm --filter web test:e2e:production" for an isolated run.';
-const credentialPepper = requiredRunValue('PLUGIN_CREDENTIAL_PEPPER', RUN_HINT);
-const eventEncryptionKey = requiredRunValue('EVENT_KEY_ENCRYPTION_KEY', RUN_HINT);
-const pluginDbEncryptionKey = requiredRunValue('PLUGIN_DB_ENCRYPTION_KEY', RUN_HINT);
-const pluginDbCaPath = ciRuntime
+const CREDENTIAL_PEPPER = requiredRunValue('PLUGIN_CREDENTIAL_PEPPER', RUN_HINT);
+const EVENT_ENCRYPTION_KEY = requiredRunValue('EVENT_KEY_ENCRYPTION_KEY', RUN_HINT);
+const PLUGIN_DB_ENCRYPTION_VALUE = requiredRunValue('PLUGIN_DB_ENCRYPTION_KEY', RUN_HINT);
+const PLUGIN_DB_CA_PATH = CI_RUNTIME
   ? process.env['PLUGIN_DB_SSL_ROOT_CERT_PATH'] ?? '/etc/ssl/certs/ca-certificates.crt'
   : requiredRunValue('PLUGIN_DB_SSL_ROOT_CERT_PATH', RUN_HINT);
 
@@ -55,16 +56,16 @@ const pluginDbCaPath = ciRuntime
 
 // Global setup runs provisioning CLIs before web servers. Share run-scoped
 // secrets with those CLIs; the core webServer still overrides TLS mode below.
-setDefault('EVENT_KEY_ENCRYPTION_KEY', eventEncryptionKey);
-setDefault('PLUGIN_DB_ENCRYPTION_KEY', pluginDbEncryptionKey);
-setDefault('PLUGIN_CREDENTIAL_PEPPER', credentialPepper);
+setDefault('EVENT_KEY_ENCRYPTION_KEY', EVENT_ENCRYPTION_KEY);
+setDefault('PLUGIN_DB_ENCRYPTION_KEY', PLUGIN_DB_ENCRYPTION_VALUE);
+setDefault('PLUGIN_CREDENTIAL_PEPPER', CREDENTIAL_PEPPER);
 setDefault('PLUGIN_DB_SSL_MODE', 'verify-full');
-if (ciRuntime) {
-  process.env['PLAYWRIGHT_KEYCLOAK_URL'] = runtime?.KEYCLOAK_HOST_ADMIN_BASE;
-  process.env['PLAYWRIGHT_BASE_URL'] = runtime?.WEB_E2E_PUBLIC_BASE;
-  process.env['PLAYWRIGHT_API_URL'] = runtime?.CORE_API_PUBLIC_BASE;
-  process.env['PLAYWRIGHT_LOKI_URL'] = runtime?.LOKI_HOST_URL;
-  process.env['PLAYWRIGHT_MAILPIT_URL'] = runtime?.MAILPIT_UI_BASE;
+if (CI_RUNTIME) {
+  setFromManifest('PLAYWRIGHT_KEYCLOAK_URL', ciValue(RUNTIME_MANIFEST?.KEYCLOAK_HOST_ADMIN_BASE));
+  setFromManifest('PLAYWRIGHT_BASE_URL', ciValue(RUNTIME_MANIFEST?.WEB_E2E_PUBLIC_BASE));
+  setFromManifest('PLAYWRIGHT_API_URL', ciValue(RUNTIME_MANIFEST?.CORE_API_PUBLIC_BASE));
+  setFromManifest('PLAYWRIGHT_LOKI_URL', ciValue(RUNTIME_MANIFEST?.LOKI_HOST_URL));
+  setFromManifest('PLAYWRIGHT_MAILPIT_URL', ciValue(RUNTIME_MANIFEST?.MAILPIT_UI_BASE));
 } else {
   setDefault('PLAYWRIGHT_KEYCLOAK_URL', 'http://localhost:8080');
   setDefault('PLAYWRIGHT_BASE_URL', 'http://e2e.localhost:3000');
@@ -100,7 +101,7 @@ export default defineConfig({
   ...baseE2eConfig,
   use: {
     ...baseE2eConfig.use,
-    baseURL: ciRuntime ? ciValue(runtime?.WEB_E2E_PUBLIC_BASE) : process.env['PLAYWRIGHT_BASE_URL'],
+    baseURL: CI_RUNTIME ? ciValue(RUNTIME_MANIFEST?.WEB_E2E_PUBLIC_BASE) : process.env['PLAYWRIGHT_BASE_URL'],
   },
   projects: [
     {
@@ -112,7 +113,7 @@ export default defineConfig({
     },
   ],
   // CRM is installed by the production API flow and launched by DockerContainerManager.
-  webServer: ciRuntime ? [] : [
+  webServer: CI_RUNTIME ? [] : [
     {
       // Core-api backend — required for tenant resolution and auth
       command: coreApiCommand,
@@ -124,17 +125,17 @@ export default defineConfig({
         NODE_ENV: 'production',
         PORT: '3001',
         NODE_OPTIONS: '--trace-warnings',
-        EVENT_KEY_ENCRYPTION_KEY: eventEncryptionKey,
-        PLUGIN_DB_ENCRYPTION_KEY: pluginDbEncryptionKey,
+        EVENT_KEY_ENCRYPTION_KEY: EVENT_ENCRYPTION_KEY,
+        PLUGIN_DB_ENCRYPTION_KEY: PLUGIN_DB_ENCRYPTION_VALUE,
         PLUGIN_DB_SSL_MODE: 'verify-full',
-        PLUGIN_DB_SSL_ROOT_CERT_PATH: pluginDbCaPath,
+        PLUGIN_DB_SSL_ROOT_CERT_PATH: PLUGIN_DB_CA_PATH,
         PLUGIN_DB_HOST: process.env['PLUGIN_DB_HOST'] ?? 'postgres',
         PLUGIN_DB_PORT: process.env['PLUGIN_DB_PORT'] ?? '5432',
         PLUGIN_DOCKER_NETWORK: requiredRunValue('PLUGIN_DOCKER_NETWORK', RUN_HINT),
         PLUGIN_CORE_API_URL:
           process.env['PLUGIN_CORE_API_URL'] ?? 'http://host.docker.internal:3001',
         PLUGIN_RUNTIME_SCOPE: requiredRunValue('PLUGIN_RUNTIME_SCOPE', RUN_HINT),
-        PLUGIN_CREDENTIAL_PEPPER: credentialPepper,
+        PLUGIN_CREDENTIAL_PEPPER: CREDENTIAL_PEPPER,
         APP_URL: 'http://e2e.localhost:3000',
         // Feature tests use isolated proxy IPs, while this high global ceiling
         // prevents unrelated direct API setup calls sharing one CI socket from

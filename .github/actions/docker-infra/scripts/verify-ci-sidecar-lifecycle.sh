@@ -8,6 +8,7 @@ runtime=${CI_RUNTIME_DIR:?CI_RUNTIME_DIR is required}
 script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 root=$(cd -- "$script_dir/../../../.." && pwd)
 source "$script_dir/ci-runtime-path.sh"
+export CI_RUNTIME_SCOPE="$(bash "$script_dir/ci-runtime-scope.sh" "$project")"
 validate_ci_runtime "$project" "$runtime"
 [[ -f "$runtime/admission.env" && -O "$runtime/admission.env" && ! -L "$runtime/admission.env" ]] || {
   echo 'Real sidecar proof requires admitted runner evidence' >&2; exit 1;

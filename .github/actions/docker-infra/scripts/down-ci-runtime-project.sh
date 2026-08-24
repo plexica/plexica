@@ -8,6 +8,7 @@ source "$script_dir/ci-runtime-path.sh"
 root=$(cd -- "$script_dir/../../../.." && pwd)
 validate_ci_runtime "$project" "$runtime"
 scope=$(bash "$script_dir/ci-runtime-scope.sh" "$project")
+export CI_RUNTIME_SCOPE="$scope"
 resources=$(docker ps -aq --filter "label=com.docker.compose.project=$project")
 for id in $resources; do
   [[ $(docker inspect --format '{{index .Config.Labels "com.docker.compose.project"}}' "$id") == "$project" ]] || {

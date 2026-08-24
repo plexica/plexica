@@ -25,17 +25,40 @@ printf 'pid=%s\n' "$$" >&9
 # after release may still overcommit between admission and actual usage.
 # Full guarantee would require cgroup-based reservation, out of scope.
 cpus=$(getconf _NPROCESSORS_ONLN 2>/dev/null) || fail 'Cannot measure online CPUs'
+# Cgroup layouts differ across self-hosted runners: v2 exposes memory.max and
+# memory.current at the root, v1 nests them under memory/, and unconstrained
+# hosts report "max" (v2) or a ~int64-max sentinel (v1) instead of a finite
+# limit — or no controller files at all. Probe v2 first, then v1, then fall
+# back to /proc/meminfo alone; any unbounded or missing limit derives the
+# effective total from MemTotal so unconstrained hosts are admitted on their
+# real memory while every numeric threshold below stays fail-closed.
+memory=$(awk '/^MemTotal:/ {print $2 * 1024; ok = 1} END {exit !ok}' "$meminfo") ||
+  fail 'Cannot read MemTotal from meminfo'
+[[ "$memory" =~ ^[0-9]+$ ]] || fail 'MemTotal is not a byte count'
+limit=''; used=''
 if [[ -r "$cgroup_root/memory.max" ]]; then
-  memory=$(cat "$cgroup_root/memory.max"); used=$(cat "$cgroup_root/memory.current")
+  limit=$(cat "$cgroup_root/memory.max") || fail 'Cannot read cgroup v2 memory limit'
+  used=$(cat "$cgroup_root/memory.current") || fail 'Cannot read cgroup v2 memory usage'
 elif [[ -r "$cgroup_root/memory/memory.limit_in_bytes" ]]; then
-  memory=$(cat "$cgroup_root/memory/memory.limit_in_bytes"); used=$(cat "$cgroup_root/memory/memory.usage_in_bytes")
-else
-  fail 'Cannot read cgroup memory limit and usage'
+  limit=$(cat "$cgroup_root/memory/memory.limit_in_bytes") || fail 'Cannot read cgroup v1 memory limit'
+  used=$(cat "$cgroup_root/memory/memory.usage_in_bytes") || fail 'Cannot read cgroup v1 memory usage'
 fi
-[[ "$memory" != max ]] || fail 'Cgroup memory limit must be finite'
-available=$(awk '/MemAvailable:/ {print $2 * 1024}' "$meminfo") || fail 'Cannot measure memory headroom'
-(( memory > used )) || fail 'Cgroup memory usage exceeds its limit'
-headroom=$(( memory - used )); (( available < headroom )) && headroom=$available
+constrained=0
+if [[ -n "$limit" && "$limit" != max ]]; then
+  [[ "$limit" =~ ^[0-9]+$ ]] || fail 'Cgroup memory limit is not a byte count'
+  [[ "$used" =~ ^[0-9]+$ ]] || fail 'Cgroup memory usage is not a byte count'
+  # awk comparison: v1 sentinels exceed bash int64 range.
+  if awk -v l="$limit" 'BEGIN {exit !(l < 4611686018427387904)}'; then constrained=1; memory=$limit; fi
+fi
+available=$(awk '/^MemAvailable:/ {print $2 * 1024; ok = 1} END {exit !ok}' "$meminfo") ||
+  fail 'Cannot measure memory headroom'
+[[ "$available" =~ ^[0-9]+$ ]] || fail 'MemAvailable is not a byte count'
+headroom=$available
+if (( constrained )); then
+  (( memory > used )) || fail 'Cgroup memory usage exceeds its limit'
+  headroom=$(( memory - used ))
+fi
+(( available < headroom )) && headroom=$available
 docker_root=$(docker info --format '{{.DockerRootDir}}' 2>/dev/null) || fail 'Cannot read Docker root'
 free=$(df -PB1 "$docker_root" | awk 'NR == 2 {print $4}') || fail 'Cannot measure Docker root free space'
 (( cpus >= 4 )) || fail 'Runner requires at least 4 online CPUs'

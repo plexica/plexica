@@ -38,3 +38,31 @@ for (const job of [jobs.find((entry) => entry.startsWith('ci:')), jobs.find((ent
     throw new Error('CI runtime artifacts are not built with the runtime contract enabled');
   }
 }
+// The composite action's default `full` phase must run runner admission before
+// start+wait: a caller omitting `phase` would otherwise bypass the capacity gate.
+const action = await readFile(new URL('../action.yml', import.meta.url), 'utf8');
+const admissionStep = action.slice(action.indexOf('Admit concurrent E2E runner'), action.indexOf('Start project runtime'));
+if (!admissionStep.includes("inputs.phase == 'admission' || inputs.phase == 'full'")) {
+  throw new Error('docker-infra action does not admit runner capacity during the default full phase');
+}
+if (action.indexOf('Start project runtime') < action.indexOf('Admit concurrent E2E runner')) {
+  throw new Error('docker-infra action starts the runtime before admission');
+}
+// No committed PostgreSQL credential may survive: the input is mandatory and
+// every workflow invocation passes a per-run generated password.
+if (!/postgres-password:\n\s+description:[^\n]*\n\s+required: true/.test(action)) {
+  throw new Error('docker-infra action does not require a per-run postgres-password');
+}
+if (/postgres-password:\n\s+default:/.test(action)) {
+  throw new Error('docker-infra action keeps an insecure postgres-password default');
+}
+if (!/POSTGRES_PASSWORD=%s/.test(ci) || !ci.includes('openssl rand -hex 24')) {
+  throw new Error('CI does not generate a per-run PostgreSQL password');
+}
+const runtimeInvocations = ci.split('uses: ./.github/actions/docker-infra').length - 1;
+const passedPasswords = ci.match(/postgres-password: \$\{\{ env\.POSTGRES_PASSWORD \}\}/g)?.length ?? 0;
+if (runtimeInvocations !== 3 || passedPasswords !== 3) {
+  throw new Error(
+    `CI must pass the generated password to all three runtime invocations (${passedPasswords}/${runtimeInvocations})`
+  );
+}

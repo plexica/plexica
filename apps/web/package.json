@@ -11,7 +11,7 @@
     "test:e2e": "bash ../../scripts/run-web-e2e-production.sh full",
     "test:e2e:production": "bash ../../scripts/run-web-e2e-production.sh full",
     "test:e2e:production:focused": "bash ../../scripts/run-web-e2e-production.sh focused",
-    "test": "vitest run"
+    "test": "vitest run --config vitest-config.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "catalog:",

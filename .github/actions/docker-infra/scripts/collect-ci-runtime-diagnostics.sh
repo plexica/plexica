@@ -8,8 +8,9 @@ source "$script_dir/ci-runtime-path.sh"
 validate_ci_runtime "$project" "$runtime"
 output="$runtime/diagnostics"
 umask 077; mkdir -p "$output"; chmod 700 "$output"
-selector=(--filter "label=com.docker.compose.project=$project")
 scope=$(bash "$script_dir/ci-runtime-scope.sh" "$project")
+selector=(--filter "label=com.docker.compose.project=$project" --filter "label=io.plexica.runtime-scope=$scope")
+# Plugin sidecars are created by Dockerode with only the Plexica scope label.
 plugin_selector=(--filter "label=io.plexica.runtime-scope=$scope")
 mapfile -t containers < <({ docker ps -aq "${selector[@]}"; docker ps -aq "${plugin_selector[@]}"; } | sort -u)
 for id in "${containers[@]}"; do
@@ -22,7 +23,9 @@ for id in "${containers[@]}"; do
     [[ "$owner" == "$project" && "$actual_scope" == "$scope" && "$install_id" =~ ^[0-9a-fA-F-]{36}$ && "$network" == "${project}_default" && "$name" == "/$expected_name" ]] || {
       echo 'Refusing foreign plugin sidecar selection' >&2; exit 1;
     }
-  elif [[ "$owner" != "$project" ]]; then
+  elif [[ "$owner" != "$project" || "$actual_scope" != "$scope" ]]; then
+    # A forged com.docker.compose.project label alone proves nothing: every
+    # selected container must also carry this project's runtime-scope label.
     echo 'Refusing foreign container selection' >&2; exit 1;
   fi
 done
@@ -41,9 +44,20 @@ else
 fi
 docker events --since 1h --until now "${selector[@]}" |
   node "$script_dir/sanitize-ci-runtime-diagnostics.mjs" "$runtime/container.env" "$runtime/host.env" > "$output/events.txt"
+# Container logs are captured into a private temp file FIRST: merging stderr
+# with `2>&1 |` straight into the sanitizer can leak raw container output to
+# the job log if the pipeline dies mid-stream. Unsanitized bytes only ever
+# touch the temp file (mode 600 via umask) and are always removed.
 for id in "${containers[@]}"; do
-  docker logs --tail 200 "$id" 2>&1 |
-    node "$script_dir/sanitize-ci-runtime-diagnostics.mjs" "$runtime/container.env" "$runtime/host.env" >> "$output/logs.txt"
+  raw=$(mktemp "$output/logs.raw.XXXXXX")
+  if ! docker logs --tail 200 "$id" >"$raw" 2>&1; then
+    rm -f "$raw"; exit 1
+  fi
+  if ! node "$script_dir/sanitize-ci-runtime-diagnostics.mjs" "$runtime/container.env" "$runtime/host.env" \
+    < "$raw" >> "$output/logs.txt"; then
+    rm -f "$raw"; exit 1
+  fi
+  rm -f "$raw"
 done
 [[ -f "$runtime/admission.env" ]] && cp "$runtime/admission.env" "$output/admission.env"
 node "$script_dir/scan-ci-runtime-diagnostics.mjs" "$output" "$runtime/container.env" "$runtime/host.env"

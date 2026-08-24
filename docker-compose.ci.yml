@@ -1,17 +1,27 @@
 # CI-only overlay. `!override` prevents fixed local bindings from leaking into CI.
+# Every runtime service carries the per-project Plexica scope label so scoped
+# diagnostics/teardown selection can require BOTH the Compose project label and
+# this label — a forged project label alone never selects a container.
 include:
   - path: ./infra/compose/docker-compose.ci-runtime-services.yml
     project_directory: .
 
+x-ci-scope-labels: &ci-scope-labels
+  labels:
+    io.plexica.runtime-scope: ${CI_RUNTIME_SCOPE:?CI runtime scope is required}
+
 services:
   postgres:
+    <<: *ci-scope-labels
     ports: !override ['127.0.0.1::5432']
   keycloak:
+    <<: *ci-scope-labels
     environment:
       KC_HTTP_ENABLED: 'true'
       KC_HOSTNAME_STRICT: 'false'
     ports: !override ['127.0.0.1::8080']
   keycloak-init:
+    <<: *ci-scope-labels
     env_file:
       # Origins are discovered late in the lifecycle; init pre-creates this file
       # empty and the write-infra/write-browser stages populate it before any
@@ -22,11 +32,18 @@ services:
       # (WEB_E2E_PUBLIC_BASE / ADMIN_E2E_PUBLIC_BASE); the reconcile scripts read
       # those directly under the CI runtime contract and fail closed when absent.
       CI_RUNTIME_CONTRACT: '1'
+  keycloak-db-init:
+    <<: *ci-scope-labels
+  redpanda-init:
+    <<: *ci-scope-labels
   redis:
+    <<: *ci-scope-labels
     ports: !override ['127.0.0.1::6379']
   minio:
+    <<: *ci-scope-labels
     ports: !override ['127.0.0.1::9000', '127.0.0.1::9001']
   redpanda:
+    <<: *ci-scope-labels
     command: !override []
     entrypoint: ['/bin/sh', '/ci-entrypoint.sh']
     volumes:
@@ -34,8 +51,11 @@ services:
       - ${CI_RUNTIME_DIR:?CI runtime directory is required}/redpanda-listener.env:/run/plexica-ci/redpanda-listener.env:ro
     ports: !override ['127.0.0.1::19092', '127.0.0.1::9644']
   mailpit:
+    <<: *ci-scope-labels
     ports: !override ['127.0.0.1::1025', '127.0.0.1::8025']
   loki:
+    <<: *ci-scope-labels
     ports: !override ['127.0.0.1::3100']
   grafana:
+    <<: *ci-scope-labels
     ports: !override ['127.0.0.1::3000']

@@ -78,13 +78,29 @@ if command -v docker >/dev/null 2>&1 && docker version >/dev/null 2>&1; then
     fi
   done
   compose_cmd=(docker compose --project-name "$fresh_project" -f "$root/docker-compose.yml" -f "$root/docker-compose.ci.yml")
+  fresh_scope="ci-$(printf '%s' "$fresh_project" | sha256sum | cut -c1-28)"
   render_fresh() {
     env -u WEB_E2E_PUBLIC_BASE -u ADMIN_E2E_PUBLIC_BASE -u KEYCLOAK_PUBLIC_ISSUER_BASE \
-      CI_COMPOSE_PROJECT="$fresh_project" CI_RUNTIME_DIR="$fresh_runtime" "${compose_cmd[@]}" "$@" >/dev/null
+      CI_COMPOSE_PROJECT="$fresh_project" CI_RUNTIME_DIR="$fresh_runtime" \
+      CI_RUNTIME_SCOPE="$fresh_scope" "${compose_cmd[@]}" "$@" >/dev/null
   }
   if ! render_fresh config; then
     echo 'Compose render failed on a fresh runtime directory before discovery' >&2; exit 1
   fi
+  # Scoped-selection contract: every rendered runtime service must carry the
+  # per-project Plexica scope label so diagnostics require BOTH labels.
+  rendered=$(env -u WEB_E2E_PUBLIC_BASE -u ADMIN_E2E_PUBLIC_BASE -u KEYCLOAK_PUBLIC_ISSUER_BASE \
+    CI_COMPOSE_PROJECT="$fresh_project" CI_RUNTIME_DIR="$fresh_runtime" \
+    CI_RUNTIME_SCOPE="$fresh_scope" "${compose_cmd[@]}" config --format json)
+  node -e '
+    const scope = process.argv[1];
+    const services = JSON.parse(process.argv[2]).services;
+    for (const [name, value] of Object.entries(services)) {
+      if ((value.labels ?? {})["io.plexica.runtime-scope"] !== scope) {
+        throw new Error(`Service ${name} does not carry the per-project runtime-scope label`);
+      }
+    }
+  ' "$fresh_scope" "$rendered"
   # Simulate late discovery with stub loopback URLs: the writer populates the env file
   # and the rendered model must embed those values for every consumer service.
   bash "$dir/ci-runtime-env.sh" write-browser-endpoints "$fresh_runtime" \
@@ -92,7 +108,7 @@ if command -v docker >/dev/null 2>&1 && docker version >/dev/null 2>&1; then
     ADMIN_E2E_PUBLIC_BASE http://127.0.0.1:32001 \
     KEYCLOAK_PUBLIC_ISSUER_BASE http://127.0.0.1:32004
   rendered=$(env -u WEB_E2E_PUBLIC_BASE -u ADMIN_E2E_PUBLIC_BASE -u KEYCLOAK_PUBLIC_ISSUER_BASE \
-    CI_COMPOSE_PROJECT="$fresh_project" CI_RUNTIME_DIR="$fresh_runtime" "${compose_cmd[@]}" config --format json)
+    CI_COMPOSE_PROJECT="$fresh_project" CI_RUNTIME_DIR="$fresh_runtime" CI_RUNTIME_SCOPE="$fresh_scope" "${compose_cmd[@]}" config --format json)
   node -e '
     const config = JSON.parse(process.argv[1]);
     const core = config.services["core-api-e2e"].environment ?? {};
@@ -110,7 +126,7 @@ if command -v docker >/dev/null 2>&1 && docker version >/dev/null 2>&1; then
   bash "$dir/ci-runtime-env.sh" write-container "$fresh_runtime" \
     KEYCLOAK_ADMIN_PASSWORD "$comma_password"
   rendered=$(env -u WEB_E2E_PUBLIC_BASE -u ADMIN_E2E_PUBLIC_BASE -u KEYCLOAK_PUBLIC_ISSUER_BASE \
-    CI_COMPOSE_PROJECT="$fresh_project" CI_RUNTIME_DIR="$fresh_runtime" "${compose_cmd[@]}" config --format json)
+    CI_COMPOSE_PROJECT="$fresh_project" CI_RUNTIME_DIR="$fresh_runtime" CI_RUNTIME_SCOPE="$fresh_scope" "${compose_cmd[@]}" config --format json)
   node -e '
     const core = JSON.parse(process.argv[1]).services["core-api-e2e"].environment ?? {};
     if (core.EVENT_KEY_ENCRYPTION_KEY !== "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA") throw new Error("container.env scalar diverged in Compose render");

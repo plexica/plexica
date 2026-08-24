@@ -26,7 +26,7 @@ case "$*" in
 esac
 EOF
 chmod +x "$temp/bin/docker"
-script="$(dirname "$0")/ci-runtime-compose.sh"
+script="$(cd -- "$(dirname -- "$0")" && pwd)/ci-runtime-compose.sh"
 bash "$(dirname "$0")/ci-runtime-keycloak-credentials.sh" "$CI_COMPOSE_PROJECT" "$CI_RUNTIME_DIR"
 set -a; source "$CI_RUNTIME_DIR/keycloak-credentials.env"; set +a
 PATH="$temp/bin:$PATH" bash "$script" write-redpanda
@@ -52,6 +52,14 @@ grep -Fx 'ADMIN_E2E_PUBLIC_BASE=http://127.0.0.1:32008' "$CI_RUNTIME_DIR/browser
 grep -Fx 'KEYCLOAK_PUBLIC_ISSUER_BASE=http://127.0.0.1:32004' "$CI_RUNTIME_DIR/browser-endpoints.env" >/dev/null
 [[ $(stat -c %a "$CI_RUNTIME_DIR/browser-endpoints.env") == 600 ]]
 grep -Fx 'REDPANDA_EXTERNAL_LISTENER=127.0.0.1:32005' "$CI_RUNTIME_DIR/redpanda-listener.env" >/dev/null
+# Helper resolution must not depend on the invoking working directory: the
+# contract helper is resolved from the script's own location (BASH_SOURCE),
+# so write-infra succeeds from anywhere (regression: it once resolved a
+# nonexistent .github/scripts/ci-runtime-env.sh when launched from elsewhere).
+for cwd in / /tmp "$PWD"; do
+  ( cd -- "$cwd" && PATH="$temp/bin:$PATH" bash "$script" write-infra )
+done
+grep -Fx 'POSTGRES_HOST_URL=postgresql://plexica:changeme@127.0.0.1:32001/plexica' "$CI_RUNTIME_DIR/host.env" >/dev/null
 cat > "$temp/bin/docker" <<'EOF'
 #!/usr/bin/env bash
 case "$*" in

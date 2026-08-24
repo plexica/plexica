@@ -6,6 +6,7 @@ runtime=${CI_RUNTIME_DIR:?CI_RUNTIME_DIR is required}
 script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 root=$(cd -- "$script_dir/../../../.." && pwd)
 source "$script_dir/ci-runtime-path.sh"
+export CI_RUNTIME_SCOPE="$(bash "$script_dir/ci-runtime-scope.sh" "$project")"
 validate_ci_runtime "$project" "$runtime"
 compose=(docker compose --project-name "$project" -f "$root/docker-compose.yml" -f "$root/docker-compose.ci.yml")
 container=$("${compose[@]}" ps -q redpanda)

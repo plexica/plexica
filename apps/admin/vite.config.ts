@@ -5,9 +5,9 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
-const ciRuntime = process.env.CI_RUNTIME_CONTRACT === '1';
-const apiProxy = {
-  target: ciRuntime
+const CI_RUNTIME = process.env.CI_RUNTIME_CONTRACT === '1';
+const API_PROXY = {
+  target: CI_RUNTIME
     ? process.env.E2E_CORE_API_PROXY_TARGET === 'http://core-api-e2e:3001'
       ? process.env.E2E_CORE_API_PROXY_TARGET
       : (() => { throw new Error('CI requires the exact DNS-only Core proxy target'); })()
@@ -16,19 +16,19 @@ const apiProxy = {
 };
 
 export default defineConfig({
-  define: { __PLEXICA_CI_RUNTIME_CONTRACT__: JSON.stringify(ciRuntime) },
+  define: { __PLEXICA_CI_RUNTIME_CONTRACT__: JSON.stringify(CI_RUNTIME) },
   plugins: [react()],
   server: {
     port: 3002,
     strictPort: true,
-    ...(ciRuntime ? { host: '0.0.0.0' } : {}),
-    proxy: { '/api': apiProxy },
+    ...(CI_RUNTIME ? { host: '0.0.0.0' } : {}),
+    proxy: { '/api': API_PROXY },
   },
   preview: {
     port: 3002,
     strictPort: true,
-    ...(ciRuntime ? { host: '0.0.0.0' } : {}),
-    proxy: { '/api': apiProxy },
+    ...(CI_RUNTIME ? { host: '0.0.0.0' } : {}),
+    proxy: { '/api': API_PROXY },
   },
   build: {
     target: 'ES2022',
