@@ -19,6 +19,23 @@ endpoint() {
   }
   printf 'http://%s\n' "$value"
 }
+# Dynamic host ports are allocated at container START, not create, so a
+# freshly created container has no resolvable mapping yet. Retry bounded
+# until compose reports a strict loopback binding.
+endpoint_when_allocated() {
+  local service="$1" port="$2" value
+  local attempts=${CI_RUNTIME_PORT_ATTEMPTS:-30} interval=${CI_RUNTIME_PORT_INTERVAL_SECONDS:-2} attempt
+  for ((attempt = 1; attempt <= attempts; attempt++)); do
+    value=$("${compose[@]}" port "$service" "$port" 2>/dev/null || true)
+    if [[ "$value" =~ ^127\.0\.0\.1:[1-9][0-9]*$ ]]; then
+      printf 'http://%s\n' "$value"
+      return 0
+    fi
+    sleep "$interval"
+  done
+  printf 'Timed out resolving %s dynamic port %s after %s attempts\n' "$service" "$port" "$attempts" >&2
+  return 1
+}
 write_host() { bash "$contract" write-host "$runtime" "$1" "$2"; }
 write_container() { bash "$contract" write-container "$runtime" "$1" "$2"; }
 write_infra() {
@@ -41,13 +58,28 @@ write_infra() {
 }
 write_redpanda() {
   local external temp
-  external=$(endpoint redpanda 19092); external=${external#http://}
-  # Atomic tmp+mv: the env_file is bind-mounted read-only into redpanda, so
-  # readers must never observe a truncated or half-written listener file.
+  external=$(endpoint_when_allocated redpanda 19092); external=${external#http://}
+  # Single-file bind mounts pin the inode at container creation: an atomic
+  # tmp+mv swap would leave the parked redpanda entrypoint reading the stale
+  # (empty) inode forever. The staged content is therefore rewritten IN PLACE;
+  # the gated entrypoint tolerates transiently incomplete content by parking.
+  # Mode 0644: the file carries only a loopback host:port mapping (no
+  # credentials), and the sidecar's non-root runtime user must read it.
   temp=$(mktemp "$runtime/redpanda-listener.env.XXXXXX")
   printf 'REDPANDA_EXTERNAL_LISTENER=%q\n' "$external" > "$temp"
-  chmod 600 "$temp"; mv "$temp" "$runtime/redpanda-listener.env"
+  cat -- "$temp" > "$runtime/redpanda-listener.env"
+  rm -f "$temp"
+  chmod 644 "$runtime/redpanda-listener.env"
   write_host KAFKA_BROKERS "$external"
+}
+# Redpanda ordering contract: create, then START (Docker allocates the
+# published host port at start; the gated entrypoint parks before launching
+# the broker process), then resolve the dynamic mapping and write the
+# listener env_file it consumes, and only afterwards health-wait it.
+stage_redpanda() {
+  "${compose[@]}" create redpanda
+  "${compose[@]}" start redpanda
+  write_redpanda
 }
 write_core() { bash "$contract" write-host-set "$runtime" CORE_API_PUBLIC_BASE "$(endpoint core-api-e2e 3001)"; }
 write_browser() {
@@ -63,7 +95,8 @@ write_browser() {
 case "${1:-}" in
   write-infra) write_infra ;;
   write-redpanda) write_redpanda ;;
+  stage-redpanda) stage_redpanda ;;
   write-core) write_core ;;
   write-browser) write_browser ;;
-  *) printf 'Usage: ci-runtime-compose.sh write-infra|write-redpanda|write-core|write-browser\n' >&2; exit 1 ;;
+  *) printf 'Usage: ci-runtime-compose.sh write-infra|write-redpanda|stage-redpanda|write-core|write-browser\n' >&2; exit 1 ;;
 esac

@@ -41,7 +41,13 @@ export function pluginContainerIdentity(
       'io.plexica.installation': installId,
       'io.plexica.runtime-scope': scope,
       ...(config.CI_RUNTIME_CONTRACT === '1'
-        ? { 'com.docker.compose.project': config.CI_RUNTIME_PROJECT ?? '' }
+        ? {
+            // Dockerode-created sidecars carry no compose-managed metadata,
+            // so ownership must be stamped explicitly for teardown/diagnostic
+            // selectors (com.docker.compose.project is kept for parity).
+            'io.plexica.runtime-project': config.CI_RUNTIME_PROJECT ?? '',
+            'com.docker.compose.project': config.CI_RUNTIME_PROJECT ?? '',
+          }
         : {}),
     },
   };

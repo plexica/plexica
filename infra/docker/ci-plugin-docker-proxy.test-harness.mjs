@@ -29,10 +29,10 @@ const daemon = createServer(async (incoming, outgoing) => {
     outgoing.end(
       JSON.stringify({
         Name: `/${name}`,
-        Config: {
-           Labels: { 'io.plexica.installation': installId, 'io.plexica.runtime-scope': foreign ? 'foreign' : scope, 'com.docker.compose.project': project },
-          Env: malformed ? ['CORE_API_URL=http://host.docker.internal:3001'] : [],
-        },
+         Config: {
+            Labels: { 'io.plexica.installation': installId, 'io.plexica.runtime-scope': foreign ? 'foreign' : scope, 'io.plexica.runtime-project': project, 'com.docker.compose.project': project },
+           Env: malformed ? ['CORE_API_URL=http://host.docker.internal:3001'] : [],
+         },
          HostConfig: { Binds: ['/etc/ssl/certs/ca-certificates.crt:/tmp/plexica-postgres-ca.crt:ro'], PortBindings: malformed ? { '3000/tcp': [{ HostPort: '32000' }] } : {} },
         NetworkSettings: {
           Ports: { '3000/tcp': malformed ? [{ HostPort: '32000' }] : null },

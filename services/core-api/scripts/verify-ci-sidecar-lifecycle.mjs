@@ -33,6 +33,8 @@ try {
     inspect.Config.Labels?.['io.plexica.runtime-scope'] !==
       identity.labels['io.plexica.runtime-scope'] ||
     inspect.Config.Labels?.['io.plexica.installation'] !== installId ||
+    inspect.Config.Labels?.['io.plexica.runtime-project'] !==
+      identity.labels['io.plexica.runtime-project'] ||
     inspect.Config.Labels?.['com.docker.compose.project'] !==
       identity.labels['com.docker.compose.project'] ||
     Object.keys(inspect.Config.Labels ?? {}).length !== Object.keys(identity.labels).length ||

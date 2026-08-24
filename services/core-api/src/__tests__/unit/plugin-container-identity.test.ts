@@ -54,6 +54,19 @@ describe('plugin CI container identity', () => {
       ).toThrow('CI plugin scope and network must match the immutable project ID');
     });
 
+    it('stamps an explicit runtime-project ownership label for teardown selectors', () => {
+      const identity = pluginContainerIdentity(INSTALL_ID);
+      expect(identity.labels['io.plexica.runtime-project']).toBe(PROJECT);
+      expect(identity.labels['com.docker.compose.project']).toBe(PROJECT);
+    });
+
+    it('omits ownership labels outside the CI runtime contract', () => {
+      state.env = {};
+      const identity = pluginContainerIdentity(INSTALL_ID, 'local', 'local_default');
+      expect(identity.labels['io.plexica.runtime-project']).toBeUndefined();
+      expect(identity.labels['com.docker.compose.project']).toBeUndefined();
+    });
+
     it('rejects a runtime scope that is not a bounded DNS label', () => {
       expect(() => pluginContainerIdentity(INSTALL_ID, 'Bad_Scope!', `${PROJECT}_default`)).toThrow(
         'Plugin runtime scope must be a bounded DNS label'

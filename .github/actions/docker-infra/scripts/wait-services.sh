@@ -12,14 +12,15 @@ validate_ci_runtime "$project" "$runtime"
 bash "$script_dir/ci-runtime-keycloak-credentials.sh" "$project" "$runtime"
 set -a; source "$runtime/keycloak-credentials.env"; set +a
 
-# Redpanda ordering: create its container first, then inspect the port
-# mapping and write the listener contract it requires, and only then start
-# and wait for health. Starting (or up --wait) redpanda before its gated
-# entrypoint finds redpanda-listener.env blocks forever until the wait
-# timeout expires.
+# Redpanda ordering: create + START first (Docker allocates the dynamic host
+# port at container start; the gated entrypoint parks before launching the
+# broker process), then resolve the mapping, write the listener contract it
+# requires, and only then health-wait. Resolving `docker compose port` on a
+# created-but-not-started container fails ("service is not running"), and
+# up --wait redpanda before its gated entrypoint finds redpanda-listener.env
+# blocks forever until the wait timeout expires.
 "${compose[@]}" up -d --wait --wait-timeout 300 postgres redis minio keycloak mailpit loki
-"${compose[@]}" create redpanda
-bash "$script_dir/ci-runtime-compose.sh" write-redpanda
+bash "$script_dir/ci-runtime-compose.sh" stage-redpanda
 "${compose[@]}" up -d --wait --wait-timeout 300 redpanda
 "${compose[@]}" up -d redpanda-init
 for service in redpanda-init; do

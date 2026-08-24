@@ -41,6 +41,7 @@ describe('CI plugin container contract', () => {
     ['host gateway', (value: ContainerFixture) => { value.HostConfig.ExtraHosts = ['host.docker.internal:host-gateway']; }],
     ['foreign scope', (value: ContainerFixture) => { value.Config.Labels['io.plexica.runtime-scope'] = 'foreign'; }],
     ['foreign project with the same scope', (value: ContainerFixture) => { value.Config.Labels['com.docker.compose.project'] = 'plexica-ci-foreign-123456'; }],
+    ['forged runtime-project ownership label', (value: ContainerFixture) => { value.Config.Labels['io.plexica.runtime-project'] = 'plexica-ci-foreign-123456'; }],
     ['forged extra label', (value: ContainerFixture) => { value.Config.Labels['io.plexica.forged'] = 'true'; }],
   ])('rejects %s before lifecycle operations', (_name, mutate) => {
     const value = inspected();

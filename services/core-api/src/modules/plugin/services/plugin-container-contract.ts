@@ -54,6 +54,7 @@ export function assertCiPluginContainer(
   if (
     labels['io.plexica.runtime-scope'] !== identity.labels['io.plexica.runtime-scope'] ||
     labels['io.plexica.installation'] !== identity.labels['io.plexica.installation'] ||
+    labels['io.plexica.runtime-project'] !== identity.labels['io.plexica.runtime-project'] ||
     labels['com.docker.compose.project'] !== identity.labels['com.docker.compose.project'] ||
     Object.keys(labels).length !== Object.keys(identity.labels).length ||
     Object.keys(inspect.HostConfig.PortBindings ?? {}).length > 0 ||

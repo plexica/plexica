@@ -16,6 +16,6 @@ bash "$script_dir/verify-ci-compose-render.sh" "$project"
 bash "$script_dir/verify-ci-runtime-artifacts.sh"
 "${compose[@]}" create postgres redis minio keycloak mailpit loki
 "${compose[@]}" start postgres redis minio keycloak mailpit loki
-"${compose[@]}" create redpanda
-bash "$script_dir/ci-runtime-compose.sh" write-redpanda
-"${compose[@]}" start redpanda
+# stage-redpanda: create, START (host port is allocated at start), then
+# resolve the dynamic mapping and write the gated entrypoint's listener file.
+bash "$script_dir/ci-runtime-compose.sh" stage-redpanda

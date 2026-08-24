@@ -74,3 +74,51 @@ fi
 grep -q 'only a strict 127.0.0.1:<port> loopback is accepted, localhost is rejected' "$temp/endpoint.err" || {
   echo 'Endpoint rejection did not explain the strict loopback contract' >&2; exit 1;
 }
+
+# Redpanda staging contract: dynamic host ports are allocated at container
+# START, so stage-redpanda must create -> start -> resolve/write, never
+# resolving the mapping before the container has been started.
+cat > "$temp/bin/docker" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$COMMAND_LOG"
+case "$*" in
+  *' create redpanda'|*' start redpanda') : ;;
+  *' port redpanda 19092')
+    while IFS= read -r line; do
+      if [[ "$line" == *' start redpanda' ]]; then printf '127.0.0.1:32005\n'; exit 0; fi
+    done < "$COMMAND_LOG"
+    echo 'service "redpanda" is not running' >&2; exit 1 ;;
+  *) exit 1 ;;
+esac
+EOF
+chmod +x "$temp/bin/docker"
+rm -f "$CI_RUNTIME_DIR/redpanda-listener.env"
+PATH="$temp/bin:$PATH" COMMAND_LOG="$temp/stage.log" bash "$script" stage-redpanda
+grep -Fx 'REDPANDA_EXTERNAL_LISTENER=127.0.0.1:32005' "$CI_RUNTIME_DIR/redpanda-listener.env" >/dev/null
+node -e '
+const lines = require("node:fs").readFileSync(process.argv[1], "utf8").trim().split("\n");
+const indexOf = (pattern) => { for (let i = 0; i < lines.length; i++) if (lines[i].endsWith(pattern)) return i; return -1; };
+const created = indexOf(" create redpanda"), started = indexOf(" start redpanda");
+let resolved = -1;
+for (let i = 0; i < lines.length; i++) if (lines[i].endsWith(" port redpanda 19092")) { resolved = i; break; }
+if (created < 0 || started < 0 || resolved < 0 || !(created < started && started < resolved)) process.exit(1);
+' "$temp/stage.log"
+# Exhausted retries must fail closed instead of writing a bogus contract.
+rm -f "$CI_RUNTIME_DIR/redpanda-listener.env"
+cat > "$temp/bin/docker" <<'EOF'
+#!/usr/bin/env bash
+case "$*" in
+  *' create redpanda'|*' start redpanda') : ;;
+  *) echo 'service "redpanda" is not running' >&2; exit 1 ;;
+esac
+EOF
+chmod +x "$temp/bin/docker"
+if CI_RUNTIME_PORT_ATTEMPTS=2 CI_RUNTIME_PORT_INTERVAL_SECONDS=0 PATH="$temp/bin:$PATH" bash "$script" stage-redpanda 2>"$temp/stage.err"; then
+  echo 'stage-redpanda accepted an unresolvable dynamic mapping' >&2; exit 1
+fi
+grep -q 'Timed out resolving redpanda dynamic port 19092' "$temp/stage.err" || {
+  echo 'Retry exhaustion did not report the unresolved mapping' >&2; exit 1;
+}
+[[ ! -e "$CI_RUNTIME_DIR/redpanda-listener.env" ]] || {
+  echo 'Failed staging wrote a redpanda listener contract' >&2; exit 1;
+}

@@ -17,14 +17,24 @@ for id in $resources; do
 done
 sidecars=$(docker ps -aq --filter "label=io.plexica.runtime-scope=$scope")
 for id in $sidecars; do
-  labels=$(docker inspect --format '{{index .Config.Labels "com.docker.compose.project"}} {{index .Config.Labels "io.plexica.runtime-scope"}} {{index .Config.Labels "io.plexica.installation"}}' "$id")
-  read -r owner actual_scope install_id <<< "$labels"
-  network=$(docker inspect --format '{{range $name, $_ := .NetworkSettings.Networks}}{{$name}}{{end}}' "$id")
-  expected_name="plexica-plugin-${scope}-$(printf '%s' "$install_id" | sha256sum | cut -c1-16)"
-  name=$(docker inspect --format '{{.Name}}' "$id")
-  [[ "$owner" == "$project" && "$actual_scope" == "$scope" && "$install_id" =~ ^[0-9a-fA-F-]{36}$ && "$network" == "${project}_default" && "$name" == "/$expected_name" ]] || {
-    echo 'Refusing foreign plugin sidecar selection' >&2; exit 1;
-  }
+  # Plugin sidecars are created through the Docker control proxy and prove
+  # ownership via the explicit io.plexica.runtime-project label stamped by
+  # the identity/payload path (no compose-managed metadata required).
+  # Compose-managed services also carry the scope label and keep proving
+  # ownership via their Compose project label. Comma delimiters (not spaces)
+  # keep empty label fields positionally intact.
+  labels=$(docker inspect --format '{{index .Config.Labels "com.docker.compose.project"}},{{index .Config.Labels "io.plexica.runtime-project"}},{{index .Config.Labels "io.plexica.installation"}}' "$id")
+  IFS=, read -r compose_owner owner install_id <<< "$labels"
+  if [[ -n "$install_id" ]]; then
+    network=$(docker inspect --format '{{range $name, $_ := .NetworkSettings.Networks}}{{$name}}{{end}}' "$id")
+    expected_name="plexica-plugin-${scope}-$(printf '%s' "$install_id" | sha256sum | cut -c1-16)"
+    name=$(docker inspect --format '{{.Name}}' "$id")
+    [[ "$owner" == "$project" && "$install_id" =~ ^[0-9a-fA-F-]{36}$ && "$network" == "${project}_default" && "$name" == "/$expected_name" ]] || {
+      echo 'Refusing foreign plugin sidecar selection' >&2; exit 1;
+    }
+  elif [[ "$compose_owner" != "$project" ]]; then
+    echo 'Refusing foreign container selection' >&2; exit 1;
+  fi
 done
 # mapfile (not `read -a`): docker ps -aq emits one ID per line and read would
 # only capture the first sidecar, leaking the rest on teardown.

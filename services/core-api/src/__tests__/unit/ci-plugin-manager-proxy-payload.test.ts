@@ -67,6 +67,7 @@ describe('CI manager-to-proxy create payload', () => {
       Labels: {
         'io.plexica.installation': installId,
         'io.plexica.runtime-scope': scope,
+        'io.plexica.runtime-project': project,
         'com.docker.compose.project': project,
       },
       HostConfig: {

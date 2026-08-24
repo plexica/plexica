@@ -14,9 +14,14 @@ selector=(--filter "label=com.docker.compose.project=$project" --filter "label=i
 plugin_selector=(--filter "label=io.plexica.runtime-scope=$scope")
 mapfile -t containers < <({ docker ps -aq "${selector[@]}"; docker ps -aq "${plugin_selector[@]}"; } | sort -u)
 for id in "${containers[@]}"; do
-  labels=$(docker inspect --format '{{index .Config.Labels "com.docker.compose.project"}} {{index .Config.Labels "io.plexica.runtime-scope"}} {{index .Config.Labels "io.plexica.installation"}}' "$id")
-  read -r owner actual_scope install_id <<< "$labels"
+  # Sidecar ownership is proven by the explicit io.plexica.runtime-project
+  # label stamped by the proxy payload path; compose-managed resources keep
+  # requiring the Compose project label. Comma delimiters (not spaces) keep
+  # empty label fields positionally intact through read.
+  labels=$(docker inspect --format '{{index .Config.Labels "com.docker.compose.project"}},{{index .Config.Labels "io.plexica.runtime-project"}},{{index .Config.Labels "io.plexica.runtime-scope"}},{{index .Config.Labels "io.plexica.installation"}}' "$id")
+  IFS=, read -r owner runtime_owner actual_scope install_id <<< "$labels"
   if [[ -n "$install_id" ]]; then
+    owner=$runtime_owner
     network=$(docker inspect --format '{{range $name, $_ := .NetworkSettings.Networks}}{{$name}}{{end}}' "$id")
     expected_name="plexica-plugin-${scope}-$(printf '%s' "$install_id" | sha256sum | cut -c1-16)"
     name=$(docker inspect --format '{{.Name}}' "$id")
@@ -42,7 +47,10 @@ else
   done | node "$script_dir/sanitize-ci-runtime-diagnostics.mjs" "$runtime/container.env" "$runtime/host.env" \
     > "$output/port-sentinel.txt"
 fi
-docker events --since 1h --until now "${selector[@]}" |
+# Docker's time parser accepts Unix/RFC3339 timestamps or Go durations but
+# NOT the bare word "now" ("failed to parse value as time or duration"),
+# so the upper bound must be a concrete UTC timestamp.
+docker events --since 1h --until "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "${selector[@]}" |
   node "$script_dir/sanitize-ci-runtime-diagnostics.mjs" "$runtime/container.env" "$runtime/host.env" > "$output/events.txt"
 # Container logs are captured into a private temp file FIRST: merging stderr
 # with `2>&1 |` straight into the sanitizer can leak raw container output to

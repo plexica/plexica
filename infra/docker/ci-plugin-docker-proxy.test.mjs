@@ -20,7 +20,7 @@ try {
     Image: pinnedImage,
     Env: ['CORE_API_URL=http://core-api-e2e:3001'],
     ExposedPorts: { '3000/tcp': {} },
-    Labels: { 'io.plexica.installation': installId, 'io.plexica.runtime-scope': scope, 'com.docker.compose.project': project },
+    Labels: { 'io.plexica.installation': installId, 'io.plexica.runtime-scope': scope, 'io.plexica.runtime-project': project, 'com.docker.compose.project': project },
     HostConfig: {
       Binds: ['/etc/ssl/certs/ca-certificates.crt:/tmp/plexica-postgres-ca.crt:ro'],
       NetworkMode: `${project}_default`,
@@ -61,6 +61,11 @@ try {
   for (const labels of [
     { 'io.plexica.installation': installId, 'io.plexica.runtime-scope': scope },
     { 'io.plexica.installation': installId, 'io.plexica.runtime-scope': scope, 'com.docker.compose.project': 'plexica-ci-foreign-123456' },
+    // The explicit ownership label is mandatory: payloads missing it (the
+    // exact shape that broke teardown/diagnostics sidecar selection) or
+    // forging a foreign project value must be rejected by the proxy.
+    { 'io.plexica.installation': installId, 'io.plexica.runtime-scope': scope, 'com.docker.compose.project': project },
+    { 'io.plexica.installation': installId, 'io.plexica.runtime-scope': scope, 'io.plexica.runtime-project': 'plexica-ci-foreign-123456', 'com.docker.compose.project': project },
   ]) {
     const forged = JSON.parse(create);
     forged.Labels = labels;

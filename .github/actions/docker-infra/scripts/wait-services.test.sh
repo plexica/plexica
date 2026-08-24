@@ -11,6 +11,7 @@ export PLUGIN_CREDENTIAL_PEPPER=0123456789abcdef0123456789abcdef
 export CI_RUNTIME_DIR="$(bash "$dir/ci-runtime-env.sh" init "$CI_COMPOSE_PROJECT")"
 cat > "$temp/bin/docker" <<'EOF'
 #!/usr/bin/env bash
+printf '%s\n' "$*" >> "$DOCKER_LOG"
 case "$*" in
   *' port postgres 5432'*) printf '127.0.0.1:32001\n' ;;
   *' port redis 6379'*) printf '127.0.0.1:32002\n' ;;
@@ -58,9 +59,22 @@ chmod +x "$temp/bin/"*
 if CI_RUNTIME_DIR="$CI_RUNTIME_DIR" bash -c 'source "$0"' "$dir/source-ci-runtime-host.sh"; then
   echo 'Complete host contract was available before Core and browser inspection' >&2; exit 1
 fi
-PATH="$temp/bin:$PATH" COMMAND_LOG="$temp/commands" bash "$dir/wait-services.sh"
+PATH="$temp/bin:$PATH" COMMAND_LOG="$temp/commands" DOCKER_LOG="$temp/docker-commands" bash "$dir/wait-services.sh"
 CI_RUNTIME_DIR="$CI_RUNTIME_DIR" bash -c 'source "$0"' "$dir/source-ci-runtime-host.sh"
 grep -Fx -- '--publish-only' "$temp/commands.lifecycle" >/dev/null
+# Redpanda ordering proof: the dynamic port may only be resolved AFTER the
+# container was created and started, and the health wait comes last.
+node -e '
+const lines = require("node:fs").readFileSync(process.argv[1], "utf8").trim().split("\n");
+const indexOf = (pattern) => { for (let i = 0; i < lines.length; i++) if (lines[i].endsWith(pattern)) return i; return -1; };
+let resolved = -1, waited = -1;
+for (let i = 0; i < lines.length; i++) {
+  if (resolved < 0 && lines[i].endsWith(" port redpanda 19092")) resolved = i;
+  if (waited < 0 && lines[i].includes(" up ") && lines[i].includes("--wait") && lines[i].endsWith(" redpanda")) waited = i;
+}
+const created = indexOf(" create redpanda"), started = indexOf(" start redpanda");
+if ([created, started, resolved, waited].includes(-1) || !(created < started && started < resolved && resolved < waited)) process.exit(1);
+' "$temp/docker-commands"
 node -e '
 const lines=require("node:fs").readFileSync(process.argv[1],"utf8").trim().split("\n");
 const expected="postgresql://plexica:changeme@127.0.0.1:32001/plexica|http://127.0.0.1:32004|redis://127.0.0.1:32002|http://127.0.0.1:32003|127.0.0.1:32005";
@@ -78,6 +92,7 @@ if [[ "$*" == *runtime-config.js ]]; then printf 'window.__PLEXICA_RUNTIME_CONFI
 EOF
 cat > "$temp/bin/docker" <<'EOF'
 #!/usr/bin/env bash
+printf '%s\n' "$*" >> "$DOCKER_LOG"
 case "$*" in
   *' port web-e2e 3000'*) printf '127.0.0.1:39999\n' ;;
   *' port postgres 5432'*) printf '127.0.0.1:32001\n' ;;
@@ -105,9 +120,18 @@ EOF
 chmod +x "$temp/bin/curl" "$temp/bin/docker"
 : > "$temp/commands-refused"; : > "$temp/curls-refused"
 export CI_RUNTIME_HEALTH_TIMEOUT_SECONDS=2 CI_RUNTIME_HEALTH_INTERVAL_SECONDS=1
-if PATH="$temp/bin:$PATH" COMMAND_LOG="$temp/commands-refused" CURL_LOG="$temp/curls-refused" bash "$dir/wait-services.sh"; then
+if PATH="$temp/bin:$PATH" COMMAND_LOG="$temp/commands-refused" CURL_LOG="$temp/curls-refused" DOCKER_LOG="$temp/docker-commands-refused" bash "$dir/wait-services.sh"; then
   echo 'Readiness gate accepted a stale web public-base mapping' >&2; exit 1
 fi
+# The refusal path must still honor the redpanda start-before-resolve order.
+node -e '
+const lines = require("node:fs").readFileSync(process.argv[1], "utf8").trim().split("\n");
+const indexOf = (pattern) => { for (let i = 0; i < lines.length; i++) if (lines[i].endsWith(pattern)) return i; return -1; };
+const created = indexOf(" create redpanda"), started = indexOf(" start redpanda");
+let resolved = -1;
+for (let i = 0; i < lines.length; i++) if (lines[i].endsWith(" port redpanda 19092")) { resolved = i; break; }
+if ([created, started, resolved].includes(-1) || !(created < started && started < resolved)) process.exit(1);
+' "$temp/docker-commands-refused"
 grep -F 'WEB_E2E_PUBLIC_BASE=http://127.0.0.1:39999' "$CI_RUNTIME_DIR/host.env" >/dev/null
 grep -F 'http://127.0.0.1:39999' "$temp/curls-refused" >/dev/null
 if grep -qi 'playwright' "$temp/commands-refused" >/dev/null; then
