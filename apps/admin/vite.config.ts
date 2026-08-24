@@ -16,6 +16,7 @@ const apiProxy = {
 };
 
 export default defineConfig({
+  define: { __PLEXICA_CI_RUNTIME_CONTRACT__: JSON.stringify(ciRuntime) },
   plugins: [react()],
   server: {
     port: 3002,

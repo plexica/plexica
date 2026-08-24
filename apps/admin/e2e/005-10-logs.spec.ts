@@ -3,13 +3,17 @@
 // timestamp, level, tenant, message. The core HTTP path emits through its real
 // Pino transport; the test reads only through the admin API.
 
+import { coreApiUrl, isCiRuntimeContract, requiredRunValue } from '../../../e2e/playwright-base.js';
+
 import { expect, test } from './helpers/base-fixture.js';
 import { loginAsAdmin, requireKeycloakInCI } from './helpers/admin-login.js';
 import { adminApi } from './helpers/api-client.js';
 
 const E2E_TENANT_SLUG = process.env['PLAYWRIGHT_ADMIN_E2E_TENANT_SLUG'] ?? 'e2e-admin';
-const CORE_API_URL = process.env['PLAYWRIGHT_CORE_API_URL'] ?? 'http://localhost:3001';
-const LOKI_URL = process.env['PLAYWRIGHT_LOKI_URL'] ?? 'http://localhost:3100';
+const CORE_API_URL = coreApiUrl();
+const LOKI_URL = isCiRuntimeContract()
+  ? requiredRunValue('PLAYWRIGHT_LOKI_URL', 'CI runtime requires the manifest-derived Loki URL.')
+  : process.env['PLAYWRIGHT_LOKI_URL'] ?? 'http://localhost:3100';
 const EXPECTED_MESSAGE = 'Tenant resolved';
 
 async function isLokiReady(): Promise<boolean> {

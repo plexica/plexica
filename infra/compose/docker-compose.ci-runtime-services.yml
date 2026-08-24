@@ -3,16 +3,30 @@ services:
   core-api-e2e:
     image: node:24-bookworm@sha256:934240a162082fd8b8a2f90cd5114446443f1eba1c5378f6687167ca405e6584
     working_dir: /workspace
-    command: pnpm --filter core-api start
-    env_file: ${CI_RUNTIME_DIR:?CI runtime directory is required}/container.env
+    command: >-
+      sh -c 'corepack enable && corepack prepare pnpm@10.33.0 --activate &&
+      exec pnpm --filter core-api start'
+    env_file:
+      # Daemon performs pulls: host-loopback registry ref fine for string-passing consumers.
+      - ${CI_RUNTIME_DIR:?CI runtime directory is required}/sidecar-images.env
+      - ${CI_RUNTIME_DIR:?CI runtime directory is required}/container.env
+      # Issuer is discovered at write-infra time; init pre-creates this file empty.
+      - ${CI_RUNTIME_DIR:?CI runtime directory is required}/browser-endpoints.env
     environment:
       CI_RUNTIME_CONTRACT: '1'
+      NODE_ENV: production
+      CI_RUNTIME_PROJECT: ${CI_COMPOSE_PROJECT:?CI project is required}
       PORT: '3001'
-      KEYCLOAK_PUBLIC_ISSUER_BASE: ${KEYCLOAK_PUBLIC_ISSUER_BASE:-}
+      KEYCLOAK_URL: http://keycloak:8080
       KEYCLOAK_CONTAINER_ADMIN_JWKS_BASE: http://keycloak:8080
       PLUGIN_CORE_API_URL: http://core-api-e2e:3001
+      PLUGIN_DOCKER_HOST: http://plugin-docker-proxy:2375
+      PLUGIN_SIDECAR_IMAGE: node:24-bookworm@sha256:934240a162082fd8b8a2f90cd5114446443f1eba1c5378f6687167ca405e6584
     volumes:
       - .:/workspace:ro
+    networks:
+      default:
+      plugin-docker-control:
     ports:
       - 127.0.0.1::3001
     depends_on:
@@ -22,17 +36,21 @@ services:
         condition: service_healthy
       redpanda:
         condition: service_healthy
+      plugin-docker-proxy:
+        condition: service_started
 
   web-e2e:
     image: node:24-bookworm@sha256:934240a162082fd8b8a2f90cd5114446443f1eba1c5378f6687167ca405e6584
     working_dir: /workspace
-    command: pnpm --filter web preview --host 0.0.0.0
+    command: >-
+      sh -c 'corepack enable && corepack prepare pnpm@10.33.0 --activate &&
+      exec pnpm --filter web preview'
     environment:
       CI_RUNTIME_CONTRACT: '1'
       E2E_CORE_API_PROXY_TARGET: http://core-api-e2e:3001
     volumes:
       - .:/workspace:ro
-      - ${CI_RUNTIME_DIR:?CI runtime directory is required}/runtime-config.js:/workspace/apps/web/public/runtime-config.js:ro
+      - ${CI_RUNTIME_DIR:?CI runtime directory is required}/runtime-config.js:/workspace/apps/web/dist/runtime-config.js:ro
     ports:
       - 127.0.0.1::3000
     depends_on:
@@ -42,15 +60,37 @@ services:
   admin-e2e:
     image: node:24-bookworm@sha256:934240a162082fd8b8a2f90cd5114446443f1eba1c5378f6687167ca405e6584
     working_dir: /workspace
-    command: pnpm --filter @plexica/admin preview --host 0.0.0.0
+    command: >-
+      sh -c 'corepack enable && corepack prepare pnpm@10.33.0 --activate &&
+      exec pnpm --filter @plexica/admin preview'
     environment:
       CI_RUNTIME_CONTRACT: '1'
       E2E_CORE_API_PROXY_TARGET: http://core-api-e2e:3001
     volumes:
       - .:/workspace:ro
-      - ${CI_RUNTIME_DIR:?CI runtime directory is required}/runtime-config.js:/workspace/apps/admin/public/runtime-config.js:ro
+      - ${CI_RUNTIME_DIR:?CI runtime directory is required}/runtime-config.js:/workspace/apps/admin/dist/runtime-config.js:ro
     ports:
       - 127.0.0.1::3002
     depends_on:
       core-api-e2e:
         condition: service_started
+
+  plugin-docker-proxy:
+    image: node:24-bookworm@sha256:934240a162082fd8b8a2f90cd5114446443f1eba1c5378f6687167ca405e6584
+    command: node /workspace/infra/docker/ci-plugin-docker-proxy.mjs
+    env_file:
+      # Daemon performs pulls: host-loopback registry ref fine for string-passing consumers.
+      - ${CI_RUNTIME_DIR:?CI runtime directory is required}/sidecar-images.env
+    environment:
+      CI_RUNTIME_PROJECT: ${CI_COMPOSE_PROJECT:?CI project is required}
+      PLUGIN_SIDECAR_IMAGE: node:24-bookworm@sha256:934240a162082fd8b8a2f90cd5114446443f1eba1c5378f6687167ca405e6584
+    volumes:
+      - .:/workspace:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      plugin-docker-control:
+        aliases: [plugin-docker-proxy]
+
+networks:
+  plugin-docker-control:
+    internal: true

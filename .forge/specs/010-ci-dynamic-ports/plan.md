@@ -116,16 +116,18 @@ sanitized logs, sentinel result, and exits; redaction failure blocks.
 `plugin-container-identity.ts` validates normalized `PLUGIN_RUNTIME_SCOPE` (local
 default) and UUID install ID, deriving `plexica-plugin-<scope>-<16-char-sha256>`
 (scope <=31, DNS label <=63), alias, scope label, and install label. In
-`CI_RUNTIME_CONTRACT=1`, scope equals project and `PLUGIN_DOCKER_NETWORK` equals
-the inspected project network. Create/restart/replacement/stop/remove/recovery and
+`CI_RUNTIME_CONTRACT=1`, scope is the deterministic 31-character hash projection
+of the immutable project while `PLUGIN_DOCKER_NETWORK` equals the full inspected
+project network. Create/restart/replacement/stop/remove/recovery and
 proxy validate exactly that network, alias, labels, and no `PortBindings`/published
 ports; proxy rejects loopback, raw IP, host gateway, and foreign aliases. Local
 scope preserves ADR-013 host-port and local-process behavior.
 
-Both `ci-runtime-contract` and `ci` use
-`[self-hosted, plexica-ci-concurrent-e2e]`; `ci` needs the independent contract
+Both `ci-runtime-contract` and `ci` use the default `self-hosted` runner
+(revised 2026-08-24 from the dedicated labelled runner); `ci` needs the
+independent contract
 job. Immediately after checkout, before Node/pnpm setup, install, build, pull, or
-Compose, both run `verify-ci-runner-capacity.sh`: marker, >=4 CPUs, >=16 GiB
+Compose, both run `verify-ci-runner-capacity.sh`: >=4 CPUs, >=16 GiB
 effective cgroup memory, >=12 GiB headroom, >=60 GiB Docker-root free. Missing or
 bad evidence exits nonzero. A unique `if: always()` upload retains non-secret
 evidence with `if-no-files-found: error`; no retry, skip, downscale, bypass, or
@@ -149,6 +151,13 @@ evidence with `if-no-files-found: error`; no retry, skip, downscale, bypass, or
 | `apps/{web,admin}/e2e/*`, `apps/{web,admin}/src/**/*.test.ts`, `services/core-api/src/**/*.test.ts` | Assert same-origin `/api`, empty browser base, no `/api/api`, no browser Core host request, unchanged plugin proxy route, CI binding/readiness, and no wildcard CORS; retain Core-in-Compose, Keycloak, Kafka, and A-down/B-survives coverage. |
 
 ## 7. Verification and traceability
+Run the committed same-origin browser proof on an admitted runtime with:
+`CI_RUNTIME_CONTRACT=1 CI_RUNTIME_DIR="$CI_RUNTIME_DIR" PLAYWRIGHT_E2E=true pnpm --filter web exec playwright test e2e/ci-runtime-contract.spec.ts`
+and the identical command with `--filter @plexica/admin`.
+
+After the scoped Compose runtime starts, the admitted-runner-only sidecar proof is:
+`CI_COMPOSE_PROJECT="$CI_COMPOSE_PROJECT" CI_RUNTIME_DIR="$CI_RUNTIME_DIR" bash .github/actions/docker-infra/scripts/verify-ci-sidecar-lifecycle.sh`.
+
 | Requirement | Proof |
 | --- | --- |
 | CI-PORT-01–03 | render/contract guards, dynamic maps, wrong-source negative tests |

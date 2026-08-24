@@ -3,7 +3,18 @@
 set -Eeo pipefail
 
 KCADM=/opt/keycloak/bin/kcadm.sh
+# Under the CI runtime contract the origin arrives via browser-endpoints.env under
+# its manifest key; the fail-closed checks below still guard presence and format.
+if [[ ${CI_RUNTIME_CONTRACT:-} == 1 ]]; then
+  KEYCLOAK_WEB_ORIGIN=${WEB_E2E_PUBLIC_BASE:-}
+fi
+if [[ ${CI_RUNTIME_CONTRACT:-} == 1 && -z ${KEYCLOAK_WEB_ORIGIN:-} ]]; then
+  printf 'keycloak-init: ERROR: CI web origin must be discovered\n' >&2; exit 1
+fi
 WEB_ORIGIN=${KEYCLOAK_WEB_ORIGIN:-http://localhost:3000}
+if [[ ${CI_RUNTIME_CONTRACT:-} == 1 && ! $WEB_ORIGIN =~ ^http://127\.0\.0\.1:[1-9][0-9]*$ ]]; then
+  printf 'keycloak-init: ERROR: CI web origin must be an inspected manifest mapping\n' >&2; exit 1
+fi
 if [[ ! "$WEB_ORIGIN" =~ ^https?://[A-Za-z0-9.-]+(:[0-9]+)?$ ]]; then
   printf 'keycloak-init: ERROR: web origin must be an exact HTTP(S) origin\n' >&2
   exit 1

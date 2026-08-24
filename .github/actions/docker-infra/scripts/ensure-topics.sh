@@ -2,12 +2,25 @@
 set -euo pipefail
 
 project=${CI_COMPOSE_PROJECT:?CI_COMPOSE_PROJECT is required}
-compose=(docker compose --project-name "$project" -f docker-compose.yml -f docker-compose.ci.yml)
+runtime=${CI_RUNTIME_DIR:?CI_RUNTIME_DIR is required}
+script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+root=$(cd -- "$script_dir/../../../.." && pwd)
+source "$script_dir/ci-runtime-path.sh"
+validate_ci_runtime "$project" "$runtime"
+compose=(docker compose --project-name "$project" -f "$root/docker-compose.yml" -f "$root/docker-compose.ci.yml")
 container=$("${compose[@]}" ps -q redpanda)
 [[ -n "$container" ]] || { echo 'Redpanda is not running' >&2; exit 1; }
+[[ $(docker inspect --format '{{index .Config.Labels "com.docker.compose.project"}}' "$container") == "$project" ]] || {
+  echo 'Redpanda does not belong to the requested CI project' >&2; exit 1;
+}
+ensure_topic() {
+  local topic=$1 retention=$2
+  if ! "${compose[@]}" exec -T redpanda rpk topic describe "$topic" --brokers redpanda:9092 >/dev/null 2>&1; then
+    "${compose[@]}" exec -T redpanda rpk topic create "$topic" --brokers redpanda:9092 --partitions 1 --replicas 1
+  fi
+  "${compose[@]}" exec -T redpanda rpk topic alter-config "$topic" --set "retention.ms=$retention" --brokers redpanda:9092
+}
 for topic in plexica.tenant.events plexica.user.events plexica.plugin.events; do
-  docker exec "$container" rpk topic create "$topic" --brokers redpanda:9092 --partitions 1 --replicas 1 || true
-  docker exec "$container" rpk topic alter-config "$topic" --set retention.ms=604800000 --brokers redpanda:9092
+  ensure_topic "$topic" 604800000
 done
-docker exec "$container" rpk topic create plexica.plugin.dlq --brokers redpanda:9092 --partitions 1 --replicas 1 || true
-docker exec "$container" rpk topic alter-config plexica.plugin.dlq --set retention.ms=2592000000 --brokers redpanda:9092
+ensure_topic plexica.plugin.dlq 2592000000

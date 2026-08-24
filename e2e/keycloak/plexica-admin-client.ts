@@ -1,3 +1,5 @@
+import { ciRuntimeManifest, isCiRuntimeContract } from '../ci-runtime-manifest.js';
+
 import { adminFetch, getKeycloakUrl } from './admin-api.js';
 import { reconcileApiAudienceMapper } from './api-audience.js';
 import { SUPER_ADMIN_PASSWORD_ENV, SUPER_ADMIN_USER_ENV } from './run-super-admin.js';
@@ -5,15 +7,16 @@ import { SUPER_ADMIN_PASSWORD_ENV, SUPER_ADMIN_USER_ENV } from './run-super-admi
 import type { KeycloakRole } from './realm-role.js';
 
 const CLIENT_ID = 'plexica-admin';
-const ADMIN_ORIGIN = 'http://localhost:3002';
-const ADMIN_CALLBACK = `${ADMIN_ORIGIN}/callback`;
+function adminOrigin(): string {
+  return isCiRuntimeContract() ? ciRuntimeManifest().ADMIN_E2E_PUBLIC_BASE : 'http://localhost:3002';
+}
 
 interface ClientRepresentation extends Record<string, unknown> {
   id?: unknown;
   attributes?: unknown;
 }
 
-function desiredClient(existing: ClientRepresentation = {}): ClientRepresentation {
+function desiredClient(origin: string, existing: ClientRepresentation = {}): ClientRepresentation {
   const existingAttributes =
     typeof existing.attributes === 'object' && existing.attributes !== null
       ? (existing.attributes as Record<string, unknown>)
@@ -32,12 +35,12 @@ function desiredClient(existing: ClientRepresentation = {}): ClientRepresentatio
     authorizationServicesEnabled: false,
     bearerOnly: false,
     fullScopeAllowed: false,
-    redirectUris: [ADMIN_CALLBACK],
-    webOrigins: [ADMIN_ORIGIN],
+    redirectUris: [`${origin}/callback`],
+    webOrigins: [origin],
     attributes: {
       ...existingAttributes,
       'pkce.code.challenge.method': 'S256',
-      'post.logout.redirect.uris': `${ADMIN_ORIGIN}/login`,
+      'post.logout.redirect.uris': `${origin}/login`,
       'client.session.idle.timeout': '3600',
       'client.session.max.lifespan': '3600',
     },
@@ -50,7 +53,7 @@ function assertExactArray(actual: unknown, expected: string, field: string): voi
   }
 }
 
-export function assertPlexicaAdminConfiguration(actual: ClientRepresentation): void {
+export function assertPlexicaAdminConfiguration(actual: ClientRepresentation, origin = adminOrigin()): void {
   const expected: Record<string, boolean> = {
     publicClient: true,
     standardFlowEnabled: true,
@@ -63,13 +66,13 @@ export function assertPlexicaAdminConfiguration(actual: ClientRepresentation): v
       throw new Error(`${CLIENT_ID} security check failed: ${field}=${String(actual[field])}`);
     }
   }
-  assertExactArray(actual.redirectUris, ADMIN_CALLBACK, 'redirectUris');
-  assertExactArray(actual.webOrigins, ADMIN_ORIGIN, 'webOrigins');
+  assertExactArray(actual.redirectUris, `${origin}/callback`, 'redirectUris');
+  assertExactArray(actual.webOrigins, origin, 'webOrigins');
   const attributes = actual.attributes as Record<string, unknown> | undefined;
   if (attributes?.['pkce.code.challenge.method'] !== 'S256') {
     throw new Error(`${CLIENT_ID} security check failed: PKCE S256 is not required`);
   }
-  if (attributes?.['post.logout.redirect.uris'] !== `${ADMIN_ORIGIN}/login`) {
+  if (attributes?.['post.logout.redirect.uris'] !== `${origin}/login`) {
     throw new Error(
       `${CLIENT_ID} security check failed: post-logout redirect URI is ${attributes === undefined ? 'not configured' : `incorrect: ${JSON.stringify(attributes['post.logout.redirect.uris'])}`}`
     );
@@ -117,6 +120,7 @@ export async function reconcilePlexicaAdminClient(
   token: string,
   superAdminRole: KeycloakRole
 ): Promise<void> {
+  const origin = adminOrigin();
   const lookupResponse = await adminFetch(
     token,
     `/admin/realms/master/clients?clientId=${CLIENT_ID}`,
@@ -135,7 +139,7 @@ export async function reconcilePlexicaAdminClient(
       token,
       '/admin/realms/master/clients',
       'POST',
-      desiredClient()
+      desiredClient(origin)
     );
     if (createResponse.status !== 201) {
       throw new Error(`${CLIENT_ID} creation failed: HTTP ${createResponse.status}`);
@@ -153,7 +157,7 @@ export async function reconcilePlexicaAdminClient(
       token,
       `/admin/realms/master/clients/${uuid}`,
       'PUT',
-      desiredClient(current)
+      desiredClient(origin, current)
     );
     if (!updateResponse.ok) {
       throw new Error(`${CLIENT_ID} update failed: HTTP ${updateResponse.status}`);
@@ -167,7 +171,7 @@ export async function reconcilePlexicaAdminClient(
   if (!verifyResponse.ok) {
     throw new Error(`${CLIENT_ID} verification read failed: HTTP ${verifyResponse.status}`);
   }
-  assertPlexicaAdminConfiguration((await verifyResponse.json()) as ClientRepresentation);
+  assertPlexicaAdminConfiguration((await verifyResponse.json()) as ClientRepresentation, origin);
 }
 
 export async function assertPlexicaAdminPasswordGrantRejected(): Promise<void> {

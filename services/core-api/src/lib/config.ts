@@ -4,6 +4,7 @@ import path from 'node:path';
 import { z } from 'zod';
 
 import { validateCiRuntimeContract } from './ci-runtime-contract.js';
+import { ciRuntimeEnvSchema } from './ci-runtime-env-config.js';
 
 const configSchema = z
   .object({
@@ -32,7 +33,7 @@ const configSchema = z
       .string()
       .regex(/^[a-zA-Z0-9_.-]+$/)
       .optional(),
-    CI_RUNTIME_CONTRACT: z.literal('1').optional(),
+    ...ciRuntimeEnvSchema.shape,
 
     // Keycloak
     KEYCLOAK_URL: z.string().url(),

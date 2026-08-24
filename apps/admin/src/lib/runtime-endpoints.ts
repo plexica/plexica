@@ -1,24 +1,23 @@
-export interface RuntimeEndpoints { apiBase: string; keycloakBase?: string; }
+import { parseRuntimeEndpoints } from '@plexica/auth/runtime-endpoints';
 
-interface RuntimeConfig { apiBase?: unknown; keycloakBase?: unknown; }
+import type { RuntimeEndpoints, RuntimeConfig } from '@plexica/auth/runtime-endpoints';
 
-function unsafeApiBase(value: string): boolean {
-  return value === '/api' || value.startsWith('http:') || value.startsWith('https:') ||
-    /(localhost|127\.0\.0\.1|host\.docker\.internal|core-api|keycloak)/.test(value);
-}
+export { parseRuntimeEndpoints } from '@plexica/auth/runtime-endpoints';
 
-export function parseRuntimeEndpoints(value: RuntimeConfig | undefined): RuntimeEndpoints | undefined {
-  if (value === undefined) return undefined;
-  if (value.apiBase !== '' || typeof value.keycloakBase !== 'string' || unsafeApiBase(String(value.apiBase))) {
-    throw new Error('CI runtime configuration requires an empty same-origin apiBase and public Keycloak base');
+declare const __PLEXICA_CI_RUNTIME_CONTRACT__: boolean;
+
+export type { RuntimeEndpoints } from '@plexica/auth/runtime-endpoints';
+
+declare global {
+  interface Window {
+    __PLEXICA_RUNTIME_CONFIG__?: RuntimeConfig;
   }
-  return { apiBase: '', keycloakBase: value.keycloakBase };
 }
-
-declare global { interface Window { __PLEXICA_RUNTIME_CONFIG__?: RuntimeConfig; } }
 
 export function runtimeEndpoints(): RuntimeEndpoints {
-  const runtime = parseRuntimeEndpoints(window.__PLEXICA_RUNTIME_CONFIG__);
+  const ciRuntime =
+    typeof __PLEXICA_CI_RUNTIME_CONTRACT__ !== 'undefined' && __PLEXICA_CI_RUNTIME_CONTRACT__;
+  const runtime = parseRuntimeEndpoints(window.__PLEXICA_RUNTIME_CONFIG__, ciRuntime);
   if (runtime) return runtime;
   const keycloakBase = import.meta.env.VITE_KEYCLOAK_URL;
   return { apiBase: import.meta.env.VITE_API_URL ?? '', ...(keycloakBase ? { keycloakBase } : {}) };

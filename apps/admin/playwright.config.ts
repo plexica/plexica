@@ -26,6 +26,7 @@ import {
   ciRuntimeManifest,
   isCiRuntimeContract,
   MONOREPO_ROOT_ENV_PATH,
+  requiredRunValue,
   setDefault,
 } from '../../e2e/playwright-base.js';
 
@@ -33,20 +34,32 @@ import {
 dotenv.config({ path: MONOREPO_ROOT_ENV_PATH });
 const ciRuntime = isCiRuntimeContract();
 const runtime = ciRuntime ? ciRuntimeManifest() : undefined;
+const ciValue = (value: string | undefined): string => {
+  if (!value) throw new Error('CI runtime manifest is incomplete');
+  return value;
+};
 
 // ── Hardcoded E2E defaults ────────────────────────────────────────────────────
 // These match what global-setup.ts expects. Setting them here (not in
 // globalSetup) ensures test workers read them from process.env.
 
-setDefault('PLAYWRIGHT_KEYCLOAK_URL', runtime?.KEYCLOAK_HOST_ADMIN_BASE ?? 'http://localhost:8080');
+if (ciRuntime) {
+  process.env['PLAYWRIGHT_KEYCLOAK_URL'] = ciValue(runtime?.KEYCLOAK_HOST_ADMIN_BASE);
+  process.env['PLAYWRIGHT_LOKI_URL'] = ciValue(runtime?.LOKI_HOST_URL);
+  process.env['PLAYWRIGHT_MAILPIT_URL'] = ciValue(runtime?.MAILPIT_UI_BASE);
+} else {
+  setDefault('PLAYWRIGHT_KEYCLOAK_URL', 'http://localhost:8080');
+  setDefault('PLAYWRIGHT_LOKI_URL', 'http://localhost:3100');
+}
 setDefault('PLAYWRIGHT_E2E', 'true');
 setDefault('PLAYWRIGHT_ADMIN_E2E_TENANT_SLUG', 'e2e-admin');
 setDefault('PLAYWRIGHT_ADMIN_E2E_TENANT_NAME', 'E2E Admin');
 setDefault('PLAYWRIGHT_ADMIN_E2E_TENANT_EMAIL', 'admin@e2e-admin.local');
-setDefault('PLAYWRIGHT_LOKI_URL', 'http://localhost:3100');
 
 const credentialPepper =
-  process.env['PLUGIN_CREDENTIAL_PEPPER'] ?? randomBytes(32).toString('base64url');
+  ciRuntime
+    ? requiredRunValue('PLUGIN_CREDENTIAL_PEPPER', 'CI runtime requires generated credentials.')
+    : process.env['PLUGIN_CREDENTIAL_PEPPER'] ?? randomBytes(32).toString('base64url');
 
 // ── webServer commands ────────────────────────────────────────────────────────
 // CI: after `pnpm build`, start the compiled output directly (no tsx / dotenv wrapper).
@@ -58,7 +71,9 @@ export default defineConfig({
   ...baseE2eConfig,
   use: {
     ...baseE2eConfig.use,
-    baseURL: process.env['PLAYWRIGHT_ADMIN_BASE_URL'] ?? runtime?.ADMIN_E2E_PUBLIC_BASE ?? 'http://localhost:3002',
+    baseURL: ciRuntime
+      ? ciValue(runtime?.ADMIN_E2E_PUBLIC_BASE)
+      : process.env['PLAYWRIGHT_ADMIN_BASE_URL'] ?? 'http://localhost:3002',
   },
   projects: [
     {

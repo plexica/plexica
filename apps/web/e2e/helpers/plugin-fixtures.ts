@@ -62,10 +62,20 @@ export async function ensureCrmInstalled(page: Page, token: string): Promise<str
   const existing = (await listInstallations(page, token)).find(
     (installation) => installation.pluginSlug === 'crm' && installation.status !== 'uninstalled'
   );
-  if (existing === undefined) {
-    throw new Error('Production-compatible CRM installation fixture is missing');
+  if (existing !== undefined) return existing.id;
+  const response = await page.request.post(
+    tenantApiUrl(ADMIN_TENANT_SLUG, '/api/v1/plugins/crm/install'),
+    { headers: apiHeaders(token) }
+  );
+  if (!response.ok()) {
+    throw new Error(`CRM contract fixture provisioning failed: ${response.status()} ${await response.text()}`);
   }
-  return existing.id;
+  const installed = await listInstallations(page, token);
+  const fixture = installed.find(
+    (installation) => installation.pluginSlug === 'crm' && installation.status === 'active'
+  );
+  if (fixture === undefined) throw new Error('CRM contract fixture was not activated');
+  return fixture.id;
 }
 
 export async function setWorkspaceMember(

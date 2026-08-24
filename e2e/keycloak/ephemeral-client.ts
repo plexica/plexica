@@ -1,5 +1,7 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 
+import { ciRuntimeManifest, isCiRuntimeContract } from '../ci-runtime-manifest.js';
+
 import { adminFetch, assertExplicitLoopbackE2eTarget, getKeycloakUrl } from './admin-api.js';
 import { assertApiTokenClaims, reconcileApiAudienceMapper } from './api-audience.js';
 import {
@@ -88,7 +90,9 @@ export async function createEphemeralE2eClient(
   const client: EphemeralClient = {
     uuid: '',
     clientId: `plexica-playwright-${suite}-${randomUUID()}`,
-    secret: randomBytes(32).toString('base64url'),
+    secret: isCiRuntimeContract()
+      ? ciRuntimeManifest().KEYCLOAK_E2E_CLIENT_SECRET
+      : randomBytes(32).toString('base64url'),
   };
   const createResponse = await adminFetch(token, '/admin/realms/master/clients', 'POST', {
     clientId: client.clientId,

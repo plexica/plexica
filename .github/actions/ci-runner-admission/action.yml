@@ -1,0 +1,24 @@
+name: CI runner admission
+description: Initializes a private runtime directory and admits the runner before capacity-consuming work.
+inputs:
+  purpose:
+    description: Short project purpose suffix
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Initialize and admit this runner
+      shell: bash
+      env:
+        # Indirection via env keeps the untrusted input out of the bash
+        # command text; the allowlist below rejects unexpected purposes.
+        PURPOSE: ${{ inputs.purpose }}
+      run: |
+        case "$PURPOSE" in
+          contract|quality|build) ;;
+          *) echo "Unsupported admission purpose: $PURPOSE" >&2; exit 1 ;;
+        esac
+        project="plexica-ci-${PURPOSE}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+        runtime="$(RUNNER_TEMP="$RUNNER_TEMP" bash "${{ github.action_path }}/../docker-infra/scripts/ci-runtime-env.sh" init "$project")"
+        printf 'CI_COMPOSE_PROJECT=%s\nCI_RUNTIME_DIR=%s\n' "$project" "$runtime" >> "$GITHUB_ENV"
+        CI_RUNTIME_DIR="$runtime" RUNNER_TEMP="$RUNNER_TEMP" bash "${{ github.action_path }}/../docker-infra/scripts/verify-ci-runner-capacity.sh" "$project"

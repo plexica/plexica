@@ -12,9 +12,16 @@ services:
       KC_HOSTNAME_STRICT: 'false'
     ports: !override ['127.0.0.1::8080']
   keycloak-init:
+    env_file:
+      # Origins are discovered late in the lifecycle; init pre-creates this file
+      # empty and the write-infra/write-browser stages populate it before any
+      # consumer is created. keycloak-init fails closed on missing origins.
+      - ${CI_RUNTIME_DIR:?CI runtime directory is required}/browser-endpoints.env
     environment:
-      KEYCLOAK_ADMIN_ORIGIN: ${ADMIN_E2E_PUBLIC_BASE:-http://localhost:3002}
-      KEYCLOAK_WEB_ORIGIN: ${WEB_E2E_PUBLIC_BASE:-http://localhost:3000}
+      # Origins arrive via browser-endpoints.env under their manifest keys
+      # (WEB_E2E_PUBLIC_BASE / ADMIN_E2E_PUBLIC_BASE); the reconcile scripts read
+      # those directly under the CI runtime contract and fail closed when absent.
+      CI_RUNTIME_CONTRACT: '1'
   redis:
     ports: !override ['127.0.0.1::6379']
   minio:

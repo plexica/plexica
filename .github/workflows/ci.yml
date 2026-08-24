@@ -10,17 +10,13 @@ on:
 jobs:
   ci-runtime-contract:
     name: Concurrent runtime contract
-    runs-on: [self-hosted, plexica-ci-concurrent-e2e]
+    runs-on: self-hosted
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v7
-      - name: Initialize and admit this runner
-        shell: bash
-        run: |
-          project="plexica-ci-contract-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          runtime="$(RUNNER_TEMP="$RUNNER_TEMP" bash .github/actions/docker-infra/scripts/ci-runtime-env.sh init "$project")"
-          printf 'CI_COMPOSE_PROJECT=%s\nCI_RUNTIME_DIR=%s\n' "$project" "$runtime" >> "$GITHUB_ENV"
-          CI_RUNTIME_DIR="$runtime" bash .github/actions/docker-infra/scripts/verify-ci-runner-capacity.sh "$project"
+      - uses: ./.github/actions/ci-runner-admission
+        with:
+          purpose: contract
       - uses: actions/setup-node@v7
         with:
           node-version: '24'
@@ -34,7 +30,12 @@ jobs:
           key() { openssl rand -base64 32 | tr '+/' '-_' | tr -d '=\n'; }
           printf 'EVENT_KEY_ENCRYPTION_KEY=%s\nPLUGIN_DB_ENCRYPTION_KEY=%s\nPLUGIN_CREDENTIAL_PEPPER=%s\n' "$(key)" "$(openssl rand -hex 32)" "$(key)" >> "$GITHUB_ENV"
       - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter @plexica/keycloak-theme build
+      - name: Build Compose runtime artifacts
+        env:
+          CI_RUNTIME_CONTRACT: '1'
+          E2E_CORE_API_PROXY_TARGET: http://core-api-e2e:3001
+        run: pnpm -r --filter='!@plexica/plugin-crm' --filter='!plexica' run build
+      - run: bash .github/actions/docker-infra/scripts/verify-ci-runtime-artifacts.sh
       - name: Run isolated two-project full E2E contract
         env:
           CI: 'true'
@@ -45,25 +46,52 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: ci-runtime-contract-${{ github.run_id }}
-          path: ${{ env.CI_RUNTIME_DIR }}/diagnostics/
+          name: ci-runtime-contract-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ env.CI_RUNTIME_DIR }}/diagnostics/
+            ${{ env.CI_RUNTIME_DIR }}/admission.env
+          if-no-files-found: error
+          retention-days: 7
+
+  quality:
+    name: Typecheck and frontend unit tests
+    runs-on: self-hosted
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/ci-runner-admission
+        with:
+          purpose: quality
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 10
+          run_install: false
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm --filter web test
+      - run: pnpm --filter @plexica/admin test
+      - name: Upload quality admission evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ci-quality-admission-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.CI_RUNTIME_DIR }}/admission.env
           if-no-files-found: error
           retention-days: 7
 
   ci:
     name: Build, test, and validate
-    needs: ci-runtime-contract
-    runs-on: [self-hosted, plexica-ci-concurrent-e2e]
+    needs: [ci-runtime-contract, quality]
+    runs-on: self-hosted
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v7
-      - name: Initialize and admit this runner
-        shell: bash
-        run: |
-          project="plexica-ci-build-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          runtime="$(RUNNER_TEMP="$RUNNER_TEMP" bash .github/actions/docker-infra/scripts/ci-runtime-env.sh init "$project")"
-          printf 'CI_COMPOSE_PROJECT=%s\nCI_RUNTIME_DIR=%s\n' "$project" "$runtime" >> "$GITHUB_ENV"
-          CI_RUNTIME_DIR="$runtime" bash .github/actions/docker-infra/scripts/verify-ci-runner-capacity.sh "$project"
+      - uses: ./.github/actions/ci-runner-admission
+        with:
+          purpose: build
       - uses: actions/setup-node@v7
         with:
           node-version: '24'
@@ -80,7 +108,33 @@ jobs:
       - run: pnpm test:line-gate && pnpm check:lines
       - run: pnpm --filter @plexica/keycloak-theme build
       - run: pnpm lint
-      - run: pnpm -r --filter='!@plexica/plugin-crm' --filter='!plexica' run build
+      - name: Build CI runtime artifacts
+        env:
+          CI_RUNTIME_CONTRACT: '1'
+          E2E_CORE_API_PROXY_TARGET: http://core-api-e2e:3001
+        run: pnpm -r --filter='!@plexica/plugin-crm' --filter='!plexica' run build
+      - name: Test CI runtime contracts
+        run: |
+          node .github/actions/docker-infra/scripts/ci-runtime-endpoint-contract.test.mjs
+          node .github/actions/docker-infra/scripts/sanitize-ci-runtime-diagnostics.test.mjs
+          bash .github/actions/docker-infra/scripts/ci-runtime-env.test.sh
+          bash .github/actions/docker-infra/scripts/ci-runtime-keycloak-credentials.test.sh
+          bash .github/actions/docker-infra/scripts/ci-runtime-compose.test.sh
+          bash .github/actions/docker-infra/scripts/ci-runtime-cleanup.test.sh
+          bash .github/actions/docker-infra/scripts/ensure-topics.test.sh
+          bash .github/actions/docker-infra/scripts/keycloak-contract.test.sh
+          bash .github/actions/docker-infra/scripts/redpanda-contract.test.sh
+          bash .github/actions/docker-infra/scripts/verify-ci-runtime-artifacts.test.sh
+          bash .github/actions/docker-infra/scripts/verify-ci-runner-capacity.test.sh
+          node .github/actions/docker-infra/scripts/ci-workflow-contract.test.mjs
+          bash .github/actions/docker-infra/scripts/ci-runtime-lifecycle.test.sh
+          bash .github/actions/docker-infra/scripts/verify-ci-sidecar-lifecycle.test.sh
+          bash .github/actions/docker-infra/scripts/verify-ci-compose-render.test.sh
+          bash .github/actions/docker-infra/scripts/wait-services.test.sh
+          bash .github/actions/docker-infra/scripts/wait-for-http.test.sh
+          bash .github/actions/docker-infra/scripts/down-ci-runtime-project.test.sh
+          bash .github/actions/docker-infra/scripts/verify-concurrent-ci-runtime.test.sh
+          node infra/docker/ci-plugin-docker-proxy.test.mjs
       - name: Start independent project runtime
         uses: ./.github/actions/docker-infra
         with:
@@ -89,16 +143,9 @@ jobs:
           phase: full
       - name: Migrate through the host manifest
         run: test -f "$CI_RUNTIME_DIR/host.env"
+      - name: Prove real CI sidecar lifecycle through Core and Docker proxy
+        run: bash .github/actions/docker-infra/scripts/verify-ci-sidecar-lifecycle.sh
       - run: pnpm --filter core-api test
-      - name: Run Compose-backed browser E2E
-        env:
-          CI: 'true'
-          CI_RUNTIME_CONTRACT: '1'
-          PLAYWRIGHT_E2E: 'true'
-          PLAYWRIGHT_BROWSER_CHANNEL: chrome
-        run: |
-          pnpm --filter web exec playwright test
-          pnpm --filter @plexica/admin exec playwright test
       - name: Collect scoped diagnostics
         if: always()
         uses: ./.github/actions/docker-infra
@@ -110,8 +157,10 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: ci-runtime-${{ github.run_id }}
-          path: ${{ env.CI_RUNTIME_DIR }}/diagnostics/
+          name: ci-runtime-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ env.CI_RUNTIME_DIR }}/diagnostics/
+            ${{ env.CI_RUNTIME_DIR }}/admission.env
           if-no-files-found: error
           retention-days: 7
       - name: Remove scoped project runtime

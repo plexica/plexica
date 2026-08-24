@@ -1,12 +1,12 @@
 #!/bin/sh
 set -eu
 
-contract=/run/plexica-ci/redpanda-listener.env
+contract=${REDPANDA_LISTENER_CONTRACT:-/run/plexica-ci/redpanda-listener.env}
 [ -r "$contract" ] || { echo 'Missing Redpanda listener contract' >&2; exit 1; }
 . "$contract"
 
 case "${REDPANDA_EXTERNAL_LISTENER:-}" in
-  127.0.0.1:[1-9][0-9]*|localhost:[1-9][0-9]*) ;;
+  127.0.0.1:[1-9][0-9]*) ;;
   *) echo 'Invalid Redpanda external listener contract' >&2; exit 1 ;;
 esac
 

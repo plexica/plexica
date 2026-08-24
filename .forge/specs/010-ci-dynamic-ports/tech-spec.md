@@ -48,8 +48,8 @@ ADR-013 local-process plugin development remain unchanged.
    and provisioning calls use host-admin; Core validates `iss` against public
    issuer but calls JWKS, discovery, health, and Admin API only through DNS.
 7. **CI-PORT-07 Plugin sidecars.** A validated length-bounded identity helper
-   derives name and DNS alias from `(PLUGIN_RUNTIME_SCOPE, installId)`; CI supplies
-   the project scope. Every lifecycle/proxy path uses it. Sidecars have exactly the
+    derives name and DNS alias from `(PLUGIN_RUNTIME_SCOPE, installId)`; CI derives
+    the bounded scope deterministically from the full project ID. Every lifecycle/proxy path uses it. Sidecars have exactly the
    project network/alias and scope label, no host binding, and reject gateway or
    foreign targets.
 8. **CI-PORT-08 State and reconciliation.** Projects own volumes, networks,
@@ -59,9 +59,10 @@ ADR-013 local-process plugin development remain unchanged.
 9. **CI-PORT-09 Independent contract.** `ci-runtime-contract` bootstraps itself
    and runs two concurrent project full web/admin E2E stacks; `ci` requires it and
    may not consume its Docker state.
-10. **CI-PORT-10 Admission.** Both jobs run on
-    `[self-hosted, plexica-ci-concurrent-e2e]`. Immediately after checkout each
-    runs shared admission before install, build, pull, or start: marker, >=4 online
+10. **CI-PORT-10 Admission.** Both jobs run on the default `self-hosted`
+    runner (revised 2026-08-24 from the dedicated labelled runner). Immediately
+    after checkout each
+    runs shared admission before install, build, pull, or start: >=4 online
     CPUs, >=16 GiB effective cgroup memory, >=12 GiB headroom, and >=60 GiB Docker
     root free space. Missing/unreadable/insufficient evidence fails hard.
 11. **CI-PORT-11 Evidence and compatibility.** Retain sanitized non-secret
@@ -114,13 +115,15 @@ ADR-013 local-process plugin development remain unchanged.
   stop/remove/proxy. Foreign, loopback, and host-gateway targets fail.
 - Redpanda exposes the manifest host listener only to the runner, advertises its
   exact inspected metadata, and passes the project-isolated KafkaJS round trip.
-- Each job uploads non-secret admission and scoped diagnostic evidence; an absent
-  marker, probe/evidence failure, or threshold shortfall blocks before pull/start.
+- Each job uploads non-secret admission and scoped diagnostic evidence; a
+  probe/evidence failure or threshold shortfall blocks before pull/start.
 - In CI, web/admin `server` and `preview` bind `0.0.0.0`, while non-CI execution
   leaves both host settings unset. After Compose mapping discovery, the runner
   readiness gate successfully requests every `WEB_E2E_PUBLIC_BASE` and
   `ADMIN_E2E_PUBLIC_BASE` loopback URL before Playwright; a refused or wrong mapping
-  fails the job.
+  fails the job. The refusal branch (stale, refused, or wrong-projection mapping)
+  fails closed before Playwright begins and is proven by a behavioral negative
+  test (`ci-runtime-lifecycle.test.sh`) with mocked docker/curl fixtures.
 - Local `docker compose up`, fixed developer ports, and ADR-013 local-process or
   local Docker plugin paths remain compatible and do not require CI manifests.
 

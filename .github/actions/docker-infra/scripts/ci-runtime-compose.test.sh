@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+temp=$(mktemp -d); trap 'rm -rf "$temp"' EXIT
+export RUNNER_TEMP="$temp" CI_COMPOSE_PROJECT=plexica-ci-compose-123456
+export EVENT_KEY_ENCRYPTION_KEY=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+export PLUGIN_DB_ENCRYPTION_KEY=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+export PLUGIN_CREDENTIAL_PEPPER=0123456789abcdef0123456789abcdef
+export CI_RUNTIME_DIR="$(bash "$(dirname "$0")/ci-runtime-env.sh" init "$CI_COMPOSE_PROJECT")"
+mkdir "$temp/bin"
+cat > "$temp/bin/docker" <<'EOF'
+#!/usr/bin/env bash
+case "$*" in
+  *' port postgres 5432'*) printf '127.0.0.1:32001\n' ;;
+  *' port redis 6379'*) printf '127.0.0.1:32002\n' ;;
+  *' port minio 9000'*) printf '127.0.0.1:32003\n' ;;
+  *' port keycloak 8080'*) printf '127.0.0.1:32004\n' ;;
+  *' port redpanda 19092'*) printf '127.0.0.1:32005\n' ;;
+  *' port core-api-e2e 3001'*) printf '127.0.0.1:32006\n' ;;
+  *' port web-e2e 3000'*) printf '127.0.0.1:32007\n' ;;
+  *' port admin-e2e 3002'*) printf '127.0.0.1:32008\n' ;;
+  *' port loki 3100'*) printf '127.0.0.1:32009\n' ;;
+  *' port mailpit 1025'*) printf '127.0.0.1:32010\n' ;;
+  *' port mailpit 8025'*) printf '127.0.0.1:32011\n' ;;
+  *) exit 1 ;;
+esac
+EOF
+chmod +x "$temp/bin/docker"
+script="$(dirname "$0")/ci-runtime-compose.sh"
+bash "$(dirname "$0")/ci-runtime-keycloak-credentials.sh" "$CI_COMPOSE_PROJECT" "$CI_RUNTIME_DIR"
+set -a; source "$CI_RUNTIME_DIR/keycloak-credentials.env"; set +a
+PATH="$temp/bin:$PATH" bash "$script" write-redpanda
+PATH="$temp/bin:$PATH" bash "$script" write-infra
+PATH="$temp/bin:$PATH" bash "$script" write-core
+PATH="$temp/bin:$PATH" bash "$script" write-browser
+scope="ci-$(printf '%s' "$CI_COMPOSE_PROJECT" | sha256sum | cut -c1-28)"
+[[ "$(bash "$(dirname "$0")/ci-runtime-scope.sh" "$CI_COMPOSE_PROJECT")" == "$scope" ]]
+grep -Fx 'CORE_API_PUBLIC_BASE=http://127.0.0.1:32006' "$CI_RUNTIME_DIR/host.env" >/dev/null
+grep -Fx "PLUGIN_RUNTIME_SCOPE=$scope" "$CI_RUNTIME_DIR/container.env" >/dev/null
+grep -Fx 'KAFKA_BROKERS=redpanda:9092' "$CI_RUNTIME_DIR/container.env" >/dev/null
+grep -Fx 'MAILPIT_UI_BASE=http://127.0.0.1:32011' "$CI_RUNTIME_DIR/host.env" >/dev/null
+grep -Fx 'MAILPIT_SMTP_URL=smtp://127.0.0.1:32010' "$CI_RUNTIME_DIR/host.env" >/dev/null
+grep -Fx 'SMTP_HOST=mailpit' "$CI_RUNTIME_DIR/container.env" >/dev/null
+grep -Fx 'LOKI_URL=http://loki:3100' "$CI_RUNTIME_DIR/container.env" >/dev/null
+grep -Fx 'NODE_ENV=production' "$CI_RUNTIME_DIR/container.env" >/dev/null
+if grep -Eq 'LOKI_HOST_URL|MAILPIT_(SMTP_URL|UI_BASE)|KEYCLOAK_HOST_ADMIN_BASE' "$CI_RUNTIME_DIR/container.env"; then
+  echo 'Container contract exposed runner-only endpoints' >&2; exit 1
+fi
+grep -Fx "EVENT_KEY_ENCRYPTION_KEY=$EVENT_KEY_ENCRYPTION_KEY" "$CI_RUNTIME_DIR/container.env" >/dev/null
+grep -Fx 'WEB_E2E_PUBLIC_BASE=http://127.0.0.1:32007' "$CI_RUNTIME_DIR/browser-endpoints.env" >/dev/null
+grep -Fx 'ADMIN_E2E_PUBLIC_BASE=http://127.0.0.1:32008' "$CI_RUNTIME_DIR/browser-endpoints.env" >/dev/null
+grep -Fx 'KEYCLOAK_PUBLIC_ISSUER_BASE=http://127.0.0.1:32004' "$CI_RUNTIME_DIR/browser-endpoints.env" >/dev/null
+[[ $(stat -c %a "$CI_RUNTIME_DIR/browser-endpoints.env") == 600 ]]
+grep -Fx 'REDPANDA_EXTERNAL_LISTENER=127.0.0.1:32005' "$CI_RUNTIME_DIR/redpanda-listener.env" >/dev/null
+cat > "$temp/bin/docker" <<'EOF'
+#!/usr/bin/env bash
+case "$*" in
+  *' port postgres 5432'*) printf 'localhost:32001\n' ;;
+  *) exit 1 ;;
+esac
+EOF
+chmod +x "$temp/bin/docker"
+if PATH="$temp/bin:$PATH" bash "$script" write-infra 2>"$temp/endpoint.err"; then
+  echo 'Endpoint accepted a localhost mapping' >&2; exit 1
+fi
+grep -q 'only a strict 127.0.0.1:<port> loopback is accepted, localhost is rejected' "$temp/endpoint.err" || {
+  echo 'Endpoint rejection did not explain the strict loopback contract' >&2; exit 1;
+}

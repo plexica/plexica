@@ -58,13 +58,20 @@ export function keycloakUrl(): string {
   return process.env['PLAYWRIGHT_KEYCLOAK_URL'] ?? 'http://localhost:8080';
 }
 
+/** A host-side Core URL from the discovered CI manifest, never a local fallback. */
+export function coreApiUrl(): string {
+  if (isCiRuntimeContract()) return ciRuntimeManifest().CORE_API_PUBLIC_BASE;
+  return process.env['PLAYWRIGHT_CORE_API_URL'] ?? 'http://localhost:3001';
+}
+
 /**
  * Env forwarded to the core-api webServer so it can reach infra services.
  * `overrides` carries the app-specific extras (NODE_ENV/PORT, plugin runtime,
  * rate limits, TLS mode) that must stay divergent between web and admin.
  */
 export function coreApiEnv(overrides: Record<string, string>): Record<string, string> {
-  if (isCiRuntimeContract()) throw new Error('CI Playwright must use Compose Core, not a host webServer');
+  if (isCiRuntimeContract())
+    throw new Error('CI Playwright must use Compose Core, not a host webServer');
   return {
     DATABASE_URL:
       process.env['DATABASE_URL'] ?? 'postgresql://plexica:changeme@localhost:5432/plexica',
@@ -91,6 +98,11 @@ type ReporterEntry = [string] | [string, Record<string, unknown>];
 
 const isCi = process.env['CI'] !== undefined;
 
+// Concurrent CI verifier decision: ci-runtime-contract.spec.ts must execute
+// exactly once per app pre-teardown, so full-suite invocations opt out of the
+// contract spec via this flag; explicit single-spec invocations leave it unset.
+const ignoreContractSpec = process.env['CI_RUNTIME_SKIP_CONTRACT_SPEC'] === '1';
+
 /**
  * Shared defineConfig() head. Each app spreads this and adds its own
  * use.baseURL, projects (with `devices` from @playwright/test) and webServer
@@ -98,9 +110,10 @@ const isCi = process.env['CI'] !== undefined;
  */
 export const baseE2eConfig = {
   testDir: './e2e',
+  ...(ignoreContractSpec ? { testIgnore: /ci-runtime-contract\.spec\.ts$/ } : {}),
   fullyParallel: false,
   forbidOnly: isCi,
-  retries: isCi ? 1 : 0,
+  retries: isCiRuntimeContract() ? 0 : isCi ? 1 : 0,
   // Decision 10 (2026-08-19): read-only spec files opt into parallel mode via
   // test.describe.configure({ mode: 'parallel' }) — intra-file parallelism only.
   // workers default to 1: files would race on the shared tenant/DB/realm state.

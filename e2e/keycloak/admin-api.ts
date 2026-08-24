@@ -53,8 +53,12 @@ export async function getAdminToken(): Promise<string> {
     body: new URLSearchParams({
       grant_type: 'password',
       client_id: 'admin-cli',
-      username: process.env['KEYCLOAK_ADMIN_USER'] ?? 'admin',
-      password: process.env['KEYCLOAK_ADMIN_PASSWORD'] ?? 'changeme',
+      username: isCiRuntimeContract()
+        ? ciRuntimeManifest().KEYCLOAK_ADMIN_USER
+        : (process.env['KEYCLOAK_ADMIN_USER'] ?? 'admin'),
+      password: isCiRuntimeContract()
+        ? ciRuntimeManifest().KEYCLOAK_ADMIN_PASSWORD
+        : (process.env['KEYCLOAK_ADMIN_PASSWORD'] ?? 'changeme'),
     }),
     signal: AbortSignal.timeout(10_000),
   });

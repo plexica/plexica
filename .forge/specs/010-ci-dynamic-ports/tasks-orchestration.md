@@ -5,14 +5,14 @@
 
 | Field | Value |
 | --- | --- |
-| Status | Pending |
+| Status | Implementation complete — pending admitted-runner verification (5.4 `--full-e2e` execution, 6.1, 6.2 open) |
 | Spec | [tech-spec.md](./tech-spec.md) |
 | Plan | [plan.md](./plan.md) |
 | ADR | [ADR-031](../../knowledge/adr/adr-031-ci-runtime-contract-gated-orchestration.md) |
 
 ## Phase 5 — Orchestration, cleanup, and independent concurrent proof
 
-- [ ] **5.1** `[L]` `[CI-PORT-01]` `[CI-PORT-02]` `[CI-PORT-04]` `[CI-PORT-05]` `[CI-PORT-08]` Stage create/inspect/start/wait using only the appropriate contract.
+- [x] **5.1** `[L]` `[CI-PORT-01]` `[CI-PORT-02]` `[CI-PORT-04]` `[CI-PORT-05]` `[CI-PORT-08]` Stage create/inspect/start/wait using only the appropriate contract.
   - **Files**: Modify `.github/actions/docker-infra/action.yml`, `.github/actions/docker-infra/scripts/start-services.sh`, `.github/actions/docker-infra/scripts/wait-services.sh`, `.github/actions/docker-infra/scripts/verify-health.sh`, `.github/actions/docker-infra/scripts/ensure-topics.sh`; create `.github/actions/docker-infra/scripts/ci-runtime-lifecycle.test.sh`.
   - **Implementation**: Accept project/runtime directory inputs on every action/helper command. Implement the required sequence: render; create/inspect infra; publish host contract; health/discover Keycloak; create/inspect/write/release Redpanda; host-contract migrations/status/fixtures/provisioning; create Core with container contract; inspect Core; create web/admin with private proxy and generated runtime config; reconcile; and request each discovered web/admin loopback URL before Playwright. Remove hard-coded container names and source the correct contract explicitly per stage.
   - **Acceptance mapping**: CI-PORT-01–06, CI-PORT-08, CI-PORT-12; staged lifecycle and readiness acceptance.
@@ -20,7 +20,7 @@
   - **Verification**: `bash .github/actions/docker-infra/scripts/ci-runtime-lifecycle.test.sh`; run a single disposable project through create/inspect/start/wait and prove the host readiness gate fails for an altered mapping.
   - **200-line guard**: Split lifecycle phases into dedicated scripts; do not turn `action.yml`, `start-services.sh`, or `wait-services.sh` into monoliths; run the line gate.
 
-- [ ] **5.2** `[L]` `[CI-PORT-01]` `[CI-PORT-08]` `[CI-PORT-11]` Replace broad cleanup with label-scoped project diagnostics and teardown.
+- [x] **5.2** `[L]` `[CI-PORT-01]` `[CI-PORT-08]` `[CI-PORT-11]` Replace broad cleanup with label-scoped project diagnostics and teardown.
   - **Files**: Create `.github/actions/docker-infra/scripts/collect-ci-runtime-diagnostics.sh`, `.github/actions/docker-infra/scripts/down-ci-runtime-project.sh`, `.github/actions/docker-infra/scripts/ci-runtime-cleanup.test.sh`; modify `.github/actions/docker-infra/action.yml`; delete `.github/actions/docker-infra/scripts/cleanup-conflicts.sh`, `.github/actions/docker-infra/scripts/cleanup-ports.sh`.
   - **Implementation**: Select only resources whose project and Plexica scope labels exactly match the validated project. Retain sanitized `ps`, endpoint allowlist, admission facts, Docker events, bounded logs, sentinel result, and exits on success/failure; redaction failure must fail. Reject selectors that could reach unlabelled/foreign resources. Use project-specific `down -v`; never `pkill`, port-owner cleanup, or process-wide `down --remove-orphans`.
   - **Acceptance mapping**: CI-PORT-01, CI-PORT-08, CI-PORT-11; scoped diagnostic and teardown acceptance.
@@ -28,15 +28,18 @@
   - **Verification**: `bash .github/actions/docker-infra/scripts/ci-runtime-cleanup.test.sh`; create foreign labelled/unlabelled fixtures and prove collection/teardown refuses them while project cleanup succeeds.
   - **200-line guard**: Isolate redaction, resource selection, and teardown into separate scripts; run the line gate.
 
-- [ ] **5.3** `[L]` `[CI-PORT-09]` `[CI-PORT-10]` `[CI-PORT-11]` Rebuild the workflow as independently bootstrapped contract and CI jobs.
-  - **Files**: Modify `.github/workflows/ci.yml`; modify `.github/actions/docker-infra/action.yml` only for declared workflow inputs/outputs.
-  - **Implementation**: Add `ci-runtime-contract` and `ci`, both on `[self-hosted, plexica-ci-concurrent-e2e]`; make `ci` require the contract job but bootstrap its own project and Docker state. Immediately after checkout invoke Task 1.1 admission in both jobs, before setup/install/build/pull/start. Generate independent project/runtime values, pass them to every action/script/E2E command, remove fixed job environment endpoints and all broad cleanup/retry/skip/downscale/bypass patterns, and upload non-secret admission/scoped diagnostic artifacts with `if: always()` and `if-no-files-found: error`.
+- [x] **5.3** `[L]` `[CI-PORT-09]` `[CI-PORT-10]` `[CI-PORT-11]` Rebuild the workflow as independently bootstrapped contract and CI jobs.
+  - **Files**: Modify `.github/workflows/ci.yml`; create `.github/actions/ci-runner-admission/action.yml` (composite admission wrapper invoked by every job); modify `.github/actions/docker-infra/action.yml` only for declared workflow inputs/outputs.
+  - **Implementation**: Add `ci-runtime-contract` and `ci`, both on the default `self-hosted` runner (revised 2026-08-24 from the dedicated labelled runner); make `ci` require the contract job but bootstrap its own project and Docker state. Immediately after checkout invoke Task 1.1 admission in both jobs, before setup/install/build/pull/start. Generate independent project/runtime values, pass them to every action/script/E2E command, remove fixed job environment endpoints and all broad cleanup/retry/skip/downscale/bypass patterns, and upload non-secret admission/scoped diagnostic artifacts with `if: always()` and `if-no-files-found: error`. The pre-existing `quality` job is brought under the same contract: it runs on the same runner class, invokes `.github/actions/ci-runner-admission` immediately after checkout, and uploads its own scoped admission artifact.
   - **Acceptance mapping**: CI-PORT-01, CI-PORT-09–11; both-job admission and independent-state acceptance.
   - **Dependencies**: Task 1.1 in [tasks.md](./tasks.md), plus Tasks 5.1 and 5.2 above.
   - **Verification**: `docker compose -f docker-compose.yml -f docker-compose.ci.yml config >/dev/null`; workflow lint/parse available in the repository; inspect the workflow to confirm admission is the first post-checkout executable step in both jobs and no broad cleanup remains.
   - **200-line guard**: `ci.yml` is already 192 lines—move reusable behavior to the composite action/scripts and keep the workflow at or below 200 lines; run the line gate.
 
 - [ ] **5.4** `[L]` `[CI-PORT-01]` `[CI-PORT-05]` `[CI-PORT-07]` `[CI-PORT-09]` `[CI-PORT-11]` Implement the two-project full concurrent runtime verifier.
+  > Implementation is complete (`verify-concurrent-ci-runtime.sh` + its self-test are
+  > authored); the `--full-e2e` EXECUTION on an admitted runner is still pending, so the
+  > box stays unchecked until that run passes.
   - **Files**: Create `.github/actions/docker-infra/scripts/verify-concurrent-ci-runtime.sh`, `.github/actions/docker-infra/scripts/verify-concurrent-ci-runtime.test.sh`; modify `.github/actions/docker-infra/scripts/collect-ci-runtime-diagnostics.sh`, `.github/workflows/ci.yml`.
   - **Implementation**: `--full-e2e` must independently bootstrap projects A and B, run web and admin browser E2E against both, snapshot B tuples, then tear down A and prove B’s browser, Core health, Keycloak validation, plugin proxy, Kafka round trip, network/volume/topic/issuer/alias identities, and inspected tuples are unchanged. Record prior-port sentinels and fail on legacy ports, A-port reuse, resource cross-selection, wrong issuer/JWKS direction, browser Core request, unsafe plugin target, unsanitized diagnostics, or invalid `down -v` selection.
   - **Acceptance mapping**: CI-PORT-01–12; all final acceptance criteria, especially A-down/B-survives.

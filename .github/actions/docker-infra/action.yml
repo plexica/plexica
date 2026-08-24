@@ -16,10 +16,6 @@ inputs:
     default: plexica
   postgres-password:
     default: changeme
-  keycloak-admin-user:
-    default: admin
-  keycloak-admin-password:
-    default: changeme
 runs:
   using: composite
   steps:
@@ -27,44 +23,45 @@ runs:
       if: inputs.phase == 'admission'
       shell: bash
       env:
+        ACTION_PATH: ${{ github.action_path }}
         CI_COMPOSE_PROJECT: ${{ inputs.project }}
         CI_RUNTIME_DIR: ${{ inputs.runtime-dir }}
-      run: bash "${{ github.action_path }}/scripts/verify-ci-runner-capacity.sh" "$CI_COMPOSE_PROJECT"
+      run: bash "$ACTION_PATH/scripts/verify-ci-runner-capacity.sh" "$CI_COMPOSE_PROJECT"
     - name: Start project runtime
       if: inputs.phase == 'start' || inputs.phase == 'full'
       shell: bash
       env:
+        ACTION_PATH: ${{ github.action_path }}
         CI_COMPOSE_PROJECT: ${{ inputs.project }}
         CI_RUNTIME_DIR: ${{ inputs.runtime-dir }}
         POSTGRES_DB: ${{ inputs.postgres-db }}
         POSTGRES_USER: ${{ inputs.postgres-user }}
         POSTGRES_PASSWORD: ${{ inputs.postgres-password }}
-        KEYCLOAK_ADMIN_USER: ${{ inputs.keycloak-admin-user }}
-        KEYCLOAK_ADMIN_PASSWORD: ${{ inputs.keycloak-admin-password }}
-      run: bash "${{ github.action_path }}/scripts/start-services.sh"
+      run: bash "$ACTION_PATH/scripts/start-services.sh"
     - name: Wait for project runtime
       if: inputs.phase == 'wait' || inputs.phase == 'full'
       shell: bash
       env:
+        ACTION_PATH: ${{ github.action_path }}
         CI_COMPOSE_PROJECT: ${{ inputs.project }}
         CI_RUNTIME_DIR: ${{ inputs.runtime-dir }}
         POSTGRES_DB: ${{ inputs.postgres-db }}
         POSTGRES_USER: ${{ inputs.postgres-user }}
         POSTGRES_PASSWORD: ${{ inputs.postgres-password }}
-        KEYCLOAK_ADMIN_USER: ${{ inputs.keycloak-admin-user }}
-        KEYCLOAK_ADMIN_PASSWORD: ${{ inputs.keycloak-admin-password }}
-      run: bash "${{ github.action_path }}/scripts/wait-services.sh"
+      run: bash "$ACTION_PATH/scripts/wait-services.sh"
     - name: Capture scoped diagnostics
       if: always() && inputs.phase == 'diagnostics'
       shell: bash
       env:
+        ACTION_PATH: ${{ github.action_path }}
         CI_COMPOSE_PROJECT: ${{ inputs.project }}
         CI_RUNTIME_DIR: ${{ inputs.runtime-dir }}
-      run: bash "${{ github.action_path }}/scripts/collect-ci-runtime-diagnostics.sh"
+      run: bash "$ACTION_PATH/scripts/collect-ci-runtime-diagnostics.sh"
     - name: Remove project runtime
       if: always() && inputs.phase == 'down'
       shell: bash
       env:
+        ACTION_PATH: ${{ github.action_path }}
         CI_COMPOSE_PROJECT: ${{ inputs.project }}
         CI_RUNTIME_DIR: ${{ inputs.runtime-dir }}
-      run: bash "${{ github.action_path }}/scripts/down-ci-runtime-project.sh"
+      run: bash "$ACTION_PATH/scripts/down-ci-runtime-project.sh"

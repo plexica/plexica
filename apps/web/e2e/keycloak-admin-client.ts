@@ -44,6 +44,15 @@ export async function setTenantClientOrigin(
   });
   if (!update.ok)
     throw new Error(`Could not configure plexica-web in ${realm}: HTTP ${update.status}`);
+  const verified = await adminFetch(token, `/admin/realms/${realm}/clients/${client.id}`, 'GET');
+  const finalClient = (await verified.json()) as {
+    redirectUris?: string[]; webOrigins?: string[]; attributes?: Record<string, unknown>;
+  };
+  if (!verified.ok || finalClient.redirectUris?.[0] !== `${origin}/callback` ||
+    finalClient.webOrigins?.[0] !== origin ||
+    finalClient.attributes?.['post.logout.redirect.uris'] !== `${origin}/`) {
+    throw new Error(`plexica-web final reconciliation did not retain ${origin} in ${realm}`);
+  }
 }
 
 /**

@@ -15,6 +15,10 @@ const consumer = kafka.consumer({ groupId: `${clientId}-consumer` });
 const payload = randomUUID();
 
 await admin.connect();
+const metadata = await admin.describeCluster();
+if (!metadata.brokers.some(({ host, port }) => `${host}:${port}` === broker)) {
+  throw new Error(`Kafka metadata does not advertise the manifest listener ${broker}`);
+}
 await admin.createTopics({ topics: [{ topic, numPartitions: 1, replicationFactor: 1 }] });
 await producer.connect();
 await consumer.connect();

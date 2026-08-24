@@ -56,10 +56,10 @@ function sanitizeProxyPath(url: string): string {
   return decoded;
 }
 
-function validateTargetHost(targetUrl: string, installId: string): void {
+function validateTargetHost(targetUrl: string, installId: string, expectedPort?: number): void {
   try {
     const parsed = new URL(targetUrl);
-    assertCiPluginTarget(installId, targetUrl);
+    assertCiPluginTarget(installId, targetUrl, expectedPort);
     if (!isCiPluginRuntime() && !ALLOWED_PROXY_HOSTS.includes(parsed.hostname)) {
       throw new ValidationError(`Proxy target host "${parsed.hostname}" is not allowed`);
     }
@@ -85,7 +85,7 @@ export async function proxyRequest(
 
   const pathSuffix = sanitizeProxyPath(request.url);
   const targetUrl = `${target.baseUrl}${pathSuffix}`;
-  validateTargetHost(targetUrl, target.installId);
+  validateTargetHost(targetUrl, target.installId, access.manifestPort);
 
   const tenantContext = request.tenantContext;
   const keycloakUserId = request.user?.keycloakUserId ?? '';

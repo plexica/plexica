@@ -16,7 +16,7 @@ export function dockerRuntimeOptions(installId: string): {
         ? { Binds: [`${caPath}:${PLUGIN_CONTAINER_CA_PATH}:ro`] }
         : {}),
       NetworkMode: identity.network,
-      ...(isCiPluginRuntime() ? { } : { ExtraHosts: ['host.docker.internal:host-gateway'] }),
+        ...(isCiPluginRuntime() ? {} : { ExtraHosts: ['host.docker.internal:host-gateway'] }),
     },
   };
 }

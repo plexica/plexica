@@ -16,7 +16,9 @@ import { createHash } from 'node:crypto';
 
 import { expect, test } from '@playwright/test';
 
-const API_URL = process.env['PLAYWRIGHT_API_URL'] ?? 'http://localhost:3001';
+import { coreApiUrl } from '../../../e2e/playwright-base.js';
+
+const API_URL = coreApiUrl();
 
 // Resolve endpoint boundary is shared with the core-api E2E configuration.
 const RESOLVE_MAX = Number(process.env['PLAYWRIGHT_RATE_LIMIT_RESOLVE_MAX'] ?? 30);

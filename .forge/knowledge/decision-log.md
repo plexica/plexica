@@ -41,6 +41,7 @@ Foundational and current ADR lifecycle states:
 | ADR | Decision Date | Status | Decision |
 | --- | --- | --- | --- |
 | ADR-031 | 2026-08-21 | Accepted | Final plan names Keycloak 26 request-host mode (no hostname/proxy headers), manifest-only host provisioning, bounded scoped sidecar identity, and mandatory post-checkout admission in both labelled jobs. |
+| ADR-031 | 2026-08-24 | Amended | CI jobs moved to the default `self-hosted` runner per user decision; measured capacity admission retained without the dedicated class marker. |
 
 ---
 

@@ -16,6 +16,7 @@ const apiProxy = {
 const ciRuntime = process.env.CI_RUNTIME_CONTRACT === '1';
 
 export default defineConfig({
+  define: { __PLEXICA_CI_RUNTIME_CONTRACT__: JSON.stringify(ciRuntime) },
   plugins: [
     react(),
     federation({

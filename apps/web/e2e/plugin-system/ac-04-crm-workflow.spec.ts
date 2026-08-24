@@ -1,6 +1,7 @@
 // ac-04-crm-workflow.spec.ts — Spec 004, AC-04: CRM Example End-to-End.
 // Full browser workflow through the CRM Module Federation remote and proxy.
 
+import { coreApiUrl } from '../../../../e2e/playwright-base.js';
 import { expect, test } from '../helpers/base-fixture.js';
 import { loginAsAdmin, requireKeycloakInCI, uniqueName } from '../helpers/admin-login.js';
 import {
@@ -9,7 +10,7 @@ import {
   getBrowserToken,
 } from '../helpers/plugin-fixtures.js';
 
-const API_BASE = process.env['PLAYWRIGHT_API_URL'] ?? 'http://localhost:3001';
+const API_BASE = coreApiUrl();
 
 test.describe('004 Plugin System — AC-04: CRM Example End-to-End', () => {
   test.beforeAll(() => {

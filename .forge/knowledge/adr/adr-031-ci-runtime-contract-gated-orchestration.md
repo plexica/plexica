@@ -3,6 +3,9 @@
 **Status**: Accepted
 **Date**: 2026-08-21
 **Revised**: 2026-08-21 — final review blockers resolved
+**Revised**: 2026-08-24 — runner class changed to the default `self-hosted`
+runner per user decision; measured capacity admission is retained without the
+dedicated class marker.
 **Deciders**: Plexica Team and user
 **Related**: Spec 010; ADR-004; ADR-013
 
@@ -35,12 +38,14 @@ enforceable project and runner-capacity boundary.
    port binding. Create, inspect, restart/replacement, stop, remove, recovery,
    and proxy all derive and validate that identity. Local uses explicit `local`
    scope and retains ADR-013 local-process/host-port behavior outside CI.
-4. Both `ci-runtime-contract` and normal `ci` run on
-   `[self-hosted, plexica-ci-concurrent-e2e]`; `ci` needs the contract job. In
+4. Both `ci-runtime-contract` and normal `ci` run on the default `self-hosted`
+   runner (revised 2026-08-24 from the dedicated labelled runner); `ci` needs
+   the contract job. In
    both jobs shared admission is the first executable step after checkout and
-   precedes install/build/Docker pull/start. It hard-fails unless a class marker,
+   precedes install/build/Docker pull/start. It hard-fails unless measured
    >=4 CPUs, >=16 GiB cgroup memory, >=12 GiB availability/headroom, and >=60
-   GiB Docker storage are measured and retained as non-secret evidence.
+   GiB Docker storage are measured and retained as non-secret evidence under a
+   machine-shared flock serialization lock.
 5. The independently bootstrapped contract job starts two projects concurrently,
    proving Keycloak issuer/JWKS/provisioning direction, Redpanda metadata and
    round trip, private plugin routing, scoped failure/teardown, and B survival.
@@ -53,6 +58,25 @@ enforceable project and runner-capacity boundary.
 | Request-host Keycloak with trusted proxy headers | Rejected: no proxy exists; trusting forwarded headers adds spoofable input. |
 | Reverse proxy/external port allocator | Rejected: new infrastructure is unnecessary. |
 | Project contract, request-host Keycloak, private sidecars, admission | Selected: Docker discovery makes all boundaries explicit. |
+
+## Trust boundary
+The CI runner workspace bind is read-only from the containers' perspective:
+`.env` is gitignored and therefore never present on CI runners, the `.git`
+exposure mounted into containers is read-only, and all runtime secrets arrive
+exclusively through environment variables written by the contract writer — no
+secret material can be modified by, or persisted into, the workspace bind.
+The socket-mounted plugin Docker proxy is a single-purpose, least-privilege
+component: it enforces one fixed network and derived alias, exact ownership
+labels, no host port bindings, only the CA-bundle bind, and two trusted
+digest-pinned sidecar image references through trusted server-side
+configuration (`PLUGIN_SIDECAR_IMAGE` for plugin images and
+`CI_SIDECAR_HARNESS_IMAGE` for harness-marked installs). Client payloads can
+never select an image, and the
+proxy fails closed at startup if the pinned-image configuration is missing or
+not in full `repo@sha256:...` form. A full Core compromise therefore degrades to
+creating sidecars strictly inside those constraints — it cannot start arbitrary
+images, publish ports, mount host paths beyond the CA bundle, or reach the host
+gateway.
 
 ## Consequences
 **Positive:** concurrent isolation, correct dynamic public issuer, internal Core
