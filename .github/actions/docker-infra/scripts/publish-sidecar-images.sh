@@ -24,18 +24,20 @@ trap 'remove_registry; exit 130' INT TERM
 
 die() { printf '%s\n' "$1" >&2; exit 1; }
 
-index_digest=$(
-  docker buildx imagetools inspect registry:2 |
-    awk '/^Digest:[[:space:]]+/ { print $2; exit }'
-) || die 'Unable to inspect registry:2 multi-arch index'
-[[ "$index_digest" =~ ^sha256:[0-9a-f]{64}$ ]] ||
-  die 'registry:2 multi-arch index digest unavailable'
+# Pinned ephemeral registry image (tag@digest policy). The digest below is
+# the verified multi-arch index for registry:2. To refresh it, run on a
+# machine with working buildx:
+#   docker buildx imagetools inspect registry:2 | awk '/^Digest:/ { print $2; exit }'
+# then update the constant and re-verify before committing.
+REGISTRY_IMAGE=registry:2@sha256:a3d8aaa63ed8681a604f1dea0aa03f100d5895b6a58ace528858a7b332415373
+[[ "$REGISTRY_IMAGE" =~ ^registry:2@sha256:[0-9a-f]{64}$ ]] ||
+  die 'Pinned registry:2 reference has an invalid sha256 format'
 
 registry_cid=$(
   docker run -d --rm -p 127.0.0.1::5000 \
     --label "com.docker.compose.project=$project" \
     --label "io.plexica.runtime-scope=$scope" \
-    "registry:2@$index_digest"
+    "$REGISTRY_IMAGE"
 ) || die 'Unable to start ephemeral sidecar registry'
 [[ "$registry_cid" =~ ^[0-9a-f]{12,64}$ ]] || die 'Unexpected ephemeral registry container id'
 

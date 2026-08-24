@@ -7,8 +7,8 @@ trap 'rm -rf "$temp"' EXIT
 mkdir -m 700 "$temp/bin" "$temp/logs"
 
 project=plexica-ci-sidecar-publish-01
+pinned_registry=registry:2@sha256:a3d8aaa63ed8681a604f1dea0aa03f100d5895b6a58ace528858a7b332415373
 cid=a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f9
-index_digest=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
 pushed_digest=275f15d87a0a09b8a71a08b30b4f91d1fca1e5b8d1d9fdd5fbb4d795d1e0c1a2
 port=32771
 
@@ -18,13 +18,8 @@ printf 'docker %s\n' "\$*" >>"\${MOCK_LOG:?MOCK_LOG is required}"
 case "\${1:-}" in
   buildx)
     [[ "\${3:-}" == inspect ]] || exit 1
-    [[ "\${MOCK_INSPECT_FAIL:-0}" == 1 ]] && exit 1
     ref=\${4:?}
-    if [[ "\$ref" == registry:2 ]]; then
-      printf 'Name: %s\nDigest: sha256:%s\n' "\$ref" "$index_digest"
-    else
-      printf 'Name: %s\nDigest: sha256:%s\n' "\$ref" "$pushed_digest"
-    fi
+    printf 'Name: %s\nDigest: sha256:%s\n' "\$ref" "$pushed_digest"
     ;;
   run)
     [[ "\${MOCK_RUN_FAIL:-0}" == 1 ]] && exit 1
@@ -96,11 +91,15 @@ grep -q "^trap 'remove_registry; exit 130' INT TERM$" -- "$script_dir/publish-si
   echo 'Ephemeral registry cleanup misses the INT/TERM traps' >&2; exit 1;
 }
 # The ephemeral registry must carry the project + runtime-scope labels so
-# scoped teardown tooling can attribute it.
+# scoped teardown tooling can attribute it, and must use the pinned
+# registry:2@sha256 reference (no dynamic buildx inspection).
 run_line=$(grep '^docker run -d ' "$temp/logs/success-docker.log")
 scope=ci-$(printf '%s' "$project" | sha256sum | cut -c1-28)
 [[ "$run_line" == *"--label com.docker.compose.project=$project "* ]] || {
   echo 'Ephemeral registry lacks the compose project label' >&2; exit 1;
+}
+[[ "$run_line" == *" $pinned_registry" ]] || {
+  echo 'Ephemeral registry does not use the pinned registry:2 digest reference' >&2; exit 1;
 }
 [[ "$run_line" == *"--label io.plexica.runtime-scope=$scope "* ]] || {
   echo 'Ephemeral registry lacks the runtime-scope label' >&2; exit 1;
@@ -108,17 +107,6 @@ scope=ci-$(printf '%s' "$project" | sha256sum | cut -c1-28)
 [[ $(find "$runtime" -maxdepth 1 -name '.sidecar-images.env.*' | wc -l) -eq 0 ]] || {
   echo 'Staging artifacts were left behind in the runtime directory' >&2; exit 1;
 }
-
-runtime=$(new_runtime inspect-fail)
-if MOCK_INSPECT_FAIL=1 publish "$runtime" inspect-fail inspect >"$temp/logs/inspect-fail.out" 2>&1; then
-  echo 'Sidecar publish succeeded without a registry:2 index digest' >&2; exit 1
-fi
-[[ ! -s "$runtime/sidecar-images.env" ]] || {
-  echo 'Env file was written despite registry index inspection failure' >&2; exit 1;
-}
-grep -q '^docker run ' "$temp/logs/inspect-docker.log" && {
-  echo 'Registry container started despite registry index inspection failure' >&2; exit 1;
-} || true
 
 runtime=$(new_runtime push-fail)
 if MOCK_PUSH_FAIL=1 publish "$runtime" push-fail push >"$temp/logs/push-fail.out" 2>&1; then
