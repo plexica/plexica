@@ -19,6 +19,11 @@ set -a; source "$runtime/keycloak-credentials.env"; set +a
 # created-but-not-started container fails ("service is not running"), and
 # up --wait redpanda before its gated entrypoint finds redpanda-listener.env
 # blocks forever until the wait timeout expires.
+# The browser apps (web-e2e/admin-e2e) share this create -> populate -> START
+# contract: runtime-config.js is bind-mounted and its inode pins at CREATE,
+# so stage-browser populates it between create and start, and only after
+# START does write-browser resolve the dynamic ports for the host/browser
+# manifests.
 "${compose[@]}" up -d --wait --wait-timeout 300 postgres redis minio keycloak mailpit loki
 bash "$script_dir/ci-runtime-compose.sh" stage-redpanda
 "${compose[@]}" up -d --wait --wait-timeout 300 redpanda
@@ -41,10 +46,9 @@ CI_RUNTIME_DIR="$runtime" bash "$lifecycle" --publish-only
 "${compose[@]}" create core-api-e2e
 "${compose[@]}" start core-api-e2e
 bash "$script_dir/ci-runtime-compose.sh" write-core
-"${compose[@]}" create web-e2e admin-e2e
+bash "$script_dir/ci-runtime-compose.sh" stage-browser
 bash "$script_dir/ci-runtime-compose.sh" write-browser
 source "$script_dir/source-ci-runtime-host.sh"
-"${compose[@]}" start web-e2e admin-e2e
 "${compose[@]}" up -d keycloak-init
 container=$("${compose[@]}" ps -q keycloak-init)
 [[ -n "$container" && $(docker wait "$container") == 0 ]] || { docker logs "$container" >&2; exit 1; }

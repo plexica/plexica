@@ -75,6 +75,22 @@ for (let i = 0; i < lines.length; i++) {
 const created = indexOf(" create redpanda"), started = indexOf(" start redpanda");
 if ([created, started, resolved, waited].includes(-1) || !(created < started && started < resolved && resolved < waited)) process.exit(1);
 ' "$temp/docker-commands"
+# App-services ordering proof: web-e2e/admin-e2e/core-api-e2e dynamic ports
+# may only be resolved AFTER their containers were created AND started;
+# resolving on a created-but-not-started container fails ("is not running").
+node -e '
+const lines = require("node:fs").readFileSync(process.argv[1], "utf8").trim().split("\n");
+const indexOf = (pattern) => { for (let i = 0; i < lines.length; i++) if (lines[i].endsWith(pattern)) return i; return -1; };
+const firstIndexOf = (pattern) => { for (let i = 0; i < lines.length; i++) if (lines[i].endsWith(pattern)) return i; return -1; };
+for (const [created, started, port] of [
+  [" create web-e2e admin-e2e", " start web-e2e admin-e2e", " port web-e2e 3000"],
+  [" create web-e2e admin-e2e", " start web-e2e admin-e2e", " port admin-e2e 3002"],
+  [" create core-api-e2e", " start core-api-e2e", " port core-api-e2e 3001"],
+]) {
+  const c = indexOf(created), s = indexOf(started), r = firstIndexOf(port);
+  if ([c, s, r].includes(-1) || !(c < s && s < r)) process.exit(1);
+}
+' "$temp/docker-commands"
 node -e '
 const lines=require("node:fs").readFileSync(process.argv[1],"utf8").trim().split("\n");
 const expected="postgresql://plexica:changeme@127.0.0.1:32001/plexica|http://127.0.0.1:32004|redis://127.0.0.1:32002|http://127.0.0.1:32003|127.0.0.1:32005";
@@ -130,6 +146,15 @@ const indexOf = (pattern) => { for (let i = 0; i < lines.length; i++) if (lines[
 const created = indexOf(" create redpanda"), started = indexOf(" start redpanda");
 let resolved = -1;
 for (let i = 0; i < lines.length; i++) if (lines[i].endsWith(" port redpanda 19092")) { resolved = i; break; }
+if ([created, started, resolved].includes(-1) || !(created < started && started < resolved)) process.exit(1);
+' "$temp/docker-commands-refused"
+# The refusal path must also honor the app-services start-before-resolve order.
+node -e '
+const lines = require("node:fs").readFileSync(process.argv[1], "utf8").trim().split("\n");
+const indexOf = (pattern) => { for (let i = 0; i < lines.length; i++) if (lines[i].endsWith(pattern)) return i; return -1; };
+const created = indexOf(" create web-e2e admin-e2e"), started = indexOf(" start web-e2e admin-e2e");
+let resolved = -1;
+for (let i = 0; i < lines.length; i++) if (lines[i].endsWith(" port web-e2e 3000")) { resolved = i; break; }
 if ([created, started, resolved].includes(-1) || !(created < started && started < resolved)) process.exit(1);
 ' "$temp/docker-commands-refused"
 grep -F 'WEB_E2E_PUBLIC_BASE=http://127.0.0.1:39999' "$CI_RUNTIME_DIR/host.env" >/dev/null

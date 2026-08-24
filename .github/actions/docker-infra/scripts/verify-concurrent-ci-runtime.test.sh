@@ -105,6 +105,18 @@ for (const project of ["plexica-ci-a-", "plexica-ci-b-"]) {
   if (downs.length !== 1) process.exit(1);
 }
 ' "$log"
+# Bootstrap ordering gate: per project, infrastructure staging with listener
+# and browser-env prerequisites (start-services.sh) must precede readiness
+# staging (wait-services.sh), which must precede the first Playwright run.
+node -e '
+const lines = require("node:fs").readFileSync(process.argv[1], "utf8").trim().split("\n");
+for (const project of ["plexica-ci-a-", "plexica-ci-b-"]) {
+  const staged = lines.findIndex((line) => line.startsWith(`start-services.sh ${project}`));
+  const waited = lines.findIndex((line) => line.startsWith(`wait-services.sh ${project}`));
+  const tested = lines.findIndex((line) => line.includes("/playwright/") && line.includes(project));
+  if ([staged, waited, tested].includes(-1) || !(staged < waited && waited < tested)) process.exit(1);
+}
+' "$log"
 node -e '
 const lines = require("node:fs").readFileSync(process.argv[1], "utf8").trim().split("\n");
 const down = lines.findIndex((line) => /down-ci-runtime-project\.sh plexica-ci-a-/.test(line));

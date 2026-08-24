@@ -16,10 +16,15 @@ cat >"$temp/bin/docker" <<MOCK
 #!/usr/bin/env bash
 printf 'docker %s\n' "\$*" >>"\${MOCK_LOG:?MOCK_LOG is required}"
 case "\${1:-}" in
-  buildx)
-    [[ "\${3:-}" == inspect ]] || exit 1
-    ref=\${4:?}
-    printf 'Name: %s\nDigest: sha256:%s\n' "\$ref" "$pushed_digest"
+  image)
+    [[ "\${2:-}" == inspect ]] || exit 1
+    printf '127.0.0.1:%s/sidecar-harness@sha256:%s\n' "$port" "$pushed_digest"
+    ;;
+  pull)
+    if [[ "\${MOCK_PULL_FAIL:-0}" == 1 ]]; then
+      echo 'manifest unknown' >&2
+      exit 1
+    fi
     ;;
   run)
     [[ "\${MOCK_RUN_FAIL:-0}" == 1 ]] && exit 1
@@ -106,6 +111,30 @@ scope=ci-$(printf '%s' "$project" | sha256sum | cut -c1-28)
 }
 [[ $(find "$runtime" -maxdepth 1 -name '.sidecar-images.env.*' | wc -l) -eq 0 ]] || {
   echo 'Staging artifacts were left behind in the runtime directory' >&2; exit 1;
+}
+# Digest resolution must use the pull-based flow (buildx is absent on
+# self-hosted runners): push -> pull -> RepoDigests inspection, never buildx.
+node -e '
+const lines = require("node:fs").readFileSync(process.argv[1], "utf8").trim().split("\n");
+const indexOf = (pattern) => { for (let i = 0; i < lines.length; i++) if (lines[i].endsWith(pattern)) return i; return -1; };
+const pushed = indexOf(" push 127.0.0.1:'"$port"'/sidecar-harness");
+const pulled = indexOf(" pull 127.0.0.1:'"$port"'/sidecar-harness:latest");
+const inspected = indexOf(" image inspect --format {{index .RepoDigests 0}} 127.0.0.1:'"$port"'/sidecar-harness:latest");
+if ([pushed, pulled, inspected].includes(-1) || !(pushed < pulled && pulled < inspected)) process.exit(1);
+' "$temp/logs/success-docker.log"
+if grep -q '^docker buildx' "$temp/logs/success-docker.log"; then
+  echo 'Sidecar publish still resolves the digest via buildx imagetools' >&2; exit 1;
+fi
+
+runtime=$(new_runtime pull-fail)
+if MOCK_PULL_FAIL=1 publish "$runtime" pull-fail pull >"$temp/logs/pull-fail.out" 2>&1; then
+  echo 'Sidecar publish succeeded despite a failed harness pull' >&2; exit 1
+fi
+[[ ! -s "$runtime/sidecar-images.env" ]] || {
+  echo 'Env file was written despite a failed harness pull' >&2; exit 1;
+}
+grep -Fx "$cid" "$temp/logs/pull-rm.log" >/dev/null || {
+  echo 'Ephemeral registry was not removed after a failed harness pull' >&2; exit 1;
 }
 
 runtime=$(new_runtime push-fail)

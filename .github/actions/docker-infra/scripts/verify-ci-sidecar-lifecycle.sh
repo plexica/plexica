@@ -35,7 +35,9 @@ else
   }
   trap cleanup EXIT
   build_id=$(docker build -q --tag "$image" --file "$root/infra/docker/ci-sidecar-harness.Dockerfile" "$root")
-  HARNESS_TAG="$image" PATH="$script_dir:$PATH" publish-sidecar-images.sh >/dev/null
+  # Test harnesses override the publisher via PUBLISH_SIDECAR_IMAGES_CMD;
+  # production always uses the real script colocated with this one.
+  HARNESS_TAG="$image" "${PUBLISH_SIDECAR_IMAGES_CMD:-$script_dir/publish-sidecar-images.sh}" >/dev/null
   [[ -f "$env_file" ]] || {
     echo 'Sidecar image publication did not produce sidecar-images.env evidence' >&2; exit 1;
   }

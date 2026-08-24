@@ -122,3 +122,46 @@ grep -q 'Timed out resolving redpanda dynamic port 19092' "$temp/stage.err" || {
 [[ ! -e "$CI_RUNTIME_DIR/redpanda-listener.env" ]] || {
   echo 'Failed staging wrote a redpanda listener contract' >&2; exit 1;
 }
+
+# Browser app staging contract: stage-browser must create -> populate
+# runtime-config.js -> START (the bind-mounted inode pins at create), and
+# write-browser resolves the dynamic ports only afterwards.
+cat > "$temp/bin/docker" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$COMMAND_LOG"
+case "$*" in
+  *' create web-e2e admin-e2e'|*' start web-e2e admin-e2e') : ;;
+  *' port web-e2e 3000'|*' port admin-e2e 3002')
+    while IFS= read -r line; do
+      [[ "$line" != *' start web-e2e admin-e2e' ]] || {
+        [[ "$*" == *' port admin-e2e 3002'* ]] && printf '127.0.0.1:32008\n' || printf '127.0.0.1:32007\n'
+        exit 0
+      }
+    done < "$COMMAND_LOG"
+    echo 'service "web-e2e" is not running' >&2; exit 1 ;;
+  *) exit 1 ;;
+esac
+EOF
+chmod +x "$temp/bin/docker"
+PATH="$temp/bin:$PATH" COMMAND_LOG="$temp/browser-stage.log" bash "$script" stage-browser
+grep -F 'keycloakBase:"http://127.0.0.1:32004"' "$CI_RUNTIME_DIR/runtime-config.js" >/dev/null
+PATH="$temp/bin:$PATH" COMMAND_LOG="$temp/browser-stage.log" bash "$script" write-browser
+grep -Fx 'WEB_E2E_PUBLIC_BASE=http://127.0.0.1:32007' "$CI_RUNTIME_DIR/host.env" >/dev/null
+grep -Fx 'ADMIN_E2E_PUBLIC_BASE=http://127.0.0.1:32008' "$CI_RUNTIME_DIR/browser-endpoints.env" >/dev/null
+node -e '
+const lines = require("node:fs").readFileSync(process.argv[1], "utf8").trim().split("\n");
+const indexOf = (pattern) => { for (let i = 0; i < lines.length; i++) if (lines[i].endsWith(pattern)) return i; return -1; };
+let webResolved = -1;
+for (let i = 0; i < lines.length; i++) if (lines[i].endsWith(" port web-e2e 3000")) { webResolved = i; break; }
+const created = indexOf(" create web-e2e admin-e2e"), started = indexOf(" start web-e2e admin-e2e");
+if ([created, started, webResolved].includes(-1) || !(created < started && started < webResolved)) process.exit(1);
+' "$temp/browser-stage.log"
+# No-resolution-before-start: write-browser against never-started containers
+# must exhaust its bounded retries instead of emitting any manifest value.
+if CI_RUNTIME_PORT_ATTEMPTS=2 CI_RUNTIME_PORT_INTERVAL_SECONDS=0 PATH="$temp/bin:$PATH" \
+  COMMAND_LOG="$temp/browser-unstarted.log" bash "$script" write-browser 2>"$temp/browser.err"; then
+  echo 'write-browser resolved ports without a started container' >&2; exit 1;
+fi
+grep -q 'Timed out resolving web-e2e dynamic port 3000' "$temp/browser.err" || {
+  echo 'write-browser retry exhaustion did not report the unresolved mapping' >&2; exit 1;
+}

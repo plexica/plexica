@@ -64,12 +64,24 @@ if CI_RUNTIME_DIR="$runtime" bash -c 'source "$0"' "$dir/source-ci-runtime-host.
 fi
 DOCKER_LOG="$temp/docker.log" PATH="$temp/bin:$PATH" bash "$dir/ci-runtime-compose.sh" write-core
 grep -Fx 'CORE_API_PUBLIC_BASE=http://127.0.0.1:33006' "$runtime/host.env" >/dev/null
+# Browser staging contract: runtime-config.js is populated between container
+# create and start (bind-mount inode pins at create), then write-browser
+# resolves the dynamic ports post-start for the host/browser manifests.
+DOCKER_LOG="$temp/docker.log" PATH="$temp/bin:$PATH" bash "$dir/ci-runtime-compose.sh" stage-browser
 DOCKER_LOG="$temp/docker.log" PATH="$temp/bin:$PATH" bash "$dir/ci-runtime-compose.sh" write-browser
 grep -Fx 'WEB_E2E_PUBLIC_BASE=http://127.0.0.1:33007' "$runtime/host.env" >/dev/null
 grep -Fx 'ADMIN_E2E_PUBLIC_BASE=http://127.0.0.1:33008' "$runtime/host.env" >/dev/null
 grep -F 'keycloakBase:"http://127.0.0.1:33004"' "$runtime/runtime-config.js" >/dev/null
 grep -F ' port web-e2e 3000' "$temp/docker.log" >/dev/null
 grep -F ' port admin-e2e 3002' "$temp/docker.log" >/dev/null
+node -e '
+const lines = require("node:fs").readFileSync(process.argv[1], "utf8").trim().split("\n");
+const indexOf = (pattern) => { for (let i = 0; i < lines.length; i++) if (lines[i].endsWith(pattern)) return i; return -1; };
+const created = indexOf(" create web-e2e admin-e2e"), started = indexOf(" start web-e2e admin-e2e");
+let resolved = -1;
+for (let i = 0; i < lines.length; i++) if (lines[i].endsWith(" port web-e2e 3000")) { resolved = i; break; }
+if ([created, started, resolved].includes(-1) || !(created < started && started < resolved)) process.exit(1);
+' "$temp/docker.log"
 
 # Positive readiness gate: every discovered loopback URL is requested.
 : > "$temp/curl-positive.log"

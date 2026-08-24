@@ -22,16 +22,23 @@ exit 0
 EOF
 cat > "$temp/bin/publish-sidecar-images.sh" <<'EOF'
 #!/usr/bin/env bash
+printf '%s\n' "$0" >> "$COMMAND_LOG"
 [[ "${HARNESS_TAG:-}" == plexica-ci-sidecar-harness:* ]]
 digest=$(printf 'a%.0s' {1..64})
 printf 'CI_SIDECAR_HARNESS_IMAGE=127.0.0.1:5000/sidecar-harness@sha256:%s\n' \
   "$digest" > "$CI_RUNTIME_DIR/sidecar-images.env"
 EOF
 chmod +x "$temp/bin/"*
-PATH="$temp/bin:$PATH" COMMAND_LOG="$temp/commands" RUNNER_TEMP="$temp" CI_COMPOSE_PROJECT="$CI_COMPOSE_PROJECT" CI_RUNTIME_DIR="$runtime" \
+PATH="$temp/bin:$PATH" PUBLISH_SIDECAR_IMAGES_CMD="$temp/bin/publish-sidecar-images.sh" COMMAND_LOG="$temp/commands" RUNNER_TEMP="$temp" CI_COMPOSE_PROJECT="$CI_COMPOSE_PROJECT" CI_RUNTIME_DIR="$runtime" \
   bash "$script_dir/verify-ci-sidecar-lifecycle.sh"
 pinned="127.0.0.1:5000/sidecar-harness@sha256:$(printf 'a%.0s' {1..64})"
 grep -F "CI_SIDECAR_HARNESS_IMAGE=$pinned" "$temp/commands" >/dev/null
+# The publisher must be resolved via PUBLISH_SIDECAR_IMAGES_CMD: PATH
+# prepending alone would let the real production script shadow this fixture.
+grep -Fx "$temp/bin/publish-sidecar-images.sh" "$temp/commands" >/dev/null
+if grep -F "$script_dir/publish-sidecar-images.sh" "$temp/commands" >/dev/null; then
+  echo 'Sidecar proof invoked the real publisher instead of the test stub' >&2; exit 1
+fi
 # Digest-vs-dead-registry cache-hit proof: the pinned ref is resolved from the
 # local daemon store after the ephemeral registry was removed.
 grep -Fx "image inspect $pinned" "$temp/commands" >/dev/null
@@ -49,7 +56,7 @@ cat > "$temp/bin/publish-sidecar-images.sh" <<'EOF'
 #!/usr/bin/env bash
 exit 0
 EOF
-if PATH="$temp/bin:$PATH" COMMAND_LOG="$temp/commands-failclosed" RUNNER_TEMP="$temp" CI_COMPOSE_PROJECT="$CI_COMPOSE_PROJECT" CI_RUNTIME_DIR="$runtime" \
+if PATH="$temp/bin:$PATH" PUBLISH_SIDECAR_IMAGES_CMD="$temp/bin/publish-sidecar-images.sh" COMMAND_LOG="$temp/commands-failclosed" RUNNER_TEMP="$temp" CI_COMPOSE_PROJECT="$CI_COMPOSE_PROJECT" CI_RUNTIME_DIR="$runtime" \
   bash "$script_dir/verify-ci-sidecar-lifecycle.sh"; then
   echo 'Sidecar proof accepted missing sidecar-images.env evidence' >&2; exit 1
 fi
@@ -66,7 +73,7 @@ printf 'CI_SIDECAR_HARNESS_IMAGE=127.0.0.1:5000/sidecar-harness@sha256:%s\n' \
   "$digest" > "$CI_RUNTIME_DIR/sidecar-images.env"
 EOF
 chmod +x "$temp/bin/publish-sidecar-images.sh"
-PATH="$temp/bin:$PATH" COMMAND_LOG="$temp/commands-publish" RUNNER_TEMP="$temp" CI_COMPOSE_PROJECT="$CI_COMPOSE_PROJECT" CI_RUNTIME_DIR="$runtime" \
+PATH="$temp/bin:$PATH" PUBLISH_SIDECAR_IMAGES_CMD="$temp/bin/publish-sidecar-images.sh" COMMAND_LOG="$temp/commands-publish" RUNNER_TEMP="$temp" CI_COMPOSE_PROJECT="$CI_COMPOSE_PROJECT" CI_RUNTIME_DIR="$runtime" \
   bash "$script_dir/verify-ci-sidecar-lifecycle.sh" --publish-only
 grep -Fx 'publish' "$temp/commands-publish" >/dev/null
 if grep -F ' exec ' "$temp/commands-publish" >/dev/null; then
@@ -81,7 +88,7 @@ printf 'republish\n' >> "$COMMAND_LOG"
 EOF
 chmod +x "$temp/bin/publish-sidecar-images.sh"
 for mode in '' '--publish-only'; do
-  PATH="$temp/bin:$PATH" COMMAND_LOG="$temp/commands-idempotent" RUNNER_TEMP="$temp" CI_COMPOSE_PROJECT="$CI_COMPOSE_PROJECT" CI_RUNTIME_DIR="$runtime" \
+  PATH="$temp/bin:$PATH" PUBLISH_SIDECAR_IMAGES_CMD="$temp/bin/publish-sidecar-images.sh" COMMAND_LOG="$temp/commands-idempotent" RUNNER_TEMP="$temp" CI_COMPOSE_PROJECT="$CI_COMPOSE_PROJECT" CI_RUNTIME_DIR="$runtime" \
     bash "$script_dir/verify-ci-sidecar-lifecycle.sh" $mode
 done
 if grep -F 'republish' "$temp/commands-idempotent" >/dev/null; then
@@ -110,7 +117,7 @@ exit 0
 EOF
 chmod +x "$temp/bin/"*
 : > "$temp/commands-inspectfail"
-if PATH="$temp/bin:$PATH" COMMAND_LOG="$temp/commands-inspectfail" RUNNER_TEMP="$temp" CI_COMPOSE_PROJECT="$CI_COMPOSE_PROJECT" CI_RUNTIME_DIR="$runtime" \
+if PATH="$temp/bin:$PATH" PUBLISH_SIDECAR_IMAGES_CMD="$temp/bin/publish-sidecar-images.sh" COMMAND_LOG="$temp/commands-inspectfail" RUNNER_TEMP="$temp" CI_COMPOSE_PROJECT="$CI_COMPOSE_PROJECT" CI_RUNTIME_DIR="$runtime" \
   bash "$script_dir/verify-ci-sidecar-lifecycle.sh"; then
   echo 'Sidecar proof accepted a digest ref unresolvable after registry teardown' >&2; exit 1
 fi

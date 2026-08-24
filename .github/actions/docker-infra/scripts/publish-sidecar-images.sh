@@ -56,14 +56,19 @@ docker tag "$harness_tag" "$sidecar_ref" >/dev/null ||
 docker push "$sidecar_ref" >/dev/null ||
   die 'Unable to push sidecar harness image'
 
-pushed_digest=$(
-  docker buildx imagetools inspect "$sidecar_ref" |
-    awk '/^Digest:[[:space:]]+/ { print $2; exit }'
-) || die 'Unable to inspect pushed sidecar harness image'
-[[ "$pushed_digest" =~ ^sha256:[0-9a-f]{64}$ ]] ||
-  die 'Pushed sidecar harness digest unavailable'
+# Resolve the pushed digest by pulling the image back through the ephemeral
+# registry: buildx (imagetools) is not installed on self-hosted runners. The
+# pull also caches the image by digest on this daemon, so later sidecar
+# container creates survive registry teardown.
+pull_ref="$sidecar_ref:latest"
+docker pull "$pull_ref" >/dev/null ||
+  die 'Unable to pull pushed sidecar harness image'
+final_ref=$(
+  docker image inspect --format '{{index .RepoDigests 0}}' "$pull_ref"
+) || die 'Unable to inspect pulled sidecar harness image'
+[[ "$final_ref" =~ ^127\.0\.0\.1:[0-9]+/sidecar-harness@sha256:[0-9a-f]{64}$ ]] ||
+  die 'Pulled sidecar harness digest reference has an unexpected format'
 
-final_ref="$sidecar_ref@$pushed_digest"
 env_file="$runtime/sidecar-images.env"
 tmp_file="$runtime/.sidecar-images.env.$$"
 (

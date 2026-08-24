@@ -81,22 +81,36 @@ stage_redpanda() {
   "${compose[@]}" start redpanda
   write_redpanda
 }
-write_core() { bash "$contract" write-host-set "$runtime" CORE_API_PUBLIC_BASE "$(endpoint core-api-e2e 3001)"; }
-write_browser() {
-  local web admin exports
-  web=$(endpoint web-e2e 3000); admin=$(endpoint admin-e2e 3002)
-  bash "$contract" write-host-set "$runtime" WEB_E2E_PUBLIC_BASE "$web" ADMIN_E2E_PUBLIC_BASE "$admin"
-  # keycloak-init is started only after this stage, so the origins are in place.
-  bash "$contract" write-browser-endpoints "$runtime" WEB_E2E_PUBLIC_BASE "$web" ADMIN_E2E_PUBLIC_BASE "$admin"
+# core-api-e2e is started before this stage, but Compose allocates dynamic
+# host ports at START, so resolve with bounded retry instead of a single shot.
+write_core() { bash "$contract" write-host-set "$runtime" CORE_API_PUBLIC_BASE "$(endpoint_when_allocated core-api-e2e 3001)"; }
+# Browser app staging shares redpanda's create -> populate -> start contract:
+# runtime-config.js is bind-mounted read-only into both apps and its inode
+# pins at container CREATE, so it must be populated (keycloakBase from infra
+# discovery, which always precedes app staging) BETWEEN create and start.
+stage_browser() {
+  local exports
+  "${compose[@]}" create web-e2e admin-e2e
   exports=$(bash "$contract" export-host "$runtime" infra)
   eval "$exports"
   bash "$contract" browser-config "$runtime" "$KEYCLOAK_PUBLIC_ISSUER_BASE"
+  "${compose[@]}" start web-e2e admin-e2e
+}
+# Post-start manifest extension: the containers are running, so their dynamic
+# host ports exist and bounded retry resolves them; keycloak-init starts only
+# after this stage, so the origins are in place by then.
+write_browser() {
+  local web admin
+  web=$(endpoint_when_allocated web-e2e 3000); admin=$(endpoint_when_allocated admin-e2e 3002)
+  bash "$contract" write-host-set "$runtime" WEB_E2E_PUBLIC_BASE "$web" ADMIN_E2E_PUBLIC_BASE "$admin"
+  bash "$contract" write-browser-endpoints "$runtime" WEB_E2E_PUBLIC_BASE "$web" ADMIN_E2E_PUBLIC_BASE "$admin"
 }
 case "${1:-}" in
   write-infra) write_infra ;;
   write-redpanda) write_redpanda ;;
   stage-redpanda) stage_redpanda ;;
+  stage-browser) stage_browser ;;
   write-core) write_core ;;
   write-browser) write_browser ;;
-  *) printf 'Usage: ci-runtime-compose.sh write-infra|write-redpanda|stage-redpanda|write-core|write-browser\n' >&2; exit 1 ;;
+  *) printf 'Usage: ci-runtime-compose.sh write-infra|write-redpanda|stage-redpanda|stage-browser|write-core|write-browser\n' >&2; exit 1 ;;
 esac
