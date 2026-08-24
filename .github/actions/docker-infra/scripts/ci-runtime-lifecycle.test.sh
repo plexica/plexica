@@ -69,6 +69,8 @@ grep -Fx 'REDPANDA_EXTERNAL_LISTENER=127.0.0.1:33005' "$runtime/redpanda-listene
 grep -Fx 'KAFKA_BROKERS=127.0.0.1:33005' "$runtime/host.env" >/dev/null
 DOCKER_LOG="$temp/docker.log" PATH="$temp/bin:$PATH" bash "$dir/ci-runtime-compose.sh" write-infra
 grep -F 'POSTGRES_HOST_URL=postgresql://plexica:changeme@127.0.0.1:33001/plexica' "$runtime/host.env" >/dev/null
+grep -Fx 'PLUGIN_DB_SSL_MODE=verify-full' "$runtime/host.env" >/dev/null
+grep -Fx 'PLUGIN_DB_SSL_ROOT_CERT_PATH=/etc/ssl/certs/ca-certificates.crt' "$runtime/host.env" >/dev/null
 grep -F 'KEYCLOAK_CONTAINER_ADMIN_JWKS_BASE=http://keycloak:8080' "$runtime/container.env" >/dev/null
 grep -Fx 'KEYCLOAK_PUBLIC_ISSUER_BASE=http://127.0.0.1:33004' "$runtime/browser-endpoints.env" >/dev/null
 grep -Fx "MINIO_ACCESS_KEY=$MINIO_ACCESS_KEY" "$runtime/host.env" >/dev/null

@@ -63,6 +63,7 @@ for cwd in / /tmp "$PWD"; do
   ( cd -- "$cwd" && PATH="$temp/bin:$PATH" bash "$script" write-infra )
 done
 grep -Fx 'POSTGRES_HOST_URL=postgresql://plexica:changeme@127.0.0.1:32001/plexica' "$CI_RUNTIME_DIR/host.env" >/dev/null
+grep -Fxe 'PLUGIN_DB_SSL_MODE=verify-full' -e 'PLUGIN_DB_SSL_ROOT_CERT_PATH=/etc/ssl/certs/ca-certificates.crt' "$CI_RUNTIME_DIR/host.env" >/dev/null # host TLS mirrors container.env
 # MinIO credentials must reach BOTH manifests fail-closed; no insecure default may appear.
 for manifest in host container; do
   grep -Fx "MINIO_ACCESS_KEY=$MINIO_ACCESS_KEY" "$CI_RUNTIME_DIR/$manifest.env" >/dev/null

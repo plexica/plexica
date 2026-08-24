@@ -25,6 +25,25 @@ for (const [key, value] of [
 if (accepts('MINIO_SECRET_KEY', '')) {
   throw new Error('Accepted an empty MinIO secret key');
 }
+// Host TLS contract is fail-closed: only the exact strict-TLS pair may pass
+// host-kind validation, mirroring the container.env values.
+for (const [key, value] of [
+  ['PLUGIN_DB_SSL_MODE', 'verify-full'],
+  ['PLUGIN_DB_SSL_ROOT_CERT_PATH', '/etc/ssl/certs/ca-certificates.crt'],
+]) {
+  if (!accepts(key, value)) throw new Error(`Rejected approved host TLS scalar ${key}`);
+}
+for (const [key, value] of [
+  ['PLUGIN_DB_SSL_MODE', ''],
+  ['PLUGIN_DB_SSL_MODE', 'prefer'],
+  ['PLUGIN_DB_SSL_MODE', 'require'],
+  ['PLUGIN_DB_SSL_MODE', 'disable'],
+  ['PLUGIN_DB_SSL_MODE', 'verify-ca'],
+  ['PLUGIN_DB_SSL_ROOT_CERT_PATH', '/etc/ssl/certs/evil.pem'],
+  ['PLUGIN_DB_SSL_ROOT_CERT_PATH', ''],
+]) {
+  if (accepts(key, value)) throw new Error(`Accepted invalid host TLS contract for ${key}: ${value}`);
+}
 for (const [key, value] of [
   ['KAFKA_BROKERS', 'redpanda:9092'],
   ['PLUGIN_DB_SSL_MODE', 'verify-full'],

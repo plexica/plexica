@@ -26,6 +26,8 @@ bash "$script" write-host "$dir" KEYCLOAK_ADMIN_USER ci-admin-0123456789abcdef
 bash "$script" write-host "$dir" KEYCLOAK_ADMIN_PASSWORD AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
 bash "$script" write-host "$dir" KEYCLOAK_E2E_CLIENT_SECRET AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
 bash "$script" write-host "$dir" KAFKA_BROKERS 127.0.0.1:32004
+bash "$script" write-host "$dir" PLUGIN_DB_SSL_MODE verify-full
+bash "$script" write-host "$dir" PLUGIN_DB_SSL_ROOT_CERT_PATH /etc/ssl/certs/ca-certificates.crt
 bash "$script" write-host "$dir" CORE_API_PUBLIC_BASE http://127.0.0.1:32005
 bash "$script" write-host "$dir" WEB_E2E_PUBLIC_BASE http://127.0.0.1:32006
 bash "$script" write-host "$dir" ADMIN_E2E_PUBLIC_BASE http://127.0.0.1:32007
@@ -69,11 +71,19 @@ if bash "$script" write-container "$dir" PLUGIN_CORE_API_URL 'http://core-api-e2
 for bad in http://localhost:32000 http://[::1]:32000; do
   if bash "$script" write-host "$dir" KEYCLOAK_HOST_ADMIN_BASE "$bad"; then exit 1; fi
 done
+# Host TLS contract is fail-closed: only the exact strict-TLS pair may enter
+# host.env, so a permissive mode or a foreign CA path must be rejected.
+for bad_mode in '' prefer require disable verify-ca; do
+  if bash "$script" write-host "$dir" PLUGIN_DB_SSL_MODE "$bad_mode"; then exit 1; fi
+done
+if bash "$script" write-host "$dir" PLUGIN_DB_SSL_ROOT_CERT_PATH /etc/ssl/certs/evil.pem; then exit 1; fi
 host_source="$(dirname "$script")/source-ci-runtime-host.sh"
 environment=$(CI_RUNTIME_DIR="$dir" bash -c 'source "$1"; printf "%s|%s|%s|%s|%s" "$DATABASE_URL" "$KEYCLOAK_URL" "$REDIS_URL" "$MINIO_ENDPOINT" "$KAFKA_BROKERS"' _ "$host_source")
 [[ "$environment" == 'postgresql://plexica:changeme@127.0.0.1:32001/plexica|http://127.0.0.1:32000|redis://127.0.0.1:32002|http://127.0.0.1:32003|127.0.0.1:32004' ]]
 minio_environment=$(CI_RUNTIME_DIR="$dir" bash -c 'source "$1"; printf "%s|%s" "$MINIO_ACCESS_KEY" "$MINIO_SECRET_KEY"' _ "$host_source")
 [[ "$minio_environment" == '00112233445566778899aabb|00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff' ]]
+tls_environment=$(CI_RUNTIME_DIR="$dir" bash -c 'source "$1"; printf "%s|%s" "$PLUGIN_DB_SSL_MODE" "$PLUGIN_DB_SSL_ROOT_CERT_PATH"' _ "$host_source")
+[[ "$tls_environment" == 'verify-full|/etc/ssl/certs/ca-certificates.crt' ]]
 # export-host guard: like the Keycloak credentials manifest, host.env must be
 # owner-only (mode 600) before its plaintext secrets are sourced.
 chmod 644 "$dir/host.env"

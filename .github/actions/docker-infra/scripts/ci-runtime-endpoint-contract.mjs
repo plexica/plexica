@@ -26,6 +26,10 @@ const hostProtocols = {
   WEB_E2E_PUBLIC_BASE: 'http:',
   ADMIN_E2E_PUBLIC_BASE: 'http:',
 };
+const hostScalars = {
+  PLUGIN_DB_SSL_MODE: (input) => input === 'verify-full',
+  PLUGIN_DB_SSL_ROOT_CERT_PATH: (input) => input === '/etc/ssl/certs/ca-certificates.crt',
+};
 const containerScalars = {
   KAFKA_BROKERS: (input) => input === 'redpanda:9092',
   PLUGIN_DB_SSL_MODE: (input) => input === 'verify-full',
@@ -69,6 +73,10 @@ function validateHost() {
     ].includes(key)
   ) {
     if (!containerScalars[key](value)) fail(`${key} has an invalid CI credential value`);
+    return;
+  }
+  if (hostScalars[key]) {
+    if (!hostScalars[key](value)) fail(`${key} has an invalid CI host value`);
     return;
   }
   if (key === 'KAFKA_BROKERS') {
