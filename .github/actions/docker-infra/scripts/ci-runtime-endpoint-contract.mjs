@@ -33,6 +33,7 @@ const hostScalars = {
   PLUGIN_DB_SSL_MODE: (input) => input === 'disable',
 };
 const containerScalars = {
+  CI_RUNTIME_CONTRACT_CONTAINER: (input) => input === '1',
   KAFKA_BROKERS: (input) => input === 'redpanda:9092',
   PLUGIN_DB_SSL_MODE: (input) => input === 'verify-full',
   PLUGIN_RUNTIME_SCOPE: (input) => /^ci-[a-f0-9]{28}$/.test(input),

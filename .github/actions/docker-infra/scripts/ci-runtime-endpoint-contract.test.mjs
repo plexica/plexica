@@ -46,6 +46,7 @@ for (const [key, value] of [
   if (accepts(key, value)) throw new Error(`Accepted invalid host TLS contract for ${key}: ${value}`);
 }
 for (const [key, value] of [
+  ['CI_RUNTIME_CONTRACT_CONTAINER', '1'],
   ['KAFKA_BROKERS', 'redpanda:9092'],
   ['PLUGIN_DB_SSL_MODE', 'verify-full'],
   ['PLUGIN_RUNTIME_SCOPE', 'ci-0123456789abcdef0123456789ab'],
@@ -58,6 +59,11 @@ for (const [key, value] of [
 }
 if (acceptsContainer('KAFKA_BROKERS', 'http://redpanda:9092')) {
   throw new Error('Accepted a URL where the Kafka scalar contract is required');
+}
+for (const value of ['', '0', 'true', 'yes']) {
+  if (acceptsContainer('CI_RUNTIME_CONTRACT_CONTAINER', value)) {
+    throw new Error(`Accepted invalid container marker CI_RUNTIME_CONTRACT_CONTAINER=${value}`);
+  }
 }
 // Every per-key Compose DNS service endpoint must be accepted verbatim.
 for (const [key, value] of [

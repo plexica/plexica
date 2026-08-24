@@ -2,6 +2,7 @@ import { pluginRuntimeScope } from '../modules/plugin/services/plugin-runtime-sc
 
 interface RuntimeConfig {
   CI_RUNTIME_CONTRACT?: string | undefined;
+  CI_RUNTIME_CONTRACT_CONTAINER?: string | undefined;
   CI_RUNTIME_PROJECT?: string | undefined;
   KEYCLOAK_URL: string;
   KEYCLOAK_PUBLIC_ISSUER_BASE?: string | undefined;
@@ -28,8 +29,24 @@ export function keycloakContainerBase(config: RuntimeConfig): string {
 
 export function validateCiRuntimeContract(config: RuntimeConfig): void {
   if (config.CI_RUNTIME_CONTRACT !== '1') return;
-  if (config.KEYCLOAK_HOST_ADMIN_BASE !== undefined) {
-    throw new Error('CI runtime Core must not receive KEYCLOAK_HOST_ADMIN_BASE');
+  const containerized = config.CI_RUNTIME_CONTRACT_CONTAINER === '1';
+  if (containerized) {
+    if (config.KEYCLOAK_HOST_ADMIN_BASE !== undefined) {
+      throw new Error('Containerized CI runtime Core must not receive KEYCLOAK_HOST_ADMIN_BASE');
+    }
+  } else {
+    // Host-side tenant-provisioning CLIs legitimately use the runner-loopback
+    // Keycloak admin endpoint exported from host.env; require strict loopback
+    // parity with the public issuer instead of prohibiting it.
+    if (
+      config.KEYCLOAK_HOST_ADMIN_BASE === undefined ||
+      !isLoopback(config.KEYCLOAK_HOST_ADMIN_BASE) ||
+      config.KEYCLOAK_HOST_ADMIN_BASE !== config.KEYCLOAK_PUBLIC_ISSUER_BASE
+    ) {
+      throw new Error(
+        'Host CI runtime requires a strict 127.0.0.1 KEYCLOAK_HOST_ADMIN_BASE matching KEYCLOAK_PUBLIC_ISSUER_BASE'
+      );
+    }
   }
   const issuer = config.KEYCLOAK_PUBLIC_ISSUER_BASE;
   if (!issuer || !isLoopback(issuer)) {

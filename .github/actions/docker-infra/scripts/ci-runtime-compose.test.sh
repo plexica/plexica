@@ -40,7 +40,7 @@ scope="ci-$(printf '%s' "$CI_COMPOSE_PROJECT" | sha256sum | cut -c1-28)"
 [[ "$(bash "$(dirname "$0")/ci-runtime-scope.sh" "$CI_COMPOSE_PROJECT")" == "$scope" ]]
 grep -Fx 'CORE_API_PUBLIC_BASE=http://127.0.0.1:32006' "$CI_RUNTIME_DIR/host.env" >/dev/null
 grep -Fx "PLUGIN_RUNTIME_SCOPE=$scope" "$CI_RUNTIME_DIR/container.env" >/dev/null
-grep -Fx 'KAFKA_BROKERS=redpanda:9092' "$CI_RUNTIME_DIR/container.env" >/dev/null
+grep -Fx 'KAFKA_BROKERS=redpanda:9092' "$CI_RUNTIME_DIR/container.env" >/dev/null && grep -Fx 'CI_RUNTIME_CONTRACT_CONTAINER=1' "$CI_RUNTIME_DIR/container.env" >/dev/null
 grep -Fx 'MAILPIT_UI_BASE=http://127.0.0.1:32011' "$CI_RUNTIME_DIR/host.env" >/dev/null
 grep -Fx 'MAILPIT_SMTP_URL=smtp://127.0.0.1:32010' "$CI_RUNTIME_DIR/host.env" >/dev/null
 grep -Fx 'SMTP_HOST=mailpit' "$CI_RUNTIME_DIR/container.env" >/dev/null

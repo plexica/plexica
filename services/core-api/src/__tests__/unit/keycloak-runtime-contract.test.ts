@@ -11,7 +11,8 @@ const base = {
   PLUGIN_RUNTIME_SCOPE: pluginRuntimeScope('plexica-ci-contract-123456'), PLUGIN_DOCKER_NETWORK: 'plexica-ci-contract-123456_default',
   PLUGIN_DOCKER_HOST: 'http://plugin-docker-proxy:2375',
   CI_RUNTIME_PROJECT: 'plexica-ci-contract-123456',
-  CI_RUNTIME_CONTRACT: '1', KEYCLOAK_PUBLIC_ISSUER_BASE: 'http://127.0.0.1:32000',
+  CI_RUNTIME_CONTRACT: '1', CI_RUNTIME_CONTRACT_CONTAINER: '1',
+  KEYCLOAK_PUBLIC_ISSUER_BASE: 'http://127.0.0.1:32000',
   KEYCLOAK_CONTAINER_ADMIN_JWKS_BASE: 'http://keycloak:8080',
 };
 
@@ -22,8 +23,32 @@ describe('CI Keycloak direction', () => {
   it('rejects a host loopback URL for Core JWKS calls', () => {
     expect(() => parseConfig({ ...base, KEYCLOAK_CONTAINER_ADMIN_JWKS_BASE: 'http://127.0.0.1:32000' })).toThrow('JWKS');
   });
-  it('rejects a host-admin endpoint inside Core even though Zod strips unknown keys', () => {
-    expect(() => parseConfig({ ...base, KEYCLOAK_HOST_ADMIN_BASE: 'http://127.0.0.1:32000' })).toThrow('must not receive');
+  it('rejects a host-admin endpoint inside a containerized Core even though Zod strips unknown keys', () => {
+    expect(() =>
+      parseConfig({ ...base, CI_RUNTIME_CONTRACT_CONTAINER: '1', KEYCLOAK_HOST_ADMIN_BASE: 'http://127.0.0.1:32000' })
+    ).toThrow('must not receive');
+  });
+  it('accepts a containerized Core without any host-admin endpoint', () => {
+    expect(parseConfig({ ...base, CI_RUNTIME_CONTRACT_CONTAINER: '1' }).KEYCLOAK_HOST_ADMIN_BASE).toBeUndefined();
+  });
+  it('accepts a host-side loopback admin base matching the public issuer', () => {
+    expect(
+      parseConfig({
+        ...base,
+        CI_RUNTIME_CONTRACT_CONTAINER: undefined,
+        KEYCLOAK_HOST_ADMIN_BASE: 'http://127.0.0.1:32000',
+      }).KEYCLOAK_HOST_ADMIN_BASE
+    ).toBe('http://127.0.0.1:32000');
+  });
+  it.each([
+    { KEYCLOAK_HOST_ADMIN_BASE: undefined, label: 'missing' },
+    { KEYCLOAK_HOST_ADMIN_BASE: 'https://127.0.0.1:32000', label: 'non-http' },
+    { KEYCLOAK_HOST_ADMIN_BASE: 'http://keycloak:8080', label: 'foreign host' },
+    { KEYCLOAK_HOST_ADMIN_BASE: 'http://127.0.0.1:32999', label: 'port mismatch' },
+  ])('rejects a host-side admin base that is not the loopback issuer pair ($label)', (override) => {
+    expect(() => parseConfig({ ...base, CI_RUNTIME_CONTRACT_CONTAINER: undefined, ...override })).toThrow(
+      'KEYCLOAK_HOST_ADMIN_BASE'
+    );
   });
   it('rejects a self-consistent foreign plugin scope and network', () => {
     expect(() => parseConfig({

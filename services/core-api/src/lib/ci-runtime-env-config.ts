@@ -8,6 +8,7 @@ import { z } from 'zod';
  */
 export const ciRuntimeEnvSchema = z.object({
   CI_RUNTIME_CONTRACT: z.literal('1').optional(),
+  CI_RUNTIME_CONTRACT_CONTAINER: z.literal('1').optional(),
   CI_RUNTIME_PROJECT: z.string().optional(),
   PLUGIN_DOCKER_HOST: z.string().optional(),
   PLUGIN_SIDECAR_IMAGE: z.string().min(1).optional(),
