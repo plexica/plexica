@@ -53,6 +53,9 @@ cat > "$temp/bin/verify-ci-sidecar-lifecycle.sh" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >> "$COMMAND_LOG.lifecycle"
 [[ "$*" == *'--publish-only'* ]]
+# Marker into the docker sequence log so the test can prove sidecar image
+# publication completes BEFORE the plugin proxy and Core containers exist.
+printf '%s\n' "lifecycle-publish-done $*" >> "${DOCKER_LOG:-/dev/null}"
 EOF
 chmod +x "$temp/bin/"*
 # No listener contract is pre-written here: wait-services.sh itself must
@@ -64,6 +67,17 @@ fi
 PATH="$temp/bin:$PATH" COMMAND_LOG="$temp/commands" DOCKER_LOG="$temp/docker-commands" bash "$dir/wait-services.sh"
 CI_RUNTIME_DIR="$CI_RUNTIME_DIR" bash -c 'source "$0"' "$dir/source-ci-runtime-host.sh"
 grep -Fx -- '--publish-only' "$temp/commands.lifecycle" >/dev/null
+# Sidecar publication ordering proof: BOTH digest-pinned sidecar images
+# (harness + CRM plugin) must be published before plugin-docker-proxy and
+# core-api-e2e are created, since both services consume sidecar-images.env.
+node -e '
+const lines = require("node:fs").readFileSync(process.argv[1], "utf8").trim().split("\n");
+const publishDone = lines.findIndex((line) => line.startsWith("lifecycle-publish-done"));
+const proxyCreated = lines.findIndex((line) => line.endsWith(" create plugin-docker-proxy"));
+const coreCreated = lines.findIndex((line) => line.endsWith(" create core-api-e2e"));
+if ([publishDone, proxyCreated, coreCreated].includes(-1)) process.exit(1);
+if (!(publishDone < proxyCreated && publishDone < coreCreated)) process.exit(1);
+' "$temp/docker-commands"
 # Redpanda ordering proof: the dynamic port may only be resolved AFTER the
 # container was created and started, and the health wait comes last.
 node -e '

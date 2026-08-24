@@ -34,6 +34,29 @@ if (/pnpm\/action-setup/.test(workflow))
 const ci = jobs.find((job) => job.startsWith('ci:'));
 if (!ci?.includes('run: bash .github/actions/docker-infra/scripts/verify-ci-sidecar-lifecycle.sh'))
   throw new Error('CI does not invoke the admitted real sidecar lifecycle proof');
+// Both sidecar images must flow through the ephemeral registry: the lifecycle
+// proof builds the real CRM plugin image (deterministic per-project tag) and
+// publishes BOTH digest-pinned refs into sidecar-images.env before any
+// runtime service that consumes them starts (run 32758511913 regression).
+const lifecycle = await readFile(new URL('../scripts/verify-ci-sidecar-lifecycle.sh', import.meta.url), 'utf8');
+const publisher = await readFile(new URL('../scripts/publish-sidecar-images.sh', import.meta.url), 'utf8');
+for (const [label, needle] of [
+  ['CRM build', 'examples/plugins/crm/Dockerfile'],
+  ['CRM publish wiring', 'PLUGIN_IMAGE_TAG="$crm_image"'],
+  ['dual digest validation', '^PLUGIN_SIDECAR_IMAGE='],
+]) {
+  if (!lifecycle.includes(needle)) throw new Error(`Sidecar lifecycle proof is missing ${label}`);
+}
+if (!publisher.includes("printf '%s\\n%s\\n'")) {
+  throw new Error('Publisher does not atomically write both sidecar image lines');
+}
+const composeRuntime = await readFile(
+  new URL('../../../../infra/compose/docker-compose.ci-runtime-services.yml', import.meta.url),
+  'utf8'
+);
+if (composeRuntime.match(/^\s+PLUGIN_SIDECAR_IMAGE:\s/m)) {
+  throw new Error('CI runtime compose still statically overrides PLUGIN_SIDECAR_IMAGE over env_file');
+}
 const contract = jobs.find((job) => job.startsWith('ci-runtime-contract:'));
 if (!contract?.includes('verify-concurrent-ci-runtime.sh --full-e2e'))
   throw new Error('Contract job does not run the full two-project browser E2E stack');

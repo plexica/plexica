@@ -26,7 +26,9 @@ services:
       KEYCLOAK_CONTAINER_ADMIN_JWKS_BASE: http://keycloak:8080
       PLUGIN_CORE_API_URL: http://core-api-e2e:3001
       PLUGIN_DOCKER_HOST: http://plugin-docker-proxy:2375
-      PLUGIN_SIDECAR_IMAGE: node:24-bookworm@sha256:934240a162082fd8b8a2f90cd5114446443f1eba1c5378f6687167ca405e6584
+      # PLUGIN_SIDECAR_IMAGE / CI_SIDECAR_HARNESS_IMAGE come only from the
+      # digest-pinned sidecar-images.env above; a static override here would
+      # shadow it (compose `environment` beats `env_file`) and degrade installs.
     volumes:
       - .:/workspace:ro
     networks:
@@ -94,7 +96,8 @@ services:
       - ${CI_RUNTIME_DIR:?CI runtime directory is required}/sidecar-images.env
     environment:
       CI_RUNTIME_PROJECT: ${CI_COMPOSE_PROJECT:?CI project is required}
-      PLUGIN_SIDECAR_IMAGE: node:24-bookworm@sha256:934240a162082fd8b8a2f90cd5114446443f1eba1c5378f6687167ca405e6584
+      # PLUGIN_SIDECAR_IMAGE / CI_SIDECAR_HARNESS_IMAGE come only from the
+      # digest-pinned sidecar-images.env above (proxy trustedImages contract).
     volumes:
       - .:/workspace:ro
       - /var/run/docker.sock:/var/run/docker.sock

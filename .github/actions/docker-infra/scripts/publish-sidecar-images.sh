@@ -2,6 +2,7 @@
 set -euo pipefail
 
 harness_tag=${HARNESS_TAG:?HARNESS_TAG is required}
+plugin_image_tag=${PLUGIN_IMAGE_TAG:?PLUGIN_IMAGE_TAG is required}
 project=${CI_COMPOSE_PROJECT:?CI_COMPOSE_PROJECT is required}
 runtime=${CI_RUNTIME_DIR:?CI_RUNTIME_DIR is required}
 
@@ -50,31 +51,48 @@ host_port=$(
 bash "$script_dir/wait-for-http.sh" "http://127.0.0.1:$host_port/v2/" ||
   die 'Ephemeral sidecar registry did not become ready'
 
-sidecar_ref="127.0.0.1:$host_port/sidecar-harness"
-docker tag "$harness_tag" "$sidecar_ref" >/dev/null ||
-  die 'Unable to tag sidecar harness image for the ephemeral registry'
-docker push "$sidecar_ref" >/dev/null ||
-  die 'Unable to push sidecar harness image'
+# Repository name for a local tag reference: strip any digest, any registry
+# host/path prefix, then the tag. Validated so a malformed tag fails closed.
+repo_name() {
+  local name=${1%%@*}
+  name=${name##*/}
+  name=${name%%:*}
+  [[ "$name" =~ ^[a-z0-9][a-z0-9._-]*$ ]] ||
+    die "Image tag has no usable repository name: $plugin_image_tag"
+  printf '%s\n' "$name"
+}
 
-# Resolve the pushed digest by pulling the image back through the ephemeral
-# registry: buildx (imagetools) is not installed on self-hosted runners. The
-# pull also caches the image by digest on this daemon, so later sidecar
-# container creates survive registry teardown.
-pull_ref="$sidecar_ref:latest"
-docker pull "$pull_ref" >/dev/null ||
-  die 'Unable to pull pushed sidecar harness image'
-final_ref=$(
-  docker image inspect --format '{{index .RepoDigests 0}}' "$pull_ref"
-) || die 'Unable to inspect pulled sidecar harness image'
-[[ "$final_ref" =~ ^127\.0\.0\.1:[0-9]+/sidecar-harness@sha256:[0-9a-f]{64}$ ]] ||
-  die 'Pulled sidecar harness digest reference has an unexpected format'
+# Publish one image into the ephemeral registry and resolve its pushed digest
+# by pulling it back through that registry: buildx (imagetools) is not
+# installed on self-hosted runners. The pull also caches the image by digest
+# on this daemon, so later sidecar container creates survive registry teardown.
+publish_image() {
+  local source_tag=$1 repo=$2 variable=$3 ref final_ref
+  ref="127.0.0.1:$host_port/$repo"
+  docker tag "$source_tag" "$ref" >/dev/null ||
+    die "Unable to tag $repo image for the ephemeral registry"
+  docker push "$ref" >/dev/null ||
+    die "Unable to push $repo image"
+  docker pull "$ref:latest" >/dev/null ||
+    die "Unable to pull pushed $repo image"
+  final_ref=$(
+    docker image inspect --format '{{index .RepoDigests 0}}' "$ref:latest"
+  ) || die "Unable to inspect pulled $repo image"
+  [[ "$final_ref" =~ ^127\.0\.0\.1:[0-9]+/$repo@sha256:[0-9a-f]{64}$ ]] ||
+    die "Pulled $repo digest reference has an unexpected format"
+  printf '%s=%s\n' "$variable" "$final_ref"
+}
+
+harness_entry=$(publish_image "$harness_tag" sidecar-harness CI_SIDECAR_HARNESS_IMAGE)
+plugin_repo=$(repo_name "$plugin_image_tag")
+plugin_entry=$(publish_image "$plugin_image_tag" "$plugin_repo" PLUGIN_SIDECAR_IMAGE)
 
 env_file="$runtime/sidecar-images.env"
 tmp_file="$runtime/.sidecar-images.env.$$"
 (
   umask 077
-  printf 'CI_SIDECAR_HARNESS_IMAGE=%s\n' "$final_ref" >"$tmp_file"
+  printf '%s\n%s\n' "$harness_entry" "$plugin_entry" >"$tmp_file"
 ) || die 'Unable to stage sidecar images environment file'
 mv -f -- "$tmp_file" "$env_file" || die 'Unable to publish sidecar images environment file'
 
-printf '%s\n' "$final_ref"
+printf '%s\n%s\n' "$harness_entry" "$plugin_entry"
