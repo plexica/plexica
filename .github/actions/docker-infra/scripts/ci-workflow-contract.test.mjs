@@ -24,7 +24,13 @@ for (const job of jobs) {
     )
   )
     throw new Error(`${name} does not admit capacity before runner work`);
+  const setupNode = job.indexOf('uses: actions/setup-node@v7');
+  const corepack = job.indexOf('corepack enable && corepack prepare pnpm@10.33.0 --activate');
+  if (setupNode < 0 || corepack < 0 || corepack < setupNode)
+    throw new Error(`${name} does not activate the pinned project pnpm via Corepack after setup-node`);
 }
+if (/pnpm\/action-setup/.test(workflow))
+  throw new Error('CI still uses the broken self-installer pnpm/action-setup');
 const ci = jobs.find((job) => job.startsWith('ci:'));
 if (!ci?.includes('run: bash .github/actions/docker-infra/scripts/verify-ci-sidecar-lifecycle.sh'))
   throw new Error('CI does not invoke the admitted real sidecar lifecycle proof');
