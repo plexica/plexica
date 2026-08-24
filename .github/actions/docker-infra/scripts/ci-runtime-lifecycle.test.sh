@@ -21,11 +21,22 @@ export KEYCLOAK_E2E_CLIENT_SECRET=Bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
 export CI_RUNTIME_DIR="$(bash "$dir/ci-runtime-env.sh" init "$CI_COMPOSE_PROJECT")"
 runtime=$CI_RUNTIME_DIR
 export DOCKER_LOG="$temp/docker.log"
+repo_root=$(cd -- "$dir/../../../.." && pwd)
 : > "$DOCKER_LOG"
-cat > "$temp/bin/docker" <<'EOF'
+# The workspace is mounted read-only in CI, so stage-browser must ensure the
+# host-side single-file mount targets in dist/ exist BEFORE creating the
+# containers (runc would otherwise try to create them inside the ro mount);
+# the create stub fails closed if a target is missing and records an ordering
+# marker otherwise.
+cat > "$temp/bin/docker" <<EOF
 #!/usr/bin/env bash
-printf '%s\n' "$*" >> "$DOCKER_LOG"
-case "$*" in
+printf '%s\n' "\$*" >> "\$DOCKER_LOG"
+case "\$*" in
+  *' create web-e2e admin-e2e')
+    for target in "$repo_root/apps/web/dist/runtime-config.js" "$repo_root/apps/admin/dist/runtime-config.js"; do
+      [[ -f "\$target" ]] || { echo "missing host-side mount target \$target" >&2; exit 1; }
+    done
+    printf '%s\n' mount-targets-present >> "\$DOCKER_LOG" ;;
   *' port postgres 5432'*) printf '127.0.0.1:33001\n' ;;
   *' port redis 6379'*) printf '127.0.0.1:33002\n' ;;
   *' port minio 9000'*) printf '127.0.0.1:33003\n' ;;
@@ -67,6 +78,9 @@ grep -Fx 'CORE_API_PUBLIC_BASE=http://127.0.0.1:33006' "$runtime/host.env" >/dev
 # Browser staging contract: runtime-config.js is populated between container
 # create and start (bind-mount inode pins at create), then write-browser
 # resolves the dynamic ports post-start for the host/browser manifests.
+# The dist/ targets are removed first so the create stub proves stage-browser
+# recreates them on the writable host side before any container creation.
+rm -f "$repo_root/apps/web/dist/runtime-config.js" "$repo_root/apps/admin/dist/runtime-config.js"
 DOCKER_LOG="$temp/docker.log" PATH="$temp/bin:$PATH" bash "$dir/ci-runtime-compose.sh" stage-browser
 DOCKER_LOG="$temp/docker.log" PATH="$temp/bin:$PATH" bash "$dir/ci-runtime-compose.sh" write-browser
 grep -Fx 'WEB_E2E_PUBLIC_BASE=http://127.0.0.1:33007' "$runtime/host.env" >/dev/null
@@ -78,9 +92,10 @@ node -e '
 const lines = require("node:fs").readFileSync(process.argv[1], "utf8").trim().split("\n");
 const indexOf = (pattern) => { for (let i = 0; i < lines.length; i++) if (lines[i].endsWith(pattern)) return i; return -1; };
 const created = indexOf(" create web-e2e admin-e2e"), started = indexOf(" start web-e2e admin-e2e");
+const targets = lines.indexOf("mount-targets-present");
 let resolved = -1;
 for (let i = 0; i < lines.length; i++) if (lines[i].endsWith(" port web-e2e 3000")) { resolved = i; break; }
-if ([created, started, resolved].includes(-1) || !(created < started && started < resolved)) process.exit(1);
+if ([created, started, resolved, targets].includes(-1) || !(targets > created && created < started && started < resolved)) process.exit(1);
 ' "$temp/docker.log"
 
 # Positive readiness gate: every discovered loopback URL is requested.

@@ -27,6 +27,7 @@ esac
 EOF
 chmod +x "$temp/bin/docker"
 script="$(cd -- "$(dirname -- "$0")" && pwd)/ci-runtime-compose.sh"
+repo_root=$(cd -- "$(dirname -- "$script")/../../../.." && pwd)
 bash "$(dirname "$0")/ci-runtime-keycloak-credentials.sh" "$CI_COMPOSE_PROJECT" "$CI_RUNTIME_DIR"
 set -a; source "$CI_RUNTIME_DIR/keycloak-credentials.env"; set +a
 PATH="$temp/bin:$PATH" bash "$script" write-redpanda
@@ -125,19 +126,29 @@ grep -q 'Timed out resolving redpanda dynamic port 19092' "$temp/stage.err" || {
 
 # Browser app staging contract: stage-browser must create -> populate
 # runtime-config.js -> START (the bind-mounted inode pins at create), and
-# write-browser resolves the dynamic ports only afterwards.
-cat > "$temp/bin/docker" <<'EOF'
+# write-browser resolves the dynamic ports only afterwards. Because compose
+# mounts the workspace read-only, the host-side single-file mount targets in
+# dist/ must exist BEFORE create (runc would otherwise try to create them
+# inside the ro mount), so the create mock fails if a target is missing and
+# logs an ordering marker once both are present.
+rm -f "$repo_root/apps/web/dist/runtime-config.js" "$repo_root/apps/admin/dist/runtime-config.js"
+cat > "$temp/bin/docker" <<EOF
 #!/usr/bin/env bash
-printf '%s\n' "$*" >> "$COMMAND_LOG"
-case "$*" in
-  *' create web-e2e admin-e2e'|*' start web-e2e admin-e2e') : ;;
+printf '%s\n' "\$*" >> "\$COMMAND_LOG"
+case "\$*" in
+  *' create web-e2e admin-e2e')
+    for target in "$repo_root/apps/web/dist/runtime-config.js" "$repo_root/apps/admin/dist/runtime-config.js"; do
+      [[ -f "\$target" ]] || { echo "missing host-side mount target \$target" >&2; exit 1; }
+    done
+    printf 'mount-targets-present\n' >> "\$COMMAND_LOG" ;;
+  *' start web-e2e admin-e2e') : ;;
   *' port web-e2e 3000'|*' port admin-e2e 3002')
     while IFS= read -r line; do
-      [[ "$line" != *' start web-e2e admin-e2e' ]] || {
-        [[ "$*" == *' port admin-e2e 3002'* ]] && printf '127.0.0.1:32008\n' || printf '127.0.0.1:32007\n'
+      [[ "\$line" != *' start web-e2e admin-e2e' ]] || {
+        [[ "\$*" == *' port admin-e2e 3002'* ]] && printf '127.0.0.1:32008\n' || printf '127.0.0.1:32007\n'
         exit 0
       }
-    done < "$COMMAND_LOG"
+    done < "\$COMMAND_LOG"
     echo 'service "web-e2e" is not running' >&2; exit 1 ;;
   *) exit 1 ;;
 esac
@@ -154,7 +165,8 @@ const indexOf = (pattern) => { for (let i = 0; i < lines.length; i++) if (lines[
 let webResolved = -1;
 for (let i = 0; i < lines.length; i++) if (lines[i].endsWith(" port web-e2e 3000")) { webResolved = i; break; }
 const created = indexOf(" create web-e2e admin-e2e"), started = indexOf(" start web-e2e admin-e2e");
-if ([created, started, webResolved].includes(-1) || !(created < started && started < webResolved)) process.exit(1);
+const targets = indexOf("mount-targets-present");
+if ([created, started, webResolved, targets].includes(-1) || !(targets > created && created < started && started < webResolved)) process.exit(1);
 ' "$temp/browser-stage.log"
 # No-resolution-before-start: write-browser against never-started containers
 # must exhaust its bounded retries instead of emitting any manifest value.

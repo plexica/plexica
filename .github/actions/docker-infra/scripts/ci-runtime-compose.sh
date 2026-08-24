@@ -90,6 +90,16 @@ write_core() { bash "$contract" write-host-set "$runtime" CORE_API_PUBLIC_BASE "
 # discovery, which always precedes app staging) BETWEEN create and start.
 stage_browser() {
   local exports
+  # Compose mounts the workspace read-only (.:/workspace:ro), and Docker
+  # single-file bind mounts require the host-side target to already exist:
+  # when runtime-config.js is absent from the freshly built dist/, runc tries
+  # to CREATE it inside the read-only mount and fails with "make mountpoint
+  # ... read-only file system". Touching empty targets on the writable host
+  # side makes Docker bind-mount OVER them without writing through the ro
+  # mount; the populated $runtime source below is what actually gets served.
+  mkdir -p "$root/apps/web/dist" "$root/apps/admin/dist"
+  : > "$root/apps/web/dist/runtime-config.js"
+  : > "$root/apps/admin/dist/runtime-config.js"
   "${compose[@]}" create web-e2e admin-e2e
   exports=$(bash "$contract" export-host "$runtime" infra)
   eval "$exports"
