@@ -25,20 +25,21 @@ for (const [key, value] of [
 if (accepts('MINIO_SECRET_KEY', '')) {
   throw new Error('Accepted an empty MinIO secret key');
 }
-// Host TLS contract is fail-closed: only the exact strict-TLS pair may pass
-// host-kind validation, mirroring the container.env values.
-for (const [key, value] of [
-  ['PLUGIN_DB_SSL_MODE', 'verify-full'],
-  ['PLUGIN_DB_SSL_ROOT_CERT_PATH', '/etc/ssl/certs/ca-certificates.crt'],
-]) {
-  if (!accepts(key, value)) throw new Error(`Rejected approved host TLS scalar ${key}`);
+// Host TLS contract is fail-closed: runner CLIs run NODE_ENV development/test,
+// so only an explicit disable may pass host-kind validation; verify-full is
+// production-only and belongs to container.env.
+if (!accepts('PLUGIN_DB_SSL_MODE', 'disable')) {
+  throw new Error('Rejected approved host TLS scalar PLUGIN_DB_SSL_MODE');
 }
 for (const [key, value] of [
   ['PLUGIN_DB_SSL_MODE', ''],
   ['PLUGIN_DB_SSL_MODE', 'prefer'],
   ['PLUGIN_DB_SSL_MODE', 'require'],
-  ['PLUGIN_DB_SSL_MODE', 'disable'],
+  ['PLUGIN_DB_SSL_MODE', 'verify-full'],
   ['PLUGIN_DB_SSL_MODE', 'verify-ca'],
+  // The CA path is a container-only key: host-kind validation rejects it
+  // entirely because runner CLIs never open plugin TLS connections.
+  ['PLUGIN_DB_SSL_ROOT_CERT_PATH', '/etc/ssl/certs/ca-certificates.crt'],
   ['PLUGIN_DB_SSL_ROOT_CERT_PATH', '/etc/ssl/certs/evil.pem'],
   ['PLUGIN_DB_SSL_ROOT_CERT_PATH', ''],
 ]) {

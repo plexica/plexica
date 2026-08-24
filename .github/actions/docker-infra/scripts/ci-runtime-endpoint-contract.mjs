@@ -27,8 +27,10 @@ const hostProtocols = {
   ADMIN_E2E_PUBLIC_BASE: 'http:',
 };
 const hostScalars = {
-  PLUGIN_DB_SSL_MODE: (input) => input === 'verify-full',
-  PLUGIN_DB_SSL_ROOT_CERT_PATH: (input) => input === '/etc/ssl/certs/ca-certificates.crt',
+  // Runner CLIs execute with NODE_ENV development/test, where the core config
+  // policy requires plugin database TLS to be explicitly disabled; verify-full
+  // is production-only and lives in container.env for core-api-e2e.
+  PLUGIN_DB_SSL_MODE: (input) => input === 'disable',
 };
 const containerScalars = {
   KAFKA_BROKERS: (input) => input === 'redpanda:9092',
