@@ -65,7 +65,7 @@ export async function ensureCrmInstalled(page: Page, token: string): Promise<str
   if (existing !== undefined) return existing.id;
   const response = await page.request.post(
     tenantApiUrl(ADMIN_TENANT_SLUG, '/api/v1/plugins/crm/install'),
-    { headers: apiHeaders(token) }
+    { headers: apiHeaders(token), data: {} }
   );
   if (!response.ok()) {
     throw new Error(`CRM contract fixture provisioning failed: ${response.status()} ${await response.text()}`);

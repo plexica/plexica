@@ -125,6 +125,9 @@ const ignoreContractSpec = process.env['CI_RUNTIME_SKIP_CONTRACT_SPEC'] === '1';
  */
 export const baseE2eConfig = {
   testDir: './e2e',
+  // Vitest unit tests may live next to E2E helpers (*.test.ts); Playwright
+  // only collects behavioral specs.
+  testMatch: /.*\.spec\.ts$/,
   ...(ignoreContractSpec ? { testIgnore: /ci-runtime-contract\.spec\.ts$/ } : {}),
   fullyParallel: false,
   forbidOnly: isCi,
