@@ -13,6 +13,70 @@ export interface CiRuntimeContractFlowOptions {
   baseUrl: string;
 }
 
+// Live run 32833067545: after a successful install the CRM sidecar was still
+// starting ("health: starting") when the plugin-proxy request fired, so Core
+// answered a 502-class PLUGIN_BACKEND_UNREACHABLE. This is a startup race:
+// retry bounded instead of failing the contract run.
+export interface PluginProxyRetryOptions {
+  intervalMs: number;
+  timeoutMs: number;
+}
+
+export const PLUGIN_PROXY_RETRY_DEFAULTS: PluginProxyRetryOptions = {
+  intervalMs: 1_000,
+  timeoutMs: 20_000,
+};
+
+export interface PluginProxyAttemptResult {
+  status: number;
+  body: string;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+export async function pluginProxyRequestWithRetry(
+  attempt: () => Promise<PluginProxyAttemptResult>,
+  options: PluginProxyRetryOptions = PLUGIN_PROXY_RETRY_DEFAULTS
+): Promise<PluginProxyAttemptResult> {
+  const deadline = Date.now() + options.timeoutMs;
+  let last: PluginProxyAttemptResult | undefined;
+  let lastError: unknown;
+  for (;;) {
+    try {
+      const result = await attempt();
+      if (result.status < 500) return result;
+      last = result;
+    } catch (error) {
+      lastError = error;
+    }
+    if (Date.now() + options.intervalMs > deadline) break;
+    await sleep(options.intervalMs);
+  }
+  const detail =
+    last === undefined
+      ? `last network error: ${String(lastError)}`
+      : `last status=${last.status}, body=${last.body}`;
+  throw new Error(
+    `Plugin proxy did not answer within ${options.timeoutMs}ms retry window (${detail})`
+  );
+}
+
+async function browserFetchBody(
+  page: Page,
+  url: string,
+  init: { credentials: 'include'; headers: Record<string, string> }
+): Promise<PluginProxyAttemptResult> {
+  return page.evaluate(async (request) => {
+    const response = await fetch(request.url, {
+      credentials: request.init.credentials,
+      headers: request.init.headers,
+    });
+    return { status: response.status, body: await response.text() };
+  }, { url, init });
+}
+
 export async function runCiRuntimeContractFlow(
   page: Page,
   request: APIRequestContext,
@@ -24,36 +88,36 @@ export async function runCiRuntimeContractFlow(
   const token = await getBrowserToken(page);
   const installId = await ensureCrmInstalled(page, token);
   const workspaceId = await createWorkspaceFixture(page, token, uniqueName('ci-runtime-contract'));
-  const ordinary = waitForContractResponse(page, '/api/v1/health', 'ordinary');
+  const ordinaryWait = waitForContractResponse(page, '/api/v1/health', 'ordinary');
   const pluginPathname = `/api/v1/plugins/${installId}/proxy/_plexica/health`;
-  const plugin = waitForContractResponse(page, pluginPathname, 'plugin');
-  const result = await page.evaluate(async ({ accessToken, installation, workspace }) => {
+  const pluginWait = waitForContractResponse(page, pluginPathname, 'plugin');
+  const result = await page.evaluate(async ({ accessToken, workspace }) => {
     const headers = { Authorization: `Bearer ${accessToken}`, 'X-Plexica-Workspace-Id': workspace };
-    const [ordinaryResponse, pluginResponse] = await Promise.all([
-      fetch('/api/v1/health?contract=ordinary'),
-      fetch(`/api/v1/plugins/${installation}/proxy/_plexica/health?contract=plugin`, {
-        credentials: 'include',
-        headers,
-      }),
-    ]);
+    const ordinaryResponse = await fetch('/api/v1/health?contract=ordinary');
     return {
       ordinary: { status: ordinaryResponse.status, body: await ordinaryResponse.json() },
-      plugin: { status: pluginResponse.status, body: await pluginResponse.text() },
+      headers,
     };
-  }, { accessToken: token, installation: installId, workspace: workspaceId });
+  }, { accessToken: token, workspace: workspaceId });
+  const pluginResult = await pluginProxyRequestWithRetry(() =>
+    browserFetchBody(page, `${pluginPathname}?contract=plugin`, {
+      credentials: 'include',
+      headers: result.headers,
+    })
+  );
   await assertSameOriginContract(
     page,
     runtime.CORE_API_PUBLIC_BASE,
-    [await ordinary, await plugin],
+    [await ordinaryWait, await pluginWait],
     token,
     workspaceId,
     options.appLabel
   );
   await assertNoWildcardCors(page, request);
   expect(result.ordinary).toEqual({ status: 200, body: { status: 'ok', version: '2.0.0' } });
-  expect(result.plugin.status, result.plugin.body).toBeGreaterThanOrEqual(200);
-  expect(result.plugin.status, result.plugin.body).toBeLessThan(300);
-  expect(result.plugin.body).toContain('healthy');
+  expect(pluginResult.status, pluginResult.body).toBeGreaterThanOrEqual(200);
+  expect(pluginResult.status, pluginResult.body).toBeLessThan(300);
+  expect(pluginResult.body).toContain('healthy');
   expect(await page.evaluate(() => window.__PLEXICA_RUNTIME_CONFIG__?.apiBase)).toBe('');
 }
 
