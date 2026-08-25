@@ -37,8 +37,12 @@ for id in $sidecars; do
   fi
 done
 # mapfile (not `read -a`): docker ps -aq emits one ID per line and read would
-# only capture the first sidecar, leaking the rest on teardown.
-mapfile -t sidecar_ids <<< "$sidecars"
+# only capture the first sidecar, leaking the rest on teardown. Feeding an
+# EMPTY selection through a here-string would yield one empty element and
+# `docker rm -f ''` fails ("container name cannot be empty") — a project whose
+# runtime never started must tear down cleanly, so printf (no trailing
+# newline on empty input) keeps the array truly zero-length.
+mapfile -t sidecar_ids < <(printf '%s' "$sidecars")
 (( ${#sidecar_ids[@]} == 0 )) || docker rm -f "${sidecar_ids[@]}"
 mapfile -t _overlay_files < <(ci_compose_overlay_files "$root")
 docker compose --project-name "$project" -f "$root/docker-compose.yml" -f "$root/docker-compose.ci.yml" ${_overlay_files[@]/#/-f} down -v

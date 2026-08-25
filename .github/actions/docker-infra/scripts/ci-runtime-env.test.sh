@@ -89,7 +89,8 @@ tls_environment=$(env -u E2E_POSTGRES_TLS_SOURCE CI_RUNTIME_DIR="$dir" bash -c '
 # to host consumers (Node: NODE_EXTRA_CA_CERTS, OpenSSL: SSL_CERT_FILE) only
 # when the admission-provisioned CA bundle actually exists — fail closed.
 # Without an admission-provisioned CA source no trust keys are exported.
-no_ca=$(env -u E2E_POSTGRES_TLS_SOURCE CI_RUNTIME_DIR="$dir" bash -c 'source "$1"; printf "%s|%s" "${NODE_EXTRA_CA_CERTS:-}" "${SSL_CERT_FILE:-}"' _ "$host_source")
+no_ca=$(env -u E2E_POSTGRES_TLS_SOURCE -u NODE_EXTRA_CA_CERTS -u SSL_CERT_FILE \
+  CI_RUNTIME_DIR="$dir" bash -c 'source "$1"; printf "%s|%s" "${NODE_EXTRA_CA_CERTS:-}" "${SSL_CERT_FILE:-}"' _ "$host_source")
 [[ "$no_ca" == '|' ]]
 # With one set, a missing staged bundle is fail-closed.
 if CI_RUNTIME_DIR="$dir" E2E_POSTGRES_TLS_SOURCE="$temp/plexica-ci/e2e-postgres-ca" \
