@@ -5,11 +5,8 @@ import { getE2eApiToken } from '../../../../e2e/keycloak/ephemeral-client.js';
 import { coreApiUrl } from '../../../../e2e/playwright-base.js';
 import { expect, test } from '../helpers/base-fixture.js';
 import { loginAsAdmin, uniqueName } from '../helpers/admin-login.js';
-import {
-  createWorkspaceFixture,
-  ensureCrmInstalled,
-  getBrowserToken,
-} from '../helpers/plugin-fixtures.js';
+import { ensureCrmInstalled } from '../helpers/crm-plugin-fixture.js';
+import { createWorkspaceFixture, getBrowserToken } from '../helpers/plugin-fixtures.js';
 
 import type { APIRequestContext } from '@playwright/test';
 

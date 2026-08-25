@@ -1,90 +1,17 @@
 // plugin-fixtures.test.ts
-// Behavioral regression guard for the E2E fixture helpers: every POST that
-// declares `Content-Type: application/json` MUST carry a JSON body, otherwise
-// Fastify rejects it with 400 "Body cannot be empty when content-type is set
-// to 'application/json'" (live run 32754231611).
+// Behavioral regression guard for the E2E fixture helpers (see
+// ./plugin-fixtures.fakes.ts for the JSON-body contract from live run
+// 32754231611). Proxy warm-up behavior has its own suite in
+// ./plugin-warmup.test.ts.
 
 import { describe, expect, it } from 'vitest';
 
-import { createWorkspaceFixture, ensureCrmInstalled } from './plugin-fixtures.js';
-
-import type { Page } from '@playwright/test';
-
-interface RecordedRequestOptions {
-  headers?: Record<string, string>;
-  data?: unknown;
-}
-
-interface RecordedRequest {
-  method: string;
-  url: string;
-  options?: RecordedRequestOptions | undefined;
-}
-
-interface FakeResponseOptions {
-  status: number;
-  body?: unknown;
-}
-
-function fakeResponse({ status, body }: FakeResponseOptions) {
-  return {
-    status: () => status,
-    statusText: () => '',
-    ok: () => status >= 200 && status < 300,
-    text: () => Promise.resolve(JSON.stringify(body ?? {})),
-    json: () => Promise.resolve(body ?? {}),
-  };
-}
-
-function fakePage(handler: (req: RecordedRequest) => FakeResponseOptions): {
-  page: Page;
-  requests: RecordedRequest[];
-} {
-  const requests: RecordedRequest[] = [];
-  const page = {
-    request: {
-      post: async (url: string, options?: Record<string, unknown>) => {
-        const req: RecordedRequest = {
-          method: 'POST',
-          url,
-          options: options as RecordedRequestOptions | undefined,
-        };
-        requests.push(req);
-        return fakeResponse(handler(req));
-      },
-      patch: async (url: string, options?: Record<string, unknown>) => {
-        const req: RecordedRequest = {
-          method: 'PATCH',
-          url,
-          options: options as RecordedRequestOptions | undefined,
-        };
-        requests.push(req);
-        return fakeResponse(handler(req));
-      },
-      get: async (url: string) => {
-        const req = { method: 'GET', url };
-        requests.push(req);
-        return fakeResponse(handler(req));
-      },
-    },
-  };
-  return { page: page as unknown as Page, requests };
-}
-
-function assertJsonPostsCarryBody(requests: RecordedRequest[]): void {
-  const posts = requests.filter((req) => req.method === 'POST');
-  expect(posts.length).toBeGreaterThan(0);
-  for (const post of posts) {
-    const contentType = post.options?.headers?.['Content-Type'];
-    if (contentType !== 'application/json') continue;
-    expect(
-      post.options?.data,
-      `POST ${post.url} sets Content-Type application/json but has no body`
-    ).toBeDefined();
-    const body = post.options?.data;
-    if (typeof body === 'string') expect(() => JSON.parse(body)).not.toThrow();
-  }
-}
+import { ensureCrmInstalled } from './crm-plugin-fixture.js';
+import {
+  assertJsonPostsCarryBody,
+  fakePage,
+} from './plugin-fixtures.fakes.js';
+import { createWorkspaceFixture } from './plugin-fixtures.js';
 
 describe('plugin e2e fixtures', () => {
   it('ensureCrmInstalled sends an explicit empty JSON body on install and activates on first poll', async () => {
@@ -100,10 +27,23 @@ describe('plugin e2e fixtures', () => {
         installationsRequested = true;
         return { status: 200, body: { status: 'active', installId: 'install-1', slug: 'crm' } };
       }
+      if (req.method === 'POST' && req.url.endsWith('/api/v1/workspaces')) {
+        return { status: 201, body: { id: 'ws-warmup' } };
+      }
+      if (req.url.includes('/proxy/_plexica/health')) {
+        return { status: 200, body: { status: 'healthy' } };
+      }
+      if (req.method === 'DELETE' && req.url.endsWith('/api/v1/workspaces/ws-warmup')) {
+        return { status: 204 };
+      }
       throw new Error(`Unexpected request: ${req.method} ${req.url}`);
     });
 
-    const installId = await ensureCrmInstalled(page, 'token-123', { pollIntervalMs: 5, timeoutMs: 5000 });
+    const installId = await ensureCrmInstalled(page, 'token-123', {
+      pollIntervalMs: 5,
+      timeoutMs: 5000,
+      warmup: { intervalMs: 1, timeoutMs: 250 },
+    });
 
     expect(installId).toBe('install-1');
     const install = requests.find((req) => req.url.endsWith('/api/v1/plugins/crm/install'));
@@ -130,10 +70,23 @@ describe('plugin e2e fixtures', () => {
       if (req.url.endsWith('/api/v1/plugins/crm/install')) {
         return { status: 200, body: { status: 'installing', installId: 'install-1', slug: 'crm' } };
       }
+      if (req.method === 'POST' && req.url.endsWith('/api/v1/workspaces')) {
+        return { status: 201, body: { id: 'ws-warmup' } };
+      }
+      if (req.url.includes('/proxy/_plexica/health')) {
+        return { status: 200, body: { status: 'healthy' } };
+      }
+      if (req.method === 'DELETE' && req.url.endsWith('/api/v1/workspaces/ws-warmup')) {
+        return { status: 204 };
+      }
       throw new Error(`Unexpected request: ${req.method} ${req.url}`);
     });
 
-    const installId = await ensureCrmInstalled(page, 'token-123', { pollIntervalMs: 5, timeoutMs: 5000 });
+    const installId = await ensureCrmInstalled(page, 'token-123', {
+      pollIntervalMs: 5,
+      timeoutMs: 5000,
+      warmup: { intervalMs: 1, timeoutMs: 250 },
+    });
 
     expect(installId).toBe('install-1');
     expect(installedReads).toBeGreaterThanOrEqual(2);

@@ -4,10 +4,16 @@ import { ciRuntimeManifest } from '../../../../e2e/ci-runtime-manifest.js';
 
 
 import { ADMIN_TENANT_SLUG, loginAsAdmin, uniqueName } from './admin-login.js';
-import { createWorkspaceFixture, ensureCrmInstalled, getBrowserToken } from './plugin-fixtures.js';
+import { ensureCrmInstalled } from './crm-plugin-fixture.js';
+import { pluginProxyRequestWithRetry } from './plugin-proxy-retry.js';
+import { createWorkspaceFixture, getBrowserToken } from './plugin-fixtures.js';
 
+import type { PluginProxyAttemptResult } from './plugin-proxy-retry.js';
 import type { EndpointKeyOptions } from './tenant-hosts.js';
 import type { APIRequestContext, Page, Response } from '@playwright/test';
+
+export { pluginProxyRequestWithRetry } from './plugin-proxy-retry.js';
+export type { PluginProxyRetryOptions, PluginProxyAttemptResult } from './plugin-proxy-retry.js';
 
 export interface CiRuntimeContractFlowOptions {
   appLabel: string;
@@ -21,54 +27,8 @@ export interface CiRuntimeContractFlowOptions {
 
 // Live run 32833067545: after a successful install the CRM sidecar was still
 // starting ("health: starting") when the plugin-proxy request fired, so Core
-// answered a 502-class PLUGIN_BACKEND_UNREACHABLE. This is a startup race:
-// retry bounded instead of failing the contract run.
-export interface PluginProxyRetryOptions {
-  intervalMs: number;
-  timeoutMs: number;
-}
-
-export const PLUGIN_PROXY_RETRY_DEFAULTS: PluginProxyRetryOptions = {
-  intervalMs: 1_000,
-  timeoutMs: 20_000,
-};
-
-export interface PluginProxyAttemptResult {
-  status: number;
-  body: string;
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-export async function pluginProxyRequestWithRetry(
-  attempt: () => Promise<PluginProxyAttemptResult>,
-  options: PluginProxyRetryOptions = PLUGIN_PROXY_RETRY_DEFAULTS
-): Promise<PluginProxyAttemptResult> {
-  const deadline = Date.now() + options.timeoutMs;
-  let last: PluginProxyAttemptResult | undefined;
-  let lastError: unknown;
-  for (;;) {
-    try {
-      const result = await attempt();
-      if (result.status < 500) return result;
-      last = result;
-    } catch (error) {
-      lastError = error;
-    }
-    if (Date.now() + options.intervalMs > deadline) break;
-    await sleep(options.intervalMs);
-  }
-  const detail =
-    last === undefined
-      ? `last network error: ${String(lastError)}`
-      : `last status=${last.status}, body=${last.body}`;
-  throw new Error(
-    `Plugin proxy did not answer within ${options.timeoutMs}ms retry window (${detail})`
-  );
-}
-
+// answered a 502-class PLUGIN_BACKEND_UNREACHABLE. The bounded retry lives in
+// ./plugin-proxy-retry.js so fixture helpers can share it without cycles.
 export async function browserFetchBody(
   page: Page,
   url: string,

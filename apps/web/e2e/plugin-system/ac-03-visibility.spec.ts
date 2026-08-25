@@ -15,11 +15,8 @@ import {
   requireKeycloakInCI,
   uniqueName,
 } from '../helpers/admin-login.js';
-import {
-  createWorkspaceFixture,
-  ensureCrmInstalled,
-  getBrowserToken,
-} from '../helpers/plugin-fixtures.js';
+import { ensureCrmInstalled } from '../helpers/crm-plugin-fixture.js';
+import { createWorkspaceFixture, getBrowserToken } from '../helpers/plugin-fixtures.js';
 
 const API_BASE = coreApiUrl();
 

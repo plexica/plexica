@@ -5,7 +5,8 @@
 import { expect, test } from '../helpers/base-fixture.js';
 import { expectResponseTo } from '../helpers/api-response.js';
 import { hasKeycloak, loginAsAdmin, requireKeycloakInCI } from '../helpers/admin-login.js';
-import { ensureCrmUninstalled, getBrowserToken } from '../helpers/plugin-fixtures.js';
+import { ensureCrmUninstalled } from '../helpers/crm-plugin-fixture.js';
+import { getBrowserToken } from '../helpers/plugin-fixtures.js';
 
 test.describe.serial('004 Plugin System — AC-01: Plugin Lifecycle', () => {
   test.skip(!hasKeycloak, 'Requires live Keycloak (PLAYWRIGHT_KEYCLOAK_* env vars)');
