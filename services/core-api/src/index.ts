@@ -37,6 +37,7 @@ import {
   pluginEventRoutes,
 } from './modules/plugin/index.js';
 import { adminRoutes } from './modules/admin/index.js';
+import { basicHealthRoutes } from './modules/health/basic-health-routes.js';
 import { pluginEventAuth } from './middleware/plugin-event-auth.js';
 
 const server = Fastify({ loggerInstance: logger, trustProxy: config.TRUST_PROXY });
@@ -79,12 +80,12 @@ await server.register(multipart, {
 });
 
 // ---------------------------------------------------------------------------
-// Public routes — no auth required (Constitution: explicit opt-in)
+// Public routes — no auth required (Constitution: explicit opt-in).
+// basicHealthRoutes registers GET /health AND its /api-namespaced twin
+// GET /api/v1/health on the root instance — OUTSIDE every requireAuth
+// preHandler scope — so the same-origin /api/* proxy can reach it (CI contract).
 // ---------------------------------------------------------------------------
-server.get('/health', { config: { rateLimit: false } }, async () => ({
-  status: 'ok',
-  version: '2.0.0',
-}));
+await server.register(basicHealthRoutes);
 
 // Tenant resolve is public (registered inside tenantRoutes, no auth hook here)
 await server.register(tenantRoutes);

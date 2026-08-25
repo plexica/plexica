@@ -17,7 +17,7 @@ for service in "${required[@]}"; do
   [[ $(docker inspect --format '{{.State.Status}}' "$container") == running ]] || { echo "$service is not running" >&2; exit 1; }
 done
 source "$script_dir/source-ci-runtime-host.sh"
-for url in "$CORE_API_PUBLIC_BASE/health" "$WEB_E2E_PUBLIC_BASE" "$ADMIN_E2E_PUBLIC_BASE"; do
+for url in "$CORE_API_PUBLIC_BASE/health" "$CORE_API_PUBLIC_BASE/api/v1/health" "$WEB_E2E_PUBLIC_BASE" "$ADMIN_E2E_PUBLIC_BASE"; do
   bash "$wait_for_http" "$url"
 done
 for url in "$WEB_E2E_PUBLIC_BASE/runtime-config.js" "$ADMIN_E2E_PUBLIC_BASE/runtime-config.js"; do

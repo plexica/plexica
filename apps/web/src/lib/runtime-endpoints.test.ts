@@ -63,10 +63,10 @@ describe('web CI runtime endpoints', () => {
       refreshTokens: async () => undefined,
       onSessionExpired: () => undefined,
     });
-    await client.get('/api/health?contract=ordinary');
+    await client.get('/api/v1/health?contract=ordinary');
     await client.post('/api/v1/plugins/123/proxy/health?contract=plugin', {});
     expect(requests).toEqual([
-      ['/api/health?contract=ordinary', 'GET'],
+      ['/api/v1/health?contract=ordinary', 'GET'],
       ['/api/v1/plugins/123/proxy/health?contract=plugin', 'POST'],
     ]);
   });

@@ -111,6 +111,7 @@ if ([created, started, resolved, targets].includes(-1) || !(targets > created &&
 CURL_LOG="$temp/curl-positive.log" PATH="$temp/bin:$PATH" bash "$dir/verify-health.sh"
 for expected in \
   'http://127.0.0.1:33006/health' \
+  'http://127.0.0.1:33006/api/v1/health' \
   'http://127.0.0.1:33007' \
   'http://127.0.0.1:33008' \
   'http://127.0.0.1:33007/runtime-config.js' \

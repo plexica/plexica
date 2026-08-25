@@ -24,13 +24,13 @@ export async function runCiRuntimeContractFlow(
   const token = await getBrowserToken(page);
   const installId = await ensureCrmInstalled(page, token);
   const workspaceId = await createWorkspaceFixture(page, token, uniqueName('ci-runtime-contract'));
-  const ordinary = waitForContractResponse(page, '/api/health', 'ordinary');
+  const ordinary = waitForContractResponse(page, '/api/v1/health', 'ordinary');
   const pluginPathname = `/api/v1/plugins/${installId}/proxy/_plexica/health`;
   const plugin = waitForContractResponse(page, pluginPathname, 'plugin');
   const result = await page.evaluate(async ({ accessToken, installation, workspace }) => {
     const headers = { Authorization: `Bearer ${accessToken}`, 'X-Plexica-Workspace-Id': workspace };
     const [ordinaryResponse, pluginResponse] = await Promise.all([
-      fetch('/api/health?contract=ordinary'),
+      fetch('/api/v1/health?contract=ordinary'),
       fetch(`/api/v1/plugins/${installation}/proxy/_plexica/health?contract=plugin`, {
         credentials: 'include',
         headers,
@@ -94,9 +94,12 @@ async function assertSameOriginContract(
 }
 
 async function assertNoWildcardCors(page: Page, request: APIRequestContext): Promise<void> {
-  const probe = await request.fetch(`${new URL(page.url()).origin}/api/health?contract=cors-probe`, {
-    headers: { Origin: 'http://evil.example' },
-  });
+  const probe = await request.fetch(
+    `${new URL(page.url()).origin}/api/v1/health?contract=cors-probe`,
+    {
+      headers: { Origin: 'http://evil.example' },
+    }
+  );
   const allowOrigin = probe.headers()['access-control-allow-origin'];
   expect(allowOrigin, 'CI contract forbids wildcard CORS on cross-origin API probes').not.toBe('*');
   expect(allowOrigin, 'CI contract forbids reflecting foreign origins').not.toBe(
