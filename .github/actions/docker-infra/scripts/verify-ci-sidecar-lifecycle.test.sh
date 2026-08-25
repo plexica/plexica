@@ -59,12 +59,18 @@ grep -Fx "image inspect $crmpinned" "$temp/commands" >/dev/null
 if grep -F "CI_SIDECAR_HARNESS_IMAGE=$CI_COMPOSE_PROJECT" "$temp/commands" >/dev/null; then
   echo 'Sidecar proof used the unpinned local harness tag' >&2; exit 1
 fi
-# Layer hygiene: EXIT cleanup must remove each built tag AND rmi the recorded
-# build image ids so build layers do not accumulate in the daemon store per run.
+# Layer hygiene + digest survival: EXIT cleanup must untag each built tag but
+# NEVER rmi the recorded build image ids: the digest-pinned refs published to
+# sidecar-images.env point at those very image objects and are the only
+# surviving reference once the ephemeral registry exits. Run 32762992133: a
+# forced `docker rmi -f <build id>` orphaned them, degrading every install
+# with a dead-registry pull failure.
 harness_id='sha256:1111111111111111111111111111111111111111111111111111111111111111'
 grep -F 'build -q --tag plexica-ci-sidecar-harness:plexica-ci-sidecar-test-123456 ' "$temp/commands" >/dev/null
 grep -Fx 'image rm -f plexica-ci-sidecar-harness:plexica-ci-sidecar-test-123456' "$temp/commands" >/dev/null
-grep -Fx "rmi -f $harness_id" "$temp/commands" >/dev/null
+if grep -F "rmi -f $harness_id" "$temp/commands" >/dev/null; then
+  echo 'Sidecar proof rmi-ed the harness image object referenced by its digest pin' >&2; exit 1
+fi
 # A pre-cached CRM image is reused untouched: no CRM build, no CRM cleanup.
 if grep -F 'plugins/crm/Dockerfile' "$temp/commands" >/dev/null; then
   echo 'Sidecar proof rebuilt an already-present CRM plugin image' >&2; exit 1
@@ -74,7 +80,8 @@ if grep -F 'rmi -f sha256:2222' "$temp/commands" >/dev/null; then
 fi
 
 # Missing CRM image: the proof must build it from the plugin Dockerfile before
-# publication and rmi its exact build output afterwards.
+# publication, and its EXIT cleanup must leave the published digest ref alive
+# (untag only — never rmi the build output).
 rm -f "$runtime/sidecar-images.env"
 PATH="$temp/bin:$PATH" PUBLISH_SIDECAR_IMAGES_CMD="$temp/bin/publish-sidecar-images.sh" COMMAND_LOG="$temp/commands-crm-build" RUNNER_TEMP="$temp" CI_COMPOSE_PROJECT="$CI_COMPOSE_PROJECT" CI_RUNTIME_DIR="$runtime" \
   MOCK_CRM_ABSENT=1 bash "$script_dir/verify-ci-sidecar-lifecycle.sh"
@@ -88,9 +95,9 @@ publish_line=$(grep -n '^publish-sidecar\|/publish-sidecar-images.sh$' "$temp/co
 [[ -n "$build_line" && -n "$publish_line" && "$build_line" -lt "$publish_line" ]] || {
   echo 'CRM image was built after sidecar publication started' >&2; exit 1;
 }
-grep -Fx "rmi -f $crm_id" "$temp/commands-crm-build" >/dev/null || {
-  echo 'CRM build output was not rmi-ed by the EXIT cleanup' >&2; exit 1;
-}
+if grep -Fx "rmi -f $crm_id" "$temp/commands-crm-build" >/dev/null; then
+  echo 'CRM build output was rmi-ed although its digest pin must survive' >&2; exit 1;
+fi
 
 # Partial evidence (harness line only) is stale and must republish, not be
 # trusted as complete two-image evidence.
@@ -178,10 +185,7 @@ EOF
 cat > "$temp/bin/docker" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >> "$COMMAND_LOG"
-case "$*" in
-  'image inspect'*) exit 97 ;;
-esac
-exit 0
+if [[ "$*" == 'image inspect'* ]]; then exit 97; fi
 EOF
 chmod +x "$temp/bin/docker"
 : > "$temp/commands-inspectfail"

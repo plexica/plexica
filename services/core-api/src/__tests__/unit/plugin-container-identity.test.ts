@@ -23,18 +23,22 @@ beforeEach(() => {
 });
 
 describe('plugin CI container identity', () => {
-  it('derives a bounded deterministic alias and scope labels', () => {
+  it('preserves the legacy installId container name outside the CI contract', () => {
     const identity = pluginContainerIdentity(INSTALL_ID, 'local', 'local_default');
-    expect(identity.alias).toMatch(/^plexica-plugin-local-[a-f0-9]{16}$/);
+    expect(identity.name).toBe(`plexica-plugin-${INSTALL_ID}`);
     expect(identity.labels['io.plexica.runtime-scope']).toBe('local');
   });
   it('rejects a non-UUID installation ID', () => {
     expect(() => pluginContainerIdentity('not-a-uuid', 'local', 'local_default')).toThrow('UUID');
   });
   it('keeps a long project identity within Docker DNS limits', () => {
-    const project = 'plexica-ci-contract-123456789012345678901234567';
-    const scope = pluginRuntimeScope(project);
-    const identity = pluginContainerIdentity(INSTALL_ID, scope, `${project}_default`);
+    state.env = {
+      CI_RUNTIME_CONTRACT: '1',
+      CI_RUNTIME_PROJECT: PROJECT,
+      PLUGIN_RUNTIME_SCOPE: pluginRuntimeScope(PROJECT),
+      PLUGIN_DOCKER_NETWORK: `${PROJECT}_default`,
+    };
+    const identity = pluginContainerIdentity(INSTALL_ID);
     expect(identity.alias).toHaveLength(63);
   });
 

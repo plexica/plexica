@@ -33,15 +33,16 @@ if [[ -f "$env_file" ]] \
 else
   build_id=
   crm_build_id=
-  # Remove both the tag and the image ID recorded at build time: `docker
-  # image rm <tag>` leaves the underlying layers as dangling store entries,
-  # so the EXIT cleanup additionally rmi's the exact build output. Never a
-  # global prune — only this run's own images. A pre-existing CRM image is
-  # reused untouched (it is a per-project deterministic tag, never removed).
+  # Remove this run's per-project build TAGS. Never rmi the underlying image
+  # IDs: the digest-pinned refs written to sidecar-images.env are the only
+  # surviving local reference once the ephemeral registry exits, and they
+  # point at the very same image objects as these tags. Run 32762992133:
+  # a forced `docker rmi -f <build id>` orphaned those digest refs, so every
+  # install degraded with a dead-registry pull failure (PLUGIN_RUNTIME_START,
+  # zero plugin container events). Only this run's own tags are touched —
+  # never a global prune, never another project's references.
   cleanup() {
     docker image rm -f "$image" >/dev/null 2>&1 || true
-    [[ -z "$build_id" ]] || docker rmi -f "$build_id" >/dev/null 2>&1 || true
-    [[ -z "$crm_build_id" ]] || docker rmi -f "$crm_build_id" >/dev/null 2>&1 || true
   }
   trap cleanup EXIT
   build_id=$(docker build -q --tag "$image" --file "$root/infra/docker/ci-sidecar-harness.Dockerfile" "$root")

@@ -31,8 +31,15 @@ export function pluginContainerIdentity(
       throw new Error('CI plugin scope and network must match the immutable project ID');
     }
   }
-  const digest = createHash('sha256').update(installId).digest('hex').slice(0, 16);
-  const name = `plexica-plugin-${scope}-${digest}`;
+  // Legacy local installs (created before the CI contract) use
+  // `plexica-plugin-${installId}`; keeping that name outside CI preserves
+  // status/restart/stop/remove/proxy lookups for already-running sidecars
+  // after upgrade. The derived bounded DNS label is a CI-contract requirement:
+  // the installId form can exceed Docker DNS limits once scoped per project.
+  const name =
+    config.CI_RUNTIME_CONTRACT === '1'
+      ? `plexica-plugin-${scope}-${createHash('sha256').update(installId).digest('hex').slice(0, 16)}`
+      : `plexica-plugin-${installId}`;
   return {
     name,
     alias: name,

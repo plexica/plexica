@@ -36,7 +36,12 @@ export function assertCiPluginContainer(
   const networks = inspect.NetworkSettings.Networks ?? {};
   const endpoint = networks[identity.network];
   const labels = inspect.Config.Labels ?? {};
-  const hasGateway = (inspect.HostConfig.ExtraHosts ?? []).some((host) => host.includes('host-gateway'));
+  // Fail closed on ANY extra host mapping: docker-runtime-options adds
+  // ExtraHosts only outside CI, so a CI sidecar carrying one (host-gateway,
+  // host.docker.internal, or an arbitrary IP pin) is a host-access fault.
+  // PublishAllPorts needs no separate check: any publication materializes as
+  // non-null NetworkSettings.Ports bindings, rejected below.
+  const hasExtraHosts = (inspect.HostConfig.ExtraHosts ?? []).length > 0;
   const hasHostEndpoint = (inspect.Config.Env ?? []).some((entry) =>
     /(?:localhost|127\.0\.0\.1|host\.docker\.internal|host-gateway)/i.test(entry)
   );
@@ -62,7 +67,7 @@ export function assertCiPluginContainer(
     (config.PLUGIN_DB_SSL_MODE === 'verify-full' &&
       ((inspect.HostConfig.Binds ?? []).length !== 1 ||
         inspect.HostConfig.Binds?.[0] !== expectedBind)) ||
-    hasGateway ||
+    hasExtraHosts ||
     hasHostEndpoint
   ) {
     throw new CiPluginContractViolation(

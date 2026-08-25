@@ -39,6 +39,7 @@ describe('CI plugin container contract', () => {
     ['foreign alias', (value: ContainerFixture) => { value.NetworkSettings.Networks['plexica-ci-contract-123456_default']!.Aliases.push('foreign'); }],
     ['published port', (value: ContainerFixture) => { value.NetworkSettings.Ports = { '3000/tcp': [{ HostPort: '32000' }] }; }],
     ['host gateway', (value: ContainerFixture) => { value.HostConfig.ExtraHosts = ['host.docker.internal:host-gateway']; }],
+    ['arbitrary extra host mapping', (value: ContainerFixture) => { value.HostConfig.ExtraHosts = ['runner.internal:10.0.0.5']; }],
     ['foreign scope', (value: ContainerFixture) => { value.Config.Labels['io.plexica.runtime-scope'] = 'foreign'; }],
     ['foreign project with the same scope', (value: ContainerFixture) => { value.Config.Labels['com.docker.compose.project'] = 'plexica-ci-foreign-123456'; }],
     ['forged runtime-project ownership label', (value: ContainerFixture) => { value.Config.Labels['io.plexica.runtime-project'] = 'plexica-ci-foreign-123456'; }],

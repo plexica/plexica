@@ -11,6 +11,7 @@ import { KubernetesContainerManager } from './kubernetes-container-manager.js';
 import { containerPort, parseCpu, parseMemory } from './container-helpers.js';
 import { restartDockerContainer } from './docker-container-restart.js';
 import { dockerRuntimeOptions } from './docker-runtime-options.js';
+import { dockerodeCreateOptions } from './dockerode-create-options.js';
 import { assertCiPluginContainer, CiPluginContractViolation } from './plugin-container-contract.js';
 import { isCiPluginRuntime, pluginContainerIdentity } from './plugin-container-identity.js';
 import { resolveSidecarImage } from './sidecar-image.js';
@@ -80,39 +81,40 @@ export class DockerContainerManager implements ContainerManager {
       }
     }
     const runtime = dockerRuntimeOptions(installId);
-    const container = await this.docker.createContainer({
-      name: identity.name,
-      Image: image,
-      Env: manifest.env
-        ? Object.entries(manifest.env).map(([key, value]) => `${key}=${value}`)
-        : undefined,
-      Labels: runtime.labels,
-      ExposedPorts: { [`${manifest.hosting.port}/tcp`]: {} },
-      ...(isCiPluginRuntime()
-        ? {
-            NetworkingConfig: {
-              EndpointsConfig: { [identity.network]: { Aliases: [identity.alias] } },
-            },
-          }
-        : {}),
-      HostConfig: {
-        RestartPolicy: { Name: 'unless-stopped' },
-        ...runtime.hostConfig,
+    const container = await this.docker.createContainer(
+      dockerodeCreateOptions(identity.name, {
+        Image: image,
+        Env: manifest.env
+          ? Object.entries(manifest.env).map(([key, value]) => `${key}=${value}`)
+          : undefined,
+        Labels: runtime.labels,
+        ExposedPorts: { [`${manifest.hosting.port}/tcp`]: {} },
         ...(isCiPluginRuntime()
-          ? {}
-          : { PortBindings: { [`${manifest.hosting.port}/tcp`]: [{ HostPort: '0' }] } }),
-        ...(manifest.hosting.resources
           ? {
-              ...(manifest.hosting.resources.memory
-                ? { MemoryReservation: parseMemory(manifest.hosting.resources.memory) }
-                : {}),
-              ...(manifest.hosting.resources.cpu
-                ? { NanoCpus: parseCpu(manifest.hosting.resources.cpu) }
-                : {}),
+              NetworkingConfig: {
+                EndpointsConfig: { [identity.network]: { Aliases: [identity.alias] } },
+              },
             }
           : {}),
-      },
-    });
+        HostConfig: {
+          RestartPolicy: { Name: 'unless-stopped' },
+          ...runtime.hostConfig,
+          ...(isCiPluginRuntime()
+            ? {}
+            : { PortBindings: { [`${manifest.hosting.port}/tcp`]: [{ HostPort: '0' }] } }),
+          ...(manifest.hosting.resources
+            ? {
+                ...(manifest.hosting.resources.memory
+                  ? { MemoryReservation: parseMemory(manifest.hosting.resources.memory) }
+                  : {}),
+                ...(manifest.hosting.resources.cpu
+                  ? { NanoCpus: parseCpu(manifest.hosting.resources.cpu) }
+                  : {}),
+              }
+            : {}),
+        },
+      })
+    );
     await container.start();
     // Post-start contract assert: on failure the just-started sidecar is
     // rogue (unverified identity), so remove it before propagating the error.

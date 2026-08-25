@@ -1,5 +1,6 @@
 import { assertCiPluginContainer } from './plugin-container-contract.js';
 import { dockerRuntimeOptions } from './docker-runtime-options.js';
+import { dockerodeCreateOptions } from './dockerode-create-options.js';
 import { isCiPluginRuntime, pluginContainerIdentity } from './plugin-container-identity.js';
 import { resolveSidecarImage } from './sidecar-image.js';
 
@@ -18,20 +19,18 @@ function replacementOptions(
   installId: string,
   inspect: Docker.ContainerInspectInfo,
   environment: Record<string, string>
-): Docker.ContainerCreateOptions {
+): Omit<Docker.ContainerCreateOptions, 'name'> {
   const identity = pluginContainerIdentity(installId);
   if (!isCiPluginRuntime()) {
     return {
       ...inspect.Config,
-      name: identity.name,
       Env: mergeEnvironment(inspect.Config.Env, environment),
       HostConfig: inspect.HostConfig,
-    } as Docker.ContainerCreateOptions;
+    } as Omit<Docker.ContainerCreateOptions, 'name'>;
   }
   const image = resolveSidecarImage(inspect.Config.Image ?? '');
   const runtime = dockerRuntimeOptions(installId);
   return {
-    name: identity.name,
     Image: image,
     Env: mergeEnvironment(inspect.Config.Env, environment),
     Labels: identity.labels,
@@ -42,7 +41,7 @@ function replacementOptions(
     ...(inspect.Config.User ? { User: inspect.Config.User } : {}),
     NetworkingConfig: { EndpointsConfig: { [identity.network]: { Aliases: [identity.alias] } } },
     HostConfig: { RestartPolicy: { Name: 'unless-stopped' }, ...runtime.hostConfig },
-  } as Docker.ContainerCreateOptions;
+  } as Omit<Docker.ContainerCreateOptions, 'name'>;
 }
 
 export async function restartDockerContainer(
@@ -66,7 +65,7 @@ export async function restartDockerContainer(
     if (!(error as Error).message.includes('already stopped')) throw error;
   });
   await existing.remove({ force: true });
-  const replacement = await docker.createContainer(createOptions);
+  const replacement = await docker.createContainer(dockerodeCreateOptions(identity.name, createOptions));
   await replacement.start();
   // Post-start contract assert: on failure the just-started replacement is
   // rogue (unverified identity), so remove it before propagating the error —

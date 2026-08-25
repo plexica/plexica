@@ -142,7 +142,17 @@ jobs:
         run: test -f "$CI_RUNTIME_DIR/host.env"
       - name: Prove real CI sidecar lifecycle through Core and Docker proxy
         run: bash .github/actions/docker-infra/scripts/verify-ci-sidecar-lifecycle.sh
-      - run: pnpm --filter core-api test
+      - name: Run core-api tests through the host manifest
+        # Host-side Vitest runs against the project runtime: the manifest is
+        # the single source of truth for infra endpoints and credentials.
+        # LOKI_URL/SMTP_* are derived aliases of manifest entries (check-test-env
+        # contract) and are never written to host.env themselves.
+        run: |
+          source .github/actions/docker-infra/scripts/source-ci-runtime-host.sh
+          mailpit_address=${MAILPIT_SMTP_URL#smtp://}
+          export LOKI_URL="$LOKI_HOST_URL" \
+            SMTP_HOST="${mailpit_address%:*}" SMTP_PORT="${mailpit_address##*:}"
+          pnpm --filter core-api test
       - name: Collect scoped diagnostics
         if: always()
         uses: ./.github/actions/docker-infra

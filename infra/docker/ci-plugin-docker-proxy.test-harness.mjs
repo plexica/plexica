@@ -26,11 +26,21 @@ const daemon = createServer(async (incoming, outgoing) => {
   if (incoming.url?.includes('/json')) {
     const malformed = incoming.url.includes('malformed');
     const foreign = incoming.url.includes('foreign');
-    outgoing.end(
-      JSON.stringify({
-        Name: `/${name}`,
-         Config: {
-            Labels: { 'io.plexica.installation': installId, 'io.plexica.runtime-scope': foreign ? 'foreign' : scope, 'io.plexica.runtime-project': project, 'com.docker.compose.project': project },
+     outgoing.end(
+       JSON.stringify({
+         Name: `/${name}`,
+          Config: {
+            // The real daemon serialises label maps with sorted keys on
+            // inspect; mirror that so ownership checks cannot rely on
+            // client-side insertion order.
+            Labels: Object.fromEntries(
+              Object.entries({
+                'io.plexica.installation': installId,
+                'io.plexica.runtime-scope': foreign ? 'foreign' : scope,
+                'io.plexica.runtime-project': project,
+                'com.docker.compose.project': project,
+              }).sort(([a], [b]) => a.localeCompare(b))
+            ),
            Env: malformed ? ['CORE_API_URL=http://host.docker.internal:3001'] : [],
          },
          HostConfig: { Binds: ['/etc/ssl/certs/ca-certificates.crt:/tmp/plexica-postgres-ca.crt:ro'], PortBindings: malformed ? { '3000/tcp': [{ HostPort: '32000' }] } : {} },

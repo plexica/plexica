@@ -28,17 +28,18 @@ vi.mock('dockerode', () => ({
     getImage() { return { inspect: async () => ({}) }; }
     createContainer(options: Record<string, unknown>) {
       captured.options = options;
+      const body = options['_body'] as Record<string, unknown>;
       return {
         id: 'container',
         start: async () => undefined,
         inspect: async () => ({
           Name: `/${name}`,
           Config: {
-            Labels: options['Labels'],
+            Labels: body['Labels'],
             Env: [],
           },
           HostConfig: {
-            Binds: (options['HostConfig'] as { Binds?: string[] } | undefined)?.Binds,
+            Binds: (body['HostConfig'] as { Binds?: string[] } | undefined)?.Binds,
             PortBindings: {}, ExtraHosts: [],
           },
           NetworkSettings: {
@@ -54,15 +55,19 @@ vi.mock('dockerode', () => ({
 import { DockerContainerManager } from '../../modules/plugin/services/container-manager.service.js';
 
 describe('CI manager-to-proxy create payload', () => {
-  it('emits the exact labels and CA bind admitted by the Docker proxy', async () => {
+  it('splits name and payload onto the strict proxy wire contract', async () => {
     await new DockerContainerManager().startContainer(installId, {
       slug: 'payload-proof', name: 'Payload proof', version: '1.0.0', description: 'proof',
       author: 'Plexica', icon: 'Box', categories: [], declaredTables: [],
       hosting: { type: 'sidecar', image: 'plexica/payload-proof:1', port: 3000 },
     });
 
-    expect(captured.options).toMatchObject({
-      name,
+    // docker-modem echoes plain options into BOTH the query string and the
+    // body; the proxy admits exactly one query param and no `name` body key.
+    expect(captured.options?.['_query']).toEqual({ name });
+    const body = captured.options?.['_body'] as Record<string, unknown>;
+    expect(body['name']).toBeUndefined();
+    expect(body).toMatchObject({
       Image: pinnedImage,
       Labels: {
         'io.plexica.installation': installId,
@@ -85,6 +90,6 @@ describe('CI manager-to-proxy create payload', () => {
       author: 'Plexica', icon: 'Box', categories: [], declaredTables: [],
       hosting: { type: 'sidecar', image: harnessImage, port: 3000 },
     });
-    expect(captured.options).toMatchObject({ Image: harnessImage });
+    expect((captured.options?.['_body'] as Record<string, unknown>)['Image']).toBe(harnessImage);
   });
 });

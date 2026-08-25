@@ -47,6 +47,16 @@ try {
     throw new Error('Harness sidecar image create was not proxied');
   if (JSON.parse(forwarded.at(-1).body).Image !== harnessImage)
     throw new Error('Harness sidecar image was not preserved in the proxied payload');
+  // Dockerode/docker-modem echo plain options into BOTH the query string and
+  // the body. The strict contract admits exactly one query param and no
+  // `name` body key — clients must split explicitly (dockerodeCreateOptions).
+  const dockerodeCreate = JSON.parse(create);
+  dockerodeCreate.name = name;
+  if (
+    (await call('POST', `/containers/create?name=${name}&Image=x`, JSON.stringify(dockerodeCreate))) !== 403 ||
+    (await call('POST', `/containers/create?name=${name}`, JSON.stringify(dockerodeCreate))) !== 403
+  )
+    throw new Error('Dockerode-echoed create shape (extra query params or name in body) was accepted');
   if (
     (await call(
       'POST',

@@ -27,7 +27,16 @@ export function labelsFor(installId) {
   };
 }
 export function exactLabels(labels, installId) {
-  return JSON.stringify(labels) === JSON.stringify(labelsFor(installId));
+  // Order-insensitive: the daemon serialises label maps with sorted keys on
+  // inspect, while create payloads carry client insertion order. A raw
+  // JSON.stringify comparison therefore rejected legitimately owned
+  // containers at start/stop/delete time (run 32762992133 follow-up).
+  const expected = labelsFor(installId);
+  const keys = Object.keys(expected);
+  return (
+    Object.keys(labels).length === keys.length &&
+    keys.every((key) => labels[key] === expected[key])
+  );
 }
 export function unsafeContainerAccess(inspected) {
   return (
