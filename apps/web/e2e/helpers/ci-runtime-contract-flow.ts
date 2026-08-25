@@ -69,7 +69,7 @@ export async function pluginProxyRequestWithRetry(
   );
 }
 
-async function browserFetchBody(
+export async function browserFetchBody(
   page: Page,
   url: string,
   init: { credentials: 'include'; headers: Record<string, string> }
@@ -134,11 +134,32 @@ export async function runCiRuntimeContractFlow(
   expect(await page.evaluate(() => window.__PLEXICA_RUNTIME_CONFIG__?.apiBase)).toBe('');
 }
 
-function waitForContractResponse(page: Page, pathname: string, contract: string) {
+export function waitForContractResponse(page: Page, pathname: string, contract: string) {
   return page.waitForResponse((response) => {
     const url = new URL(response.url());
     return url.pathname === pathname && url.search === `?contract=${contract}`;
   });
+}
+
+/**
+ * Single-response same-origin check shared by the web flow (which asserts a
+ * pair of captured responses) and the admin contract (which drives its own
+ * super-admin session through the admin preview proxy).
+ */
+export async function assertSameOriginResponse(
+  page: Page,
+  coreApiPublicBase: string,
+  response: Response,
+  appLabel: string
+): Promise<void> {
+  const sent = response.request();
+  expect(new URL(sent.url()).origin, `${appLabel} must keep requests same-origin`).toBe(
+    new URL(page.url()).origin
+  );
+  expect(
+    sent.url().startsWith(coreApiPublicBase),
+    `${appLabel} must not reach the Core public base directly`
+  ).toBe(false);
 }
 
 async function assertSameOriginContract(
@@ -151,14 +172,7 @@ async function assertSameOriginContract(
 ): Promise<void> {
   const [ordinaryResponse, pluginResponse] = responses;
   for (const response of responses) {
-    const sent = response.request();
-    expect(new URL(sent.url()).origin, `${appLabel} must keep requests same-origin`).toBe(
-      new URL(page.url()).origin
-    );
-    expect(
-      sent.url().startsWith(coreApiPublicBase),
-      `${appLabel} must not reach the Core public base directly`
-    ).toBe(false);
+    await assertSameOriginResponse(page, coreApiPublicBase, response, appLabel);
   }
   expect(ordinaryResponse.request().method()).toBe('GET');
   expect(pluginResponse.request().method()).toBe('GET');
@@ -170,7 +184,7 @@ async function assertSameOriginContract(
     expect(response.headers()['access-control-allow-origin']).not.toBe('*');
 }
 
-async function assertNoWildcardCors(page: Page, request: APIRequestContext): Promise<void> {
+export async function assertNoWildcardCors(page: Page, request: APIRequestContext): Promise<void> {
   const probe = await request.fetch(
     `${new URL(page.url()).origin}/api/v1/health?contract=cors-probe`,
     {
