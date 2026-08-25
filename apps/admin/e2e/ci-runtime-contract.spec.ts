@@ -7,5 +7,6 @@ test('CI admin preserves same-origin API and plugin proxy requests', async ({ pa
   await runCiRuntimeContractFlow(page, request, {
     appLabel: 'admin',
     baseUrl: ciRuntimeManifest().ADMIN_E2E_PUBLIC_BASE,
+    hostKeys: { baseKey: 'PLAYWRIGHT_ADMIN_BASE_URL', apiKey: 'PLAYWRIGHT_CORE_API_URL' },
   });
 });

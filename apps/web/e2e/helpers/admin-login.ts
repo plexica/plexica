@@ -11,6 +11,7 @@ import {
   TENANT_SLUG,
 } from './keycloak-login.js';
 
+import type { EndpointKeyOptions } from './tenant-hosts.js';
 import type { Page } from '@playwright/test';
 
 // ---------------------------------------------------------------------------
@@ -38,11 +39,12 @@ export { hasKeycloak, requireKeycloakInCI, TENANT_SLUG };
 /**
  * Logs in as the tenant admin and waits for /dashboard.
  */
-export async function loginAsAdmin(page: Page): Promise<void> {
+export async function loginAsAdmin(page: Page, hostKeys: EndpointKeyOptions = {}): Promise<void> {
   await loginViaKeycloak(page, {
     tenantSlug: ADMIN_TENANT_SLUG,
     username: ADMIN_USERNAME,
     password: ADMIN_PASSWORD,
+    hostKeys,
   });
 }
 

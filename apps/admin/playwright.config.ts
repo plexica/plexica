@@ -46,6 +46,8 @@ const ciValue = (value: string | undefined): string => {
 
 if (CI_RUNTIME) {
   setFromManifest('PLAYWRIGHT_KEYCLOAK_URL', ciValue(RUNTIME_MANIFEST?.KEYCLOAK_HOST_ADMIN_BASE));
+  setFromManifest('PLAYWRIGHT_ADMIN_BASE_URL', ciValue(RUNTIME_MANIFEST?.ADMIN_E2E_PUBLIC_BASE));
+  setFromManifest('PLAYWRIGHT_CORE_API_URL', ciValue(RUNTIME_MANIFEST?.CORE_API_PUBLIC_BASE));
   setFromManifest('PLAYWRIGHT_LOKI_URL', ciValue(RUNTIME_MANIFEST?.LOKI_HOST_URL));
   setFromManifest('PLAYWRIGHT_MAILPIT_URL', ciValue(RUNTIME_MANIFEST?.MAILPIT_UI_BASE));
 } else {

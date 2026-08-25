@@ -1,6 +1,7 @@
 import { ADMIN_TENANT_SLUG } from './admin-login.js';
 import { tenantApiUrl } from './tenant-hosts.js';
 
+import type { EndpointKey, EndpointKeyOptions } from './tenant-hosts.js';
 import type { Page } from '@playwright/test';
 
 interface Installation {
@@ -31,12 +32,16 @@ export async function createWorkspaceFixture(
   page: Page,
   token: string,
   name: string,
-  tenantSlug = ADMIN_TENANT_SLUG
+  tenantSlug = ADMIN_TENANT_SLUG,
+  hostKeys: EndpointKeyOptions = {}
 ): Promise<string> {
-  const response = await page.request.post(tenantApiUrl(tenantSlug, '/api/v1/workspaces'), {
-    headers: apiHeaders(token),
-    data: { name },
-  });
+  const response = await page.request.post(
+    tenantApiUrl(tenantSlug, '/api/v1/workspaces', { apiKey: hostKeys.apiKey }),
+    {
+      headers: apiHeaders(token),
+      data: { name },
+    }
+  );
   if (response.status() !== 201) {
     throw new Error(
       `Workspace fixture creation failed: ${response.status()} ${await response.text()}`
@@ -45,9 +50,13 @@ export async function createWorkspaceFixture(
   return ((await response.json()) as { id: string }).id;
 }
 
-async function listInstallations(page: Page, token: string): Promise<Installation[]> {
+async function listInstallations(
+  page: Page,
+  token: string,
+  apiKey?: EndpointKey | undefined
+): Promise<Installation[]> {
   const response = await page.request.get(
-    tenantApiUrl(ADMIN_TENANT_SLUG, '/api/v1/plugins/installed'),
+    tenantApiUrl(ADMIN_TENANT_SLUG, '/api/v1/plugins/installed', { apiKey }),
     {
       headers: apiHeaders(token),
     }
@@ -61,6 +70,7 @@ async function listInstallations(page: Page, token: string): Promise<Installatio
 export interface CrmInstallPollOptions {
   pollIntervalMs?: number;
   timeoutMs?: number;
+  apiKey?: EndpointKey | undefined;
 }
 
 const DEFAULT_POLL_INTERVAL_MS = 1000;
@@ -83,12 +93,12 @@ export async function ensureCrmInstalled(
   token: string,
   options: CrmInstallPollOptions = {}
 ): Promise<string> {
-  const existing = (await listInstallations(page, token)).find(
+  const existing = (await listInstallations(page, token, options.apiKey)).find(
     (installation) => installation.pluginSlug === 'crm' && installation.status !== 'uninstalled'
   );
   if (existing !== undefined) return existing.id;
   const response = await page.request.post(
-    tenantApiUrl(ADMIN_TENANT_SLUG, '/api/v1/plugins/crm/install'),
+    tenantApiUrl(ADMIN_TENANT_SLUG, '/api/v1/plugins/crm/install', { apiKey: options.apiKey }),
     { headers: apiHeaders(token), data: {} }
   );
   if (!response.ok()) {
@@ -100,7 +110,7 @@ export async function ensureCrmInstalled(
   const deadline = Date.now() + timeoutMs;
   let observedStatus = 'missing';
   while (Date.now() < deadline) {
-    const fixture = (await listInstallations(page, token)).find(
+    const fixture = (await listInstallations(page, token, options.apiKey)).find(
       (installation) => installation.pluginSlug === 'crm' && installation.status !== 'uninstalled'
     );
     if (fixture?.status === 'active') return fixture.id;

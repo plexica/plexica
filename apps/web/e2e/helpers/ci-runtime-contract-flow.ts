@@ -3,14 +3,20 @@ import { expect } from '@playwright/test';
 import { ciRuntimeManifest } from '../../../../e2e/ci-runtime-manifest.js';
 
 
-import { loginAsAdmin, uniqueName } from './admin-login.js';
+import { ADMIN_TENANT_SLUG, loginAsAdmin, uniqueName } from './admin-login.js';
 import { createWorkspaceFixture, ensureCrmInstalled, getBrowserToken } from './plugin-fixtures.js';
 
+import type { EndpointKeyOptions } from './tenant-hosts.js';
 import type { APIRequestContext, Page, Response } from '@playwright/test';
 
 export interface CiRuntimeContractFlowOptions {
   appLabel: string;
   baseUrl: string;
+  /**
+   * Endpoint env keys for the invoking app: web uses the defaults, admin
+   * passes PLAYWRIGHT_ADMIN_BASE_URL / PLAYWRIGHT_CORE_API_URL (spec 010).
+   */
+  hostKeys?: EndpointKeyOptions;
 }
 
 // Live run 32833067545: after a successful install the CRM sidecar was still
@@ -83,11 +89,18 @@ export async function runCiRuntimeContractFlow(
   options: CiRuntimeContractFlowOptions
 ): Promise<void> {
   const runtime = ciRuntimeManifest();
+  const hostKeys = options.hostKeys ?? {};
   await page.goto(options.baseUrl);
-  await loginAsAdmin(page);
+  await loginAsAdmin(page, hostKeys);
   const token = await getBrowserToken(page);
-  const installId = await ensureCrmInstalled(page, token);
-  const workspaceId = await createWorkspaceFixture(page, token, uniqueName('ci-runtime-contract'));
+  const installId = await ensureCrmInstalled(page, token, { apiKey: hostKeys.apiKey });
+  const workspaceId = await createWorkspaceFixture(
+    page,
+    token,
+    uniqueName('ci-runtime-contract'),
+    ADMIN_TENANT_SLUG,
+    hostKeys
+  );
   const ordinaryWait = waitForContractResponse(page, '/api/v1/health', 'ordinary');
   const pluginPathname = `/api/v1/plugins/${installId}/proxy/_plexica/health`;
   const pluginWait = waitForContractResponse(page, pluginPathname, 'plugin');
