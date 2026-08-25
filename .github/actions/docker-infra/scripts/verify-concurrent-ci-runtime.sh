@@ -7,15 +7,27 @@ scripts=${CI_RUNTIME_SCRIPTS_DIR:-"$root/.github/actions/docker-infra/scripts"}
 # Port-sentinel snapshot and isolation gates live in a sourced helper to keep
 # this orchestrator under the 200-line constitution cap.
 source "$scripts/verify-concurrent-port-gates.sh"
+source "$scripts/ci-runtime-path.sh"
+# Per-app suite orchestration (canonical seeding + isolated Playwright runs)
+# lives in a sourced helper to keep this orchestrator under the 200-line cap.
+source "$scripts/ci-runtime-e2e-suite.sh"
+# The contract postgres must serve TLS signed by the admission-provisioned E2E
+# CA (plugin sidecars connect with sslmode=verify-full through the runner's
+# system trust store). Admission exports the CA source directory; without it
+# the run would bootstrap a stack that cannot host plugin database traffic.
+[[ -n ${E2E_POSTGRES_TLS_SOURCE:-} && -f ${E2E_POSTGRES_TLS_SOURCE}/ca.crt ]] || {
+  echo 'E2E_POSTGRES_TLS_SOURCE must point at the admission-provisioned CA directory' >&2; exit 1;
+}
 output=${CI_RUNTIME_DIR:?CI_RUNTIME_DIR is required}
 suffix="${GITHUB_RUN_ID:-local}-${RANDOM}${RANDOM}"
 project_a="plexica-ci-a-${suffix}"; project_b="plexica-ci-b-${suffix}"
 initialized=(); torn_down=(); diagnostics_collected=0
+mapfile -t _overlay_files < <(ci_compose_overlay_files "$root")
 compose() {
   local project="$1" runtime="${RUNNER_TEMP}/plexica-ci/$1"
   CI_COMPOSE_PROJECT="$project" CI_RUNTIME_DIR="$runtime" \
     CI_RUNTIME_SCOPE="$(bash "$scripts/ci-runtime-scope.sh" "$project")" \
-    docker compose --project-name "$project" -f "$root/docker-compose.yml" -f "$root/docker-compose.ci.yml" "${@:2}"
+    docker compose --project-name "$project" -f "$root/docker-compose.yml" -f "$root/docker-compose.ci.yml" ${_overlay_files[@]/#/-f} "${@:2}"
 }
 # Teardown is exactly-once per project: the down script deletes the runtime
 # dir, and a second down against it fails closed (realpath validation), which
@@ -53,30 +65,8 @@ trap cleanup EXIT
 trap 'cleanup; exit 130' INT TERM
 
 # Concurrent A/B bootstraps share one working tree, so every Playwright
-# invocation must write into a per-project output root under its own runtime
-# dir (cleaned up with the project teardown). Otherwise identical test titles
-# clear and cross artifacts in the shared default test-results/ and
-# playwright-report/ directories.
-run_playwright() {
-  local project="$1" filter="$2" suite="$3" name out
-  local runtime="${RUNNER_TEMP}/plexica-ci/$project" args=()
-  name=${filter##*/}
-  out="$runtime/playwright/$name"
-  mkdir -p "$out/test-results" "$out/report"
-  [[ -z "$suite" ]] || args=("$suite")
-  # Full-suite invocations must skip the contract specs: bootstrap already ran
-  # them once per app pre-teardown via the explicit invocation above.
-  if [[ -z "$suite" ]]; then
-    CI_RUNTIME_CONTRACT=1 CI_RUNTIME_DIR="$runtime" PLAYWRIGHT_E2E=true \
-      PLAYWRIGHT_HTML_REPORT="$out/report" CI_RUNTIME_SKIP_CONTRACT_SPEC=1 \
-      pnpm --filter "$filter" exec playwright test --output "$out/test-results"
-  else
-    CI_RUNTIME_CONTRACT=1 CI_RUNTIME_DIR="$runtime" PLAYWRIGHT_E2E=true \
-      PLAYWRIGHT_HTML_REPORT="$out/report" \
-      pnpm --filter "$filter" exec playwright test --output "$out/test-results" "${args[@]}"
-  fi
-}
-
+# invocation writes into a per-project output root under its own runtime dir
+# (see ci-runtime-e2e-suite.sh). Suite helpers live in the sourced module.
 bootstrap() {
   local project="$1" runtime="${RUNNER_TEMP}/plexica-ci/$1" postgres_password minio_access_key minio_secret_key
   # Per-run generated secrets (never a committed default): both lifecycle
@@ -97,6 +87,11 @@ bootstrap() {
   export CI_RUNTIME_DIR="$runtime"; source "$scripts/source-ci-runtime-host.sh"
   CI_COMPOSE_PROJECT="$project" CI_RUNTIME_DIR="$runtime" bash "$scripts/ensure-topics.sh"
   pnpm --filter core-api exec node scripts/verify-kafka-roundtrip.mjs "$KAFKA_BROKERS" "$project"
+  CI_COMPOSE_PROJECT="$project" CI_RUNTIME_DIR="$runtime" bash "$scripts/publish-plugin-assets.sh"
+  # Canonical seeding: each app's globalSetup runs exactly once per project,
+  # directly under the sourced host.env manifest, before any spec executes.
+  run_global_setup "$project" web
+  run_global_setup "$project" admin
   run_playwright "$project" web e2e/ci-runtime-contract.spec.ts
   run_playwright "$project" @plexica/admin e2e/ci-runtime-contract.spec.ts
   run_playwright "$project" web ''

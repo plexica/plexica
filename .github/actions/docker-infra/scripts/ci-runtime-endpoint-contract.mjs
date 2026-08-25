@@ -50,6 +50,15 @@ const containerScalars = {
   SMTP_PORT: (input) => input === '1025',
   NODE_ENV: (input) => input === 'production',
   PLUGIN_DB_SSL_ROOT_CERT_PATH: (input) => input === '/etc/ssl/certs/ca-certificates.crt',
+  // Canonical E2E rate-limit tuning (parity with the host-run suite's
+  // coreApiEnv): raised generic/admin ceilings plus a proxy-hop trust list so
+  // per-test X-Forwarded-For isolation stays effective inside the contract
+  // network. Values are pinned — no free-form endpoints are admitted.
+  RATE_LIMIT_MAX: (input) => input === '10000',
+  ADMIN_RATE_LIMIT_MAX: (input) => input === '10000',
+  RATE_LIMIT_RESOLVE_MAX: (input) => input === '30',
+  TRUST_PROXY: (input) =>
+    input === '127.0.0.1,::1,::ffff:127.0.0.1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16',
 };
 
 function fail(message) {
@@ -105,6 +114,14 @@ function validateHost() {
 }
 
 function validateContainer() {
+  // Browser-facing MinIO for presigned plugin-asset URLs: must be the strict
+  // loopback mapping discovered from the manifest (dynamic port), never a
+  // container-internal DNS name — browsers fetch these URLs from the runner.
+  if (key === 'MINIO_PUBLIC_ENDPOINT') {
+    if (!/^http:\/\/127\.0\.0\.1:[1-9][0-9]*$/.test(value))
+      fail('MINIO_PUBLIC_ENDPOINT must be an inspected loopback endpoint');
+    return;
+  }
   if (containerScalars[key]) {
     if (!containerScalars[key](value)) fail(`${key} has an invalid CI scalar value`);
     return;

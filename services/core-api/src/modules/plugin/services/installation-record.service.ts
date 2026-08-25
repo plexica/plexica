@@ -35,6 +35,10 @@ export async function createInstallationRecord(input: InstallationRecordInput) {
       await createContainerManager(existing.hostingType)
         .removeContainer(existing.id)
         .catch(() => undefined);
+      // Reset migration bookkeeping: the reused install id keeps the previous
+      // attempt's plugin_migration_status rows, and the executor's plain
+      // create() would violate (install_id, migration_name) on re-run.
+      await db.pluginMigrationStatus.deleteMany({ where: { installId: existing.id } });
       return db.pluginInstallation.update({
         where: { id: existing.id },
         data: {

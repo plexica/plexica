@@ -4,9 +4,9 @@
 // (PLAYWRIGHT_ADMIN_BASE_URL / PLAYWRIGHT_CORE_API_URL) while web callers keep
 // resolving the web defaults (PLAYWRIGHT_BASE_URL / PLAYWRIGHT_API_URL).
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
-import { e2eWebBase, tenantApiUrl, tenantWebUrl } from './tenant-hosts.js';
+import { ciRuntimeTenantBase, e2eWebBase, tenantApiUrl, tenantWebUrl } from './tenant-hosts.js';
 
 const CONTRACT_ENV_KEYS = [
   'CI_RUNTIME_CONTRACT',
@@ -102,6 +102,38 @@ describe('tenant-hosts endpoint resolution under the CI runtime contract', () =>
         expect(() =>
           tenantApiUrl('e2e-admin', '/api/v1/health', { apiKey: 'PLAYWRIGHT_API_URL' })
         ).toThrow(/CI runtime requires PLAYWRIGHT_API_URL/);
+      }
+    );
+  });
+
+  // Live run 32841276509: serving the full web suite against the raw manifest
+  // base (127.0.0.1:<port>) broke tenant routing — production builds ignore
+  // `?tenant=`, so relative navigations landed on the org-error page while the
+  // seeded Keycloak client origin pointed at the tenant-shaped host.
+  it('derives a tenant-shaped full-suite base from the manifest loopback URL', () => {
+    withContractEnv(
+      { CI_RUNTIME_CONTRACT: undefined, PLAYWRIGHT_TENANT_SLUG: undefined },
+      () => {
+        expect(ciRuntimeTenantBase('http://127.0.0.1:32101')).toBe('http://e2e.localhost:32101');
+        expect(ciRuntimeTenantBase('http://127.0.0.1:8080')).toBe('http://e2e.localhost:8080');
+      }
+    );
+  });
+
+  it('honours PLAYWRIGHT_TENANT_SLUG when shaping the contract base', () => {
+    withContractEnv(
+      { CI_RUNTIME_CONTRACT: undefined, PLAYWRIGHT_TENANT_SLUG: 'acme' },
+      () => {
+        expect(ciRuntimeTenantBase('http://127.0.0.1:33001')).toBe('http://acme.localhost:33001');
+      }
+    );
+  });
+
+  it('rejects invalid slugs when shaping the contract base', () => {
+    withContractEnv(
+      { CI_RUNTIME_CONTRACT: undefined, PLAYWRIGHT_TENANT_SLUG: 'Not_Valid' },
+      () => {
+        expect(() => ciRuntimeTenantBase('http://127.0.0.1:33001')).toThrow(/Invalid E2E tenant slug/);
       }
     );
   });

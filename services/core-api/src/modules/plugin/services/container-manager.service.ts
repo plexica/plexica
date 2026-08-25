@@ -1,6 +1,3 @@
-import Docker from 'dockerode';
-
-import { config } from '../../../lib/config.js';
 import {
   PluginBackendUnreachableError,
   PluginInstallError,
@@ -9,6 +6,7 @@ import {
 
 import { KubernetesContainerManager } from './kubernetes-container-manager.js';
 import { containerPort, parseCpu, parseMemory } from './container-helpers.js';
+import { dockerClient, ignoreStopError, isMissingContainer } from './docker-container-errors.js';
 import { restartDockerContainer } from './docker-container-restart.js';
 import { dockerRuntimeOptions } from './docker-runtime-options.js';
 import { dockerodeCreateOptions } from './dockerode-create-options.js';
@@ -38,29 +36,6 @@ export interface ContainerManager {
   getContainerStatus(installId: string): Promise<ContainerStatus>;
   getContainerUrl(installId: string): Promise<string>;
   restartContainer(installId: string, environment?: Record<string, string>): Promise<void>;
-}
-
-// Dockerode 304 = "already stopped", 404 = "no such container": both are
-// success for cleanup paths, which only require the container to end up gone.
-function ignoreStopError(error: unknown): void {
-  const status = (error as { statusCode?: number }).statusCode;
-  if (status === 304 || status === 404) return;
-  if (!/(already stopped|is not running|not found|No such)/.test((error as Error).message))
-    throw error;
-}
-
-function isMissingContainer(error: unknown): boolean {
-  return (error as { statusCode?: number }).statusCode === 404 || /not found|No such/.test((error as Error).message);
-}
-
-function dockerClient(): Docker {
-  if (!config.PLUGIN_DOCKER_HOST) return new Docker();
-  const endpoint = new URL(config.PLUGIN_DOCKER_HOST);
-  return new Docker({
-    protocol: endpoint.protocol === 'https:' ? 'https' : 'http',
-    host: endpoint.hostname,
-    port: Number(endpoint.port),
-  });
 }
 
 export class DockerContainerManager implements ContainerManager {
@@ -130,14 +105,26 @@ export class DockerContainerManager implements ContainerManager {
   async stopContainer(installId: string): Promise<void> {
     const identity = pluginContainerIdentity(installId);
     const container = this.docker.getContainer(identity.name);
-    assertCiPluginContainer(identity, await container.inspect());
+    // Deletion and reinstall paths stop containers that may already be gone
+    // (crashed, pruned, or removed by a prior attempt) — treat that as done.
+    try {
+      assertCiPluginContainer(identity, await container.inspect());
+    } catch (error) {
+      if (isMissingContainer(error)) return;
+      throw error;
+    }
     await container.stop({ t: 10 }).catch(ignoreStopError);
   }
 
   async removeContainer(installId: string): Promise<void> {
     const identity = pluginContainerIdentity(installId);
     const container = this.docker.getContainer(identity.name);
-    assertCiPluginContainer(identity, await container.inspect());
+    try {
+      assertCiPluginContainer(identity, await container.inspect());
+    } catch (error) {
+      if (isMissingContainer(error)) return;
+      throw error;
+    }
     await container.stop({ t: 5 }).catch(ignoreStopError);
     await container.remove({ force: true, v: true }).catch(ignoreStopError);
   }

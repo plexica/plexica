@@ -32,6 +32,20 @@ const ALLOWED_ORIGINS = [
 const MINIO_ORIGIN_PATTERN = /^https:\/\/minio\./;
 const configuredAssetOrigin = import.meta.env.VITE_PLUGIN_ASSET_ORIGIN as string | undefined;
 
+// CI runtime contract builds serve plugin assets from a per-project MinIO
+// published on an ephemeral loopback port (dynamic-port mandate). The origin
+// cannot be baked in at build time, so these builds trust strict loopback
+// http origins; production builds keep the exact allow-list above.
+declare const __PLEXICA_CI_RUNTIME_CONTRACT__: boolean;
+
+function ciRuntimeContractBuild(): boolean {
+  return (
+    typeof __PLEXICA_CI_RUNTIME_CONTRACT__ !== 'undefined' && __PLEXICA_CI_RUNTIME_CONTRACT__
+  );
+}
+
+const CI_LOOPBACK_ORIGIN_PATTERN = /^http:\/\/127\.0\.0\.1:[1-9][0-9]*$/;
+
 interface FederationShare {
   get: () => Promise<() => unknown>;
   from: string;
@@ -68,10 +82,13 @@ function registerHostShareScope(): void {
 function isOriginAllowed(url: string): boolean {
   try {
     const parsed = new URL(url);
-    return ALLOWED_ORIGINS.includes(parsed.origin) ||
+    return (
+      ALLOWED_ORIGINS.includes(parsed.origin) ||
       parsed.origin === configuredAssetOrigin ||
       parsed.origin === 'http://localhost:9000' ||
-      MINIO_ORIGIN_PATTERN.test(parsed.origin);
+      MINIO_ORIGIN_PATTERN.test(parsed.origin) ||
+      (ciRuntimeContractBuild() && CI_LOOPBACK_ORIGIN_PATTERN.test(parsed.origin))
+    );
   } catch {
     return false;
   }

@@ -73,10 +73,18 @@ export function keycloakUrl(): string {
   return process.env['PLAYWRIGHT_KEYCLOAK_URL'] ?? 'http://localhost:8080';
 }
 
-/** A host-side Core URL from the discovered CI manifest, never a local fallback. */
+/**
+ * Core API base for direct test-side HTTP calls. PLAYWRIGHT_API_URL wins
+ * because both suites shape it as a tenant host (`<slug>.<domain>:<port>`):
+ * Core resolves the request tenant from the Host header's first label, and a
+ * raw loopback Host (127.0.0.1 / localhost) resolves no tenant at all —
+ * production code has no other routing signal for these calls.
+ */
 export function coreApiUrl(): string {
-  if (isCiRuntimeContract()) return ciRuntimeManifest().CORE_API_PUBLIC_BASE;
-  return process.env['PLAYWRIGHT_CORE_API_URL'] ?? 'http://localhost:3001';
+  if (isCiRuntimeContract()) {
+    return process.env['PLAYWRIGHT_API_URL'] ?? ciRuntimeManifest().CORE_API_PUBLIC_BASE;
+  }
+  return process.env['PLAYWRIGHT_API_URL'] ?? 'http://localhost:3001';
 }
 
 /**
@@ -117,6 +125,12 @@ const isCi = process.env['CI'] !== undefined;
 // exactly once per app pre-teardown, so full-suite invocations opt out of the
 // contract spec via this flag; explicit single-spec invocations leave it unset.
 const ignoreContractSpec = process.env['CI_RUNTIME_SKIP_CONTRACT_SPEC'] === '1';
+// Canonical-seeding decision: the CI verifier bootstrap invokes each app's
+// globalSetup directly under the sourced host.env manifest and persists the
+// run-scoped credentials into per-app manifests. Playwright invocations then
+// skip in-process setup/teardown entirely (CI_RUNTIME_EXTERNAL_SETUP=1) — the
+// project teardown destroys all run-scoped Keycloak identities with the stack.
+const externalSetup = process.env['CI_RUNTIME_EXTERNAL_SETUP'] === '1';
 
 /**
  * Shared defineConfig() head. Each app spreads this and adds its own
@@ -147,8 +161,12 @@ export const baseE2eConfig = {
     ['list'],
     ['html', { open: 'never', outputFolder: 'playwright-report' }],
   ] as ReporterEntry[],
-  globalSetup: './e2e/global-setup.ts',
-  globalTeardown: './e2e/global-teardown.ts',
+  ...(externalSetup
+    ? {}
+    : {
+        globalSetup: './e2e/global-setup.ts',
+        globalTeardown: './e2e/global-teardown.ts',
+      }),
   use: {
     trace: 'on-first-retry' as const,
     screenshot: 'only-on-failure' as const,

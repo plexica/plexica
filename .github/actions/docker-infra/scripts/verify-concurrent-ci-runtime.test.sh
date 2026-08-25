@@ -4,9 +4,10 @@ set -euo pipefail
 dir=$(cd -- "$(dirname -- "$0")" && pwd)
 root=$(git rev-parse --show-toplevel); temp=$(mktemp -d); trap 'rm -rf "$temp"' EXIT
 mkdir -p "$temp/scripts" "$temp/bin" "$temp/runtime"; log="$temp/commands.log"
+mkdir -p "$temp/e2e-ca"; printf 'ca\n' > "$temp/e2e-ca/ca.crt"
 # Serialize multi-line appends into the shared COMMAND_LOG: concurrent A/B
 # bootstraps interleave separate >> writes otherwise, breaking the
-# line-adjacency assertions below (~20% flake). One flock-guarded append per
+# line-adjacency assertions (~20% flake). One flock-guarded append per
 # invocation keeps every stream's lines contiguous and ordered.
 cat > "$temp/scripts/command-log.sh" <<'EOF'
 append_log() {
@@ -17,7 +18,7 @@ append_log() {
   } 9>>"$COMMAND_LOG"
 }
 EOF
-for helper in verify-ci-runner-capacity.sh start-services.sh wait-services.sh ensure-topics.sh down-ci-runtime-project.sh collect-ci-runtime-diagnostics.sh; do
+for helper in verify-ci-runner-capacity.sh start-services.sh wait-services.sh ensure-topics.sh publish-plugin-assets.sh down-ci-runtime-project.sh collect-ci-runtime-diagnostics.sh; do
   cat > "$temp/scripts/$helper" <<'EOF'
 #!/usr/bin/env bash
 source "$(dirname "$0")/command-log.sh"
@@ -33,7 +34,27 @@ mkdir -p "$CI_RUNTIME_DIR/diagnostics"; printf 'safe\n' > "$CI_RUNTIME_DIR/diagn
 EOF
   chmod +x "$temp/scripts/$helper"
 done
-cp "$dir/ci-runtime-env.sh" "$dir/ci-runtime-path.sh" "$dir/ci-runtime-scope.sh" "$dir/ci-runtime-endpoint-contract.mjs" "$dir/source-ci-runtime-host.sh" "$dir/verify-ci-keycloak-issuer.mjs" "$dir/verify-concurrent-port-gates.sh" "$temp/scripts/"
+# Canonical-seeding mock: records the per-app invocation and publishes the
+# per-app credential manifest that run_playwright sources before every suite,
+# mirroring the real run-e2e-global-setup.sh contract (%q-encoded exports).
+cat > "$temp/scripts/run-e2e-global-setup.sh" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+source "$(dirname "$0")/command-log.sh"
+app=${1:?Usage: run-e2e-global-setup.sh <web|admin>}
+append_log "run-e2e-global-setup.sh $app $CI_COMPOSE_PROJECT"
+mkdir -p "$CI_RUNTIME_DIR"
+{
+  printf 'export %s=%q\n' PLAYWRIGHT_SUPER_ADMIN_USER "super-$app-user" \
+    PLAYWRIGHT_SUPER_ADMIN_PASS 'SuperPass!1' PLAYWRIGHT_SUPER_ADMIN_UUID "uuid-$app" \
+    PLAYWRIGHT_E2E_KEYCLOAK_CLIENT_ID "client-$app" \
+    PLAYWRIGHT_E2E_KEYCLOAK_CLIENT_SECRET "secret-$app-000000000000000000000" \
+    PLAYWRIGHT_E2E_KEYCLOAK_CLIENT_UUID "client-uuid-$app"
+} > "$CI_RUNTIME_DIR/setup-$app.env"
+chmod 600 "$CI_RUNTIME_DIR/setup-$app.env"
+EOF
+chmod +x "$temp/scripts/run-e2e-global-setup.sh"
+cp "$dir/ci-runtime-env.sh" "$dir/ci-runtime-path.sh" "$dir/ci-runtime-scope.sh" "$dir/ci-runtime-endpoint-contract.mjs" "$dir/source-ci-runtime-host.sh" "$dir/verify-ci-keycloak-issuer.mjs" "$dir/verify-concurrent-port-gates.sh" "$dir/ci-runtime-e2e-suite.sh" "$dir/verify-concurrent-log-contract.mjs" "$temp/scripts/"
 mv "$temp/scripts/ci-runtime-env.sh" "$temp/scripts/ci-runtime-env-real.sh"
 cat > "$temp/scripts/ci-runtime-env.sh" <<'EOF'
 #!/usr/bin/env bash
@@ -41,6 +62,17 @@ cat > "$temp/scripts/ci-runtime-env.sh" <<'EOF'
 exec bash "$(dirname "$0")/ci-runtime-env-real.sh" "$@"
 EOF
 chmod +x "$temp/scripts/ci-runtime-env.sh"
+contract() { node "$temp/scripts/verify-concurrent-log-contract.mjs" "$@"; }
+run_verifier() { # run_verifier <command-log> [VAR=value...]
+  local log_file="$1"; shift
+  PATH="$temp/bin:$PATH" RUNNER_TEMP="$temp/runtime" E2E_POSTGRES_TLS_SOURCE="$temp/e2e-ca" \
+    CI_RUNTIME_SCRIPTS_DIR="$temp/scripts" COMMAND_LOG="$log_file" env "$@" \
+    bash "$dir/verify-concurrent-ci-runtime.sh" --full-e2e
+}
+expect_failure() { # expect_failure <description> <command...>
+  local description="$1"; shift
+  if "$@" >"$temp/fail.out" 2>&1; then echo "Verifier accepted: $description" >&2; exit 1; fi
+}
 cat > "$temp/bin/docker" <<'EOF'
 #!/usr/bin/env bash
 source "$(dirname "$0")/../scripts/command-log.sh"
@@ -94,107 +126,44 @@ if [[ "$*" == *'.well-known'* ]]; then emit 200 "{\"issuer\":\"$KEYCLOAK_PUBLIC_
 exit 0
 EOF
 chmod +x "$temp/bin/"*
-PATH="$temp/bin:$PATH" RUNNER_TEMP="$temp/runtime" CI_RUNTIME_DIR="$temp/output" CI_RUNTIME_SCRIPTS_DIR="$temp/scripts" COMMAND_LOG="$log" bash "$dir/verify-concurrent-ci-runtime.sh" --full-e2e
-# Happy-path teardown contract: the run exits 0 (implicit under set -e) and
-# each project is torn down EXACTLY once — the explicit post-proof down for
-# project A must not be repeated by the EXIT trap against its deleted dir.
-node -e '
-const lines = require("node:fs").readFileSync(process.argv[1], "utf8").trim().split("\n");
-for (const project of ["plexica-ci-a-", "plexica-ci-b-"]) {
-  const downs = lines.filter((line) => line === `down-ci-runtime-project.sh ${project}` || line.startsWith(`down-ci-runtime-project.sh ${project}`));
-  if (downs.length !== 1) process.exit(1);
-}
-' "$log"
-# Bootstrap ordering gate: per project, infrastructure staging with listener
-# and browser-env prerequisites (start-services.sh) must precede readiness
-# staging (wait-services.sh), which must precede the first Playwright run.
-node -e '
-const lines = require("node:fs").readFileSync(process.argv[1], "utf8").trim().split("\n");
-for (const project of ["plexica-ci-a-", "plexica-ci-b-"]) {
-  const staged = lines.findIndex((line) => line.startsWith(`start-services.sh ${project}`));
-  const waited = lines.findIndex((line) => line.startsWith(`wait-services.sh ${project}`));
-  const tested = lines.findIndex((line) => line.includes("/playwright/") && line.includes(project));
-  if ([staged, waited, tested].includes(-1) || !(staged < waited && waited < tested)) process.exit(1);
-}
-' "$log"
-node -e '
-const lines = require("node:fs").readFileSync(process.argv[1], "utf8").trim().split("\n");
-const down = lines.findIndex((line) => /down-ci-runtime-project\.sh plexica-ci-a-/.test(line));
-if (down < 0) process.exit(1);
-const pre = lines.slice(0, down + 1);
-const post = lines.slice(down + 1);
-const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-const playwrightRe = (filter, spec) =>
-  new RegExp(`^pnpm --filter ${escapeRe(filter)} exec playwright test --output (.+)/playwright/([a-z]+)/test-results` +
-    (spec ? ` ${escapeRe(spec)}$` : "$"));
-// Every Playwright invocation must target a per-project output root and be
-// immediately followed by the matching per-project HTML report env line.
-for (let i = 0; i < lines.length; i++) {
-  if (!/^pnpm --filter \S+ exec playwright test/.test(lines[i])) continue;
-  const match = lines[i].match(/--output (.+)\/playwright\/([a-z]+)\/test-results/);
-  if (!match || lines[i + 1] !== `html-report ${match[1]}/playwright/${match[2]}/report`) process.exit(1);
-}
-// Contract specs execute exactly once per project per lifecycle phase:
-// bootstrap runs them once per project (2 lines), the post-teardown proof
-// re-runs them exactly once for surviving project B (1 line), always with
-// the e2e/ prefix and never duplicated within a phase.
-for (const filter of ["web", "@plexica/admin"]) {
-  if (pre.filter((line) => playwrightRe(filter, "e2e/ci-runtime-contract.spec.ts").test(line)).length !== 2) process.exit(1);
-  if (post.filter((line) => playwrightRe(filter, "e2e/ci-runtime-contract.spec.ts").test(line)).length !== 1) process.exit(1);
-  if (!pre.some((line) => playwrightRe(filter).test(line))) process.exit(1);
-}
-// Dedupe proof: every full-suite invocation must carry the contract-skip
-// exclusion marker; explicit single-spec invocations must never carry it.
-for (let i = 0; i < lines.length; i++) {
-  if (!/^pnpm --filter \S+ exec playwright test/.test(lines[i])) continue;
-  const isSpec = / e2e\/ci-runtime-contract\.spec\.ts$/.test(lines[i]);
-  const skipped = lines[i - 1] === "contract-skip";
-  if (isSpec === skipped) process.exit(1);
-}
-if (lines.some((line) => /(?<!e2e\/)ci-runtime-contract\.spec\.ts$/.test(line))) process.exit(1);
-' "$log"
+
+# Happy path: exits 0, teardown exactly once per project, bootstrap ordering,
+# canonical seeding, per-project outputs, contract-skip pairing.
+run_verifier "$log" CI_RUNTIME_DIR="$temp/output"
+contract teardown-once "$log"
+contract bootstrap-order "$log"
+contract canonical-seeding "$log"
+contract outputs-and-skips "$log"
+
 # Cross-project auth proof: acceptance (HTTP 200) and transport-level curl
 # failures must both fail the verifier; only a real 400/401 rejection counts.
 for mode in CROSS_PROJECT_ACCEPT CROSS_PROJECT_TRANSPORT; do
-  if PATH="$temp/bin:$PATH" RUNNER_TEMP="$temp/runtime" CI_RUNTIME_DIR="$temp/output-$mode" \
-    CI_RUNTIME_SCRIPTS_DIR="$temp/scripts" COMMAND_LOG="$temp/$mode.log" \
-    env "$mode=1" bash "$dir/verify-concurrent-ci-runtime.sh" --full-e2e >"$temp/$mode.out" 2>&1; then
-    echo "Verifier accepted a $mode probe as isolation proof" >&2; exit 1
-  fi
+  expect_failure "$mode probe accepted as isolation proof" \
+    run_verifier "$temp/$mode.log" "$mode=1" CI_RUNTIME_DIR="$temp/output-$mode"
 done
-failure_log="$temp/failure.log"
-if PATH="$temp/bin:$PATH" RUNNER_TEMP="$temp/runtime" CI_RUNTIME_DIR="$temp/output" CI_RUNTIME_SCRIPTS_DIR="$temp/scripts" COMMAND_LOG="$failure_log" FAIL_WAIT_A=1 bash "$dir/verify-concurrent-ci-runtime.sh" --full-e2e; then
-  echo 'Verifier accepted a failed runtime command' >&2; exit 1
-fi
-node -e '
-const lines = require("node:fs").readFileSync(process.argv[1], "utf8").trim().split("\n");
-const collect = lines.findIndex((line) => /collect-ci-runtime-diagnostics\.sh plexica-ci-a-/.test(line));
-const downA = lines.findIndex((line) => /down-ci-runtime-project\.sh plexica-ci-a-/.test(line));
-const downB = lines.findIndex((line) => /down-ci-runtime-project\.sh plexica-ci-b-/.test(line));
-if (collect < 0 || downA < 0 || downB < 0 || collect > downA || collect > downB || lines.some((line) => /plexica-ci-(?!a-|b-)/.test(line))) process.exit(1);
-' "$failure_log"
-if PATH="$temp/bin:$PATH" RUNNER_TEMP="$temp/runtime" CI_RUNTIME_DIR="$temp/output" CI_RUNTIME_SCRIPTS_DIR="$temp/scripts" COMMAND_LOG="$temp/init-failure.log" FAIL_INIT_B=1 bash "$dir/verify-concurrent-ci-runtime.sh" --full-e2e; then
-  echo 'Verifier accepted a partial runtime initialization failure' >&2; exit 1
-fi
-node -e '
-const lines = require("node:fs").readFileSync(process.argv[1], "utf8").trim().split("\n");
-if (!lines.some((line) => /collect-ci-runtime-diagnostics\.sh plexica-ci-a-/.test(line)) || !lines.some((line) => /down-ci-runtime-project\.sh plexica-ci-a-/.test(line)) || lines.some((line) => /plexica-ci-b-/.test(line))) process.exit(1);
-' "$temp/init-failure.log"
-if PATH="$temp/bin:$PATH" RUNNER_TEMP="$temp/runtime" CI_RUNTIME_DIR="$temp/output" CI_RUNTIME_SCRIPTS_DIR="$temp/scripts" COMMAND_LOG="$temp/diagnostics.log" FAIL_COLLECT=1 bash "$dir/verify-concurrent-ci-runtime.sh" --full-e2e; then
-  echo 'Verifier accepted a failed diagnostics collection' >&2; exit 1
-fi
-signal_log="$temp/signal.log"
+# TLS gate: bootstrapping without the admission-provisioned CA source must
+# fail closed — plugin sidecars could not reach the contract postgres.
+expect_failure 'missing postgres TLS CA source' \
+  env PATH="$temp/bin:$PATH" RUNNER_TEMP="$temp/runtime" CI_RUNTIME_DIR="$temp/output-notls" \
+    CI_RUNTIME_SCRIPTS_DIR="$temp/scripts" COMMAND_LOG="$temp/notls.log" \
+    bash "$dir/verify-concurrent-ci-runtime.sh" --full-e2e
+
+expect_failure 'failed runtime command' run_verifier "$temp/failure.log" CI_RUNTIME_DIR="$temp/output" FAIL_WAIT_A=1
+contract failure-flow "$temp/failure.log"
+expect_failure 'partial runtime initialization failure' run_verifier "$temp/init-failure.log" CI_RUNTIME_DIR="$temp/output" FAIL_INIT_B=1
+contract init-failure "$temp/init-failure.log"
+expect_failure 'failed diagnostics collection' run_verifier "$temp/diagnostics.log" CI_RUNTIME_DIR="$temp/output" FAIL_COLLECT=1
+
+# Signal handling: INT/TERM cleanup runs diagnostics+teardown exactly once,
+# and a repeated cleanup call is a no-op (idempotent trap).
 awk '/^trap .* INT TERM$/{print; exit} {print}' "$dir/verify-concurrent-ci-runtime.sh" > "$temp/scripts/verify-head.sh"
 (
-  export PATH="$temp/bin:$PATH" RUNNER_TEMP="$temp/runtime" CI_RUNTIME_DIR="$temp/output-signal"
+  export PATH="$temp/bin:$PATH" RUNNER_TEMP="$temp/runtime" E2E_POSTGRES_TLS_SOURCE="$temp/e2e-ca" CI_RUNTIME_DIR="$temp/output-signal"
+  signal_log="$temp/signal.log"
   export CI_RUNTIME_SCRIPTS_DIR="$temp/scripts" COMMAND_LOG="$signal_log"
   source "$temp/scripts/verify-head.sh" --full-e2e
   initialized+=(plexica-signal-a)
   cleanup || true
   cleanup || true
 )
-node -e '
-const lines = require("node:fs").readFileSync(process.argv[1], "utf8").trim().split("\n");
-const count = (name) => lines.filter((line) => line === `${name} plexica-signal-a`).length;
-if (count("down-ci-runtime-project.sh") !== 1 || count("collect-ci-runtime-diagnostics.sh") !== 1) process.exit(1);
-' "$signal_log"
+contract signal-once "$temp/signal.log"

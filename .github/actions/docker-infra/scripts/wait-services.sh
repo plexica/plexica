@@ -7,7 +7,8 @@ script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 source "$script_dir/ci-runtime-path.sh"
 export CI_RUNTIME_SCOPE="$(bash "$script_dir/ci-runtime-scope.sh" "$project")"
 root=$(cd -- "$script_dir/../../../.." && pwd)
-compose=(docker compose --project-name "$project" -f "$root/docker-compose.yml" -f "$root/docker-compose.ci.yml")
+mapfile -t _overlay_files < <(ci_compose_overlay_files "$root")
+compose=(docker compose --project-name "$project" -f "$root/docker-compose.yml" -f "$root/docker-compose.ci.yml" ${_overlay_files[@]/#/-f})
 validate_ci_runtime "$project" "$runtime"
 bash "$script_dir/ci-runtime-keycloak-credentials.sh" "$project" "$runtime"
 set -a; source "$runtime/keycloak-credentials.env"; set +a

@@ -3,6 +3,16 @@
 
 valid_ci_project() { [[ "$1" =~ ^plexica-ci-[a-z0-9][a-z0-9-]{5,43}$ ]]; }
 
+# Extra Compose file arguments shared by every lifecycle entrypoint. The
+# postgres TLS overlay is included whenever the admission-provided CA source
+# directory is present, so every invocation (teardown included) renders the
+# SAME project definition — a down without it would strand the tls volume.
+ci_compose_overlay_files() {
+  local root="$1"
+  [[ -n ${E2E_POSTGRES_TLS_SOURCE:-} ]] || return 0
+  printf '%s\n' "$root/infra/compose/docker-compose.ci-runtime-tls.yml"
+}
+
 safe_directory() {
   local path="$1" strict="${2:-}" mode owner
   [[ -d "$path" && ! -L "$path" ]] || return 1

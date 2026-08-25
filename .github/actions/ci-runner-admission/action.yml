@@ -22,3 +22,10 @@ runs:
         runtime="$(RUNNER_TEMP="$RUNNER_TEMP" bash "${{ github.action_path }}/../docker-infra/scripts/ci-runtime-env.sh" init "$project")"
         printf 'CI_COMPOSE_PROJECT=%s\nCI_RUNTIME_DIR=%s\n' "$project" "$runtime" >> "$GITHUB_ENV"
         CI_RUNTIME_DIR="$runtime" RUNNER_TEMP="$RUNNER_TEMP" bash "${{ github.action_path }}/../docker-infra/scripts/verify-ci-runner-capacity.sh" "$project"
+        # Stable E2E postgres CA: generated once per runner, installed into the
+        # host trust store (plugin sidecars bind it read-only), exported for
+        # every runtime lifecycle in this job. Idempotent + fail-closed.
+        ca_dir="$RUNNER_TEMP/plexica-ci/e2e-postgres-ca"
+        exports="$(bash "${{ github.action_path }}/../docker-infra/scripts/provision-e2e-postgres-ca.sh" "$ca_dir")"
+        eval "$exports"
+        printf 'E2E_POSTGRES_TLS_SOURCE=%s\n' "$E2E_POSTGRES_TLS_SOURCE" >> "$GITHUB_ENV"

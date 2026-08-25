@@ -50,3 +50,21 @@ export function tenantWebUrl(slug: string, path = '/', opts: EndpointKeyOptions 
 export function tenantApiUrl(slug: string, path = '/', opts: EndpointKeyOptions = {}): string {
   return tenantUrl(endpoint(opts.apiKey ?? 'PLAYWRIGHT_API_URL'), slug, path);
 }
+
+/**
+ * Contract-mode base derived from a manifest loopback URL. The dynamic
+ * manifest port is kept, but the host regains the canonical
+ * `<slug>.<TENANT_DOMAIN>` shape: production builds resolve the tenant from
+ * the hostname only (the `?tenant=` override is dev-only), Core resolves the
+ * tenant from the Host header's first label, and the canonical global-setup
+ * seeds the Keycloak client origin from this same shape. Serving the suite
+ * against the raw `127.0.0.1:<port>` manifest entry would make every relative
+ * navigation land on the org-error page (no-subdomain) and every direct API
+ * call fail with INVALID_TENANT_CONTEXT.
+ */
+export function ciRuntimeTenantBase(manifestBase: string): string {
+  const slug = process.env['PLAYWRIGHT_TENANT_SLUG'] ?? 'e2e';
+  // No trailing slash: callers concatenate `${base}/path…`, and URL.toString()
+  // would otherwise inject a second slash (404 Route not found).
+  return tenantUrl(manifestBase, slug).replace(/\/+$/, '');
+}

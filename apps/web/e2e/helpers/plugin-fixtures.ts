@@ -124,6 +124,44 @@ export async function ensureCrmInstalled(
   );
 }
 
+/**
+ * Arrangement for the marketplace install-flow spec: guarantees the CRM
+ * plugin starts from the canonical post-seed baseline (catalog present,
+ * nothing installed). Idempotent — a fresh stack is a no-op. The contract
+ * bootstrap legitimately installs CRM before the full suite runs; this
+ * restores the baseline the install-flow assertions are defined against.
+ */
+export async function ensureCrmUninstalled(
+  page: Page,
+  token: string,
+  options: CrmInstallPollOptions = {}
+): Promise<void> {
+  const existing = (await listInstallations(page, token, options.apiKey)).find(
+    (installation) => installation.pluginSlug === 'crm' && installation.status !== 'uninstalled'
+  );
+  if (existing === undefined) return;
+  const response = await page.request.post(
+    tenantApiUrl(ADMIN_TENANT_SLUG, `/api/v1/plugins/${existing.id}/uninstall`, {
+      apiKey: options.apiKey,
+    }),
+    { headers: apiHeaders(token), data: {} }
+  );
+  if (!response.ok()) {
+    throw new Error(`CRM uninstall arrangement failed: ${response.status()} ${await response.text()}`);
+  }
+  const pollIntervalMs = options.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS;
+  const timeoutMs = options.timeoutMs ?? DEFAULT_POLL_TIMEOUT_MS;
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const remaining = (await listInstallations(page, token, options.apiKey)).find(
+      (installation) => installation.pluginSlug === 'crm' && installation.status !== 'uninstalled'
+    );
+    if (remaining === undefined) return;
+    await sleep(pollIntervalMs);
+  }
+  throw new Error(`CRM uninstall was not reflected within ${timeoutMs}ms`);
+}
+
 export async function setWorkspaceMember(
   page: Page,
   adminToken: string,

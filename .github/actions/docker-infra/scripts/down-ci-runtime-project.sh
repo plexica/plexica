@@ -40,7 +40,8 @@ done
 # only capture the first sidecar, leaking the rest on teardown.
 mapfile -t sidecar_ids <<< "$sidecars"
 (( ${#sidecar_ids[@]} == 0 )) || docker rm -f "${sidecar_ids[@]}"
-docker compose --project-name "$project" -f "$root/docker-compose.yml" -f "$root/docker-compose.ci.yml" down -v
+mapfile -t _overlay_files < <(ci_compose_overlay_files "$root")
+docker compose --project-name "$project" -f "$root/docker-compose.yml" -f "$root/docker-compose.ci.yml" ${_overlay_files[@]/#/-f} down -v
 validate_ci_runtime "$project" "$runtime"
 chmod -R u+rwx,go-rwx -- "$runtime"
 rm -rf --one-file-system -- "$runtime"

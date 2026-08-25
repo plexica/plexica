@@ -8,7 +8,8 @@ source "$script_dir/ci-runtime-path.sh"
 export CI_RUNTIME_SCOPE="$(bash "$script_dir/ci-runtime-scope.sh" "$project")"
 wait_for_http="$script_dir/wait-for-http.sh"
 root=$(cd -- "$script_dir/../../../.." && pwd)
-compose=(docker compose --project-name "$project" -f "$root/docker-compose.yml" -f "$root/docker-compose.ci.yml")
+mapfile -t _overlay_files < <(ci_compose_overlay_files "$root")
+compose=(docker compose --project-name "$project" -f "$root/docker-compose.yml" -f "$root/docker-compose.ci.yml" ${_overlay_files[@]/#/-f})
 validate_ci_runtime "$project" "$runtime"
 required=(postgres keycloak redis minio redpanda mailpit loki core-api-e2e web-e2e admin-e2e)
 for service in "${required[@]}"; do

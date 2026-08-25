@@ -14,9 +14,13 @@ test.describe.configure({ mode: 'parallel' });
 
 test.describe('App smoke test', () => {
   test('app loads at / without tenant and shows org-error page', async ({ page }) => {
-    // In production mode, tenant is resolved from the host subdomain.
-    // Use a bare localhost (no subdomain) to trigger the no-subdomain org-error.
-    await page.goto(new URL('/', e2eWebBase()).toString());
+    // In production mode, tenant is resolved from the host subdomain. The
+    // suite base URL carries the canonical e2e subdomain, so hit the same
+    // app server on its bare loopback hostname (no subdomain) to trigger the
+    // no-subdomain org-error path.
+    const bare = new URL('/', e2eWebBase());
+    bare.hostname = 'localhost';
+    await page.goto(bare.toString());
 
     // Root loader must redirect to /org-error (no tenant in URL or sessionStorage)
     await page.waitForURL(/\/org-error/, { timeout: 10_000 });

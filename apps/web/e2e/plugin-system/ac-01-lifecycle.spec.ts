@@ -5,6 +5,7 @@
 import { expect, test } from '../helpers/base-fixture.js';
 import { expectResponseTo } from '../helpers/api-response.js';
 import { hasKeycloak, loginAsAdmin, requireKeycloakInCI } from '../helpers/admin-login.js';
+import { ensureCrmUninstalled, getBrowserToken } from '../helpers/plugin-fixtures.js';
 
 test.describe.serial('004 Plugin System — AC-01: Plugin Lifecycle', () => {
   test.skip(!hasKeycloak, 'Requires live Keycloak (PLAYWRIGHT_KEYCLOAK_* env vars)');
@@ -28,6 +29,9 @@ test.describe.serial('004 Plugin System — AC-01: Plugin Lifecycle', () => {
   }) => {
     test.setTimeout(120_000);
     await loginAsAdmin(page);
+    // Arrange the canonical baseline (catalog seeded, nothing installed): the
+    // install flow under test is only defined from that state.
+    await ensureCrmUninstalled(page, await getBrowserToken(page));
     await page.goto('/marketplace');
 
     const crm = page.getByTestId('plugin-card').filter({ hasText: 'CRM' });

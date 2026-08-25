@@ -46,6 +46,17 @@ grep -Fx 'MAILPIT_SMTP_URL=smtp://127.0.0.1:32010' "$CI_RUNTIME_DIR/host.env" >/
 grep -Fx 'SMTP_HOST=mailpit' "$CI_RUNTIME_DIR/container.env" >/dev/null
 grep -Fx 'LOKI_URL=http://loki:3100' "$CI_RUNTIME_DIR/container.env" >/dev/null
 grep -Fx 'NODE_ENV=production' "$CI_RUNTIME_DIR/container.env" >/dev/null
+# Presigned plugin-asset URLs must target the browser-reachable loopback
+# mapping while storage ops keep the container-internal endpoint.
+grep -Fx 'MINIO_ENDPOINT=http://minio:9000' "$CI_RUNTIME_DIR/container.env" >/dev/null
+grep -Fx 'MINIO_PUBLIC_ENDPOINT=http://127.0.0.1:32003' "$CI_RUNTIME_DIR/container.env" >/dev/null
+# Canonical E2E rate-limit tuning must reach the contract Core container: the
+# host-run suite raises RATE_LIMIT_MAX/ADMIN_RATE_LIMIT_MAX via coreApiEnv,
+# and rate-limit.spec requires XFF isolation through a trusted proxy hop.
+grep -Fx 'RATE_LIMIT_MAX=10000' "$CI_RUNTIME_DIR/container.env" >/dev/null
+grep -Fx 'ADMIN_RATE_LIMIT_MAX=10000' "$CI_RUNTIME_DIR/container.env" >/dev/null
+grep -Fx 'RATE_LIMIT_RESOLVE_MAX=30' "$CI_RUNTIME_DIR/container.env" >/dev/null
+grep -Fx 'TRUST_PROXY=127.0.0.1,::1,::ffff:127.0.0.1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16' "$CI_RUNTIME_DIR/container.env" >/dev/null
 if grep -Eq 'LOKI_HOST_URL|MAILPIT_(SMTP_URL|UI_BASE)|KEYCLOAK_HOST_ADMIN_BASE' "$CI_RUNTIME_DIR/container.env"; then
   echo 'Container contract exposed runner-only endpoints' >&2; exit 1
 fi
@@ -117,14 +128,7 @@ chmod +x "$temp/bin/docker"
 rm -f "$CI_RUNTIME_DIR/redpanda-listener.env"
 PATH="$temp/bin:$PATH" COMMAND_LOG="$temp/stage.log" bash "$script" stage-redpanda
 grep -Fx 'REDPANDA_EXTERNAL_LISTENER=127.0.0.1:32005' "$CI_RUNTIME_DIR/redpanda-listener.env" >/dev/null
-node -e '
-const lines = require("node:fs").readFileSync(process.argv[1], "utf8").trim().split("\n");
-const indexOf = (pattern) => { for (let i = 0; i < lines.length; i++) if (lines[i].endsWith(pattern)) return i; return -1; };
-const created = indexOf(" create redpanda"), started = indexOf(" start redpanda");
-let resolved = -1;
-for (let i = 0; i < lines.length; i++) if (lines[i].endsWith(" port redpanda 19092")) { resolved = i; break; }
-if (created < 0 || started < 0 || resolved < 0 || !(created < started && started < resolved)) process.exit(1);
-' "$temp/stage.log"
+node "$(dirname "$0")/ci-command-order.mjs" "$temp/stage.log" ' create redpanda' ' start redpanda' ' port redpanda 19092'
 # Exhausted retries must fail closed instead of writing a bogus contract.
 rm -f "$CI_RUNTIME_DIR/redpanda-listener.env"
 cat > "$temp/bin/docker" <<'EOF'
@@ -180,15 +184,7 @@ grep -F 'keycloakBase:"http://127.0.0.1:32004"' "$CI_RUNTIME_DIR/runtime-config.
 PATH="$temp/bin:$PATH" COMMAND_LOG="$temp/browser-stage.log" bash "$script" write-browser
 grep -Fx 'WEB_E2E_PUBLIC_BASE=http://127.0.0.1:32007' "$CI_RUNTIME_DIR/host.env" >/dev/null
 grep -Fx 'ADMIN_E2E_PUBLIC_BASE=http://127.0.0.1:32008' "$CI_RUNTIME_DIR/browser-endpoints.env" >/dev/null
-node -e '
-const lines = require("node:fs").readFileSync(process.argv[1], "utf8").trim().split("\n");
-const indexOf = (pattern) => { for (let i = 0; i < lines.length; i++) if (lines[i].endsWith(pattern)) return i; return -1; };
-let webResolved = -1;
-for (let i = 0; i < lines.length; i++) if (lines[i].endsWith(" port web-e2e 3000")) { webResolved = i; break; }
-const created = indexOf(" create web-e2e admin-e2e"), started = indexOf(" start web-e2e admin-e2e");
-const targets = indexOf("mount-targets-present");
-if ([created, started, webResolved, targets].includes(-1) || !(targets > created && created < started && started < webResolved)) process.exit(1);
-' "$temp/browser-stage.log"
+node "$(dirname "$0")/ci-command-order.mjs" "$temp/browser-stage.log" ' create web-e2e admin-e2e' 'mount-targets-present' ' start web-e2e admin-e2e' ' port web-e2e 3000'
 # No-resolution-before-start: write-browser against never-started containers
 # must exhaust its bounded retries instead of emitting any manifest value.
 if CI_RUNTIME_PORT_ATTEMPTS=2 CI_RUNTIME_PORT_INTERVAL_SECONDS=0 PATH="$temp/bin:$PATH" \

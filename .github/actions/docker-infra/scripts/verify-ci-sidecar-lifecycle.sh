@@ -21,7 +21,8 @@ image="plexica-ci-sidecar-harness:$project"
 # PLUGIN_SIDECAR_IMAGE must resolve to (run 32758511913 proved a bare node
 # image can never become healthy, degrading every install).
 crm_image="plexica-crm-plugin:$project"
-compose=(docker compose --project-name "$project" -f "$root/docker-compose.yml" -f "$root/docker-compose.ci.yml")
+mapfile -t _overlay_files < <(ci_compose_overlay_files "$root")
+compose=(docker compose --project-name "$project" -f "$root/docker-compose.yml" -f "$root/docker-compose.ci.yml" ${_overlay_files[@]/#/-f})
 env_file="$runtime/sidecar-images.env"
 # Idempotency: skip rebuild and republish only when BOTH digest-pinned lines
 # exist; partial evidence from an older run must republish fail-closed.

@@ -31,6 +31,8 @@ import {
   setDefault,
 } from '../../e2e/playwright-base.js';
 
+import { ciRuntimeTenantBase } from './e2e/helpers/tenant-hosts.js';
+
 // Load .env from the monorepo root for local dev. No-ops in CI (file absent).
 dotenv.config({ path: MONOREPO_ROOT_ENV_PATH });
 const CI_RUNTIME = isCiRuntimeContract();
@@ -39,6 +41,16 @@ const ciValue = (value: string | undefined): string => {
   if (!value) throw new Error('CI runtime manifest is incomplete');
   return value;
 };
+// Contract-mode bases: manifest ports, canonical tenant host shape. Relative
+// navigations, direct API calls and the seeded Keycloak client origin must
+// agree on this host (see ciRuntimeTenantBase) — the raw manifest entries
+// would break tenant routing (org-error page / INVALID_TENANT_CONTEXT).
+const CONTRACT_WEB_BASE = CI_RUNTIME
+  ? ciRuntimeTenantBase(ciValue(RUNTIME_MANIFEST?.WEB_E2E_PUBLIC_BASE))
+  : undefined;
+const CONTRACT_API_BASE = CI_RUNTIME
+  ? ciRuntimeTenantBase(ciValue(RUNTIME_MANIFEST?.CORE_API_PUBLIC_BASE))
+  : undefined;
 
 const RUN_HINT = 'Use "pnpm --filter web test:e2e:production" for an isolated run.';
 const CREDENTIAL_PEPPER = requiredRunValue('PLUGIN_CREDENTIAL_PEPPER', RUN_HINT);
@@ -62,8 +74,8 @@ setDefault('PLUGIN_CREDENTIAL_PEPPER', CREDENTIAL_PEPPER);
 setDefault('PLUGIN_DB_SSL_MODE', 'verify-full');
 if (CI_RUNTIME) {
   setFromManifest('PLAYWRIGHT_KEYCLOAK_URL', ciValue(RUNTIME_MANIFEST?.KEYCLOAK_HOST_ADMIN_BASE));
-  setFromManifest('PLAYWRIGHT_BASE_URL', ciValue(RUNTIME_MANIFEST?.WEB_E2E_PUBLIC_BASE));
-  setFromManifest('PLAYWRIGHT_API_URL', ciValue(RUNTIME_MANIFEST?.CORE_API_PUBLIC_BASE));
+  setFromManifest('PLAYWRIGHT_BASE_URL', CONTRACT_WEB_BASE ?? '');
+  setFromManifest('PLAYWRIGHT_API_URL', CONTRACT_API_BASE ?? '');
   setFromManifest('PLAYWRIGHT_LOKI_URL', ciValue(RUNTIME_MANIFEST?.LOKI_HOST_URL));
   setFromManifest('PLAYWRIGHT_MAILPIT_URL', ciValue(RUNTIME_MANIFEST?.MAILPIT_UI_BASE));
 } else {
@@ -101,7 +113,7 @@ export default defineConfig({
   ...baseE2eConfig,
   use: {
     ...baseE2eConfig.use,
-    baseURL: CI_RUNTIME ? ciValue(RUNTIME_MANIFEST?.WEB_E2E_PUBLIC_BASE) : process.env['PLAYWRIGHT_BASE_URL'],
+    baseURL: CI_RUNTIME ? CONTRACT_WEB_BASE : process.env['PLAYWRIGHT_BASE_URL'],
   },
   projects: [
     {

@@ -8,7 +8,8 @@ root=$(cd -- "$script_dir/../../../.." && pwd)
 source "$script_dir/ci-runtime-path.sh"
 export CI_RUNTIME_SCOPE="$(bash "$script_dir/ci-runtime-scope.sh" "$project")"
 validate_ci_runtime "$project" "$runtime"
-compose=(docker compose --project-name "$project" -f "$root/docker-compose.yml" -f "$root/docker-compose.ci.yml")
+mapfile -t _overlay_files < <(ci_compose_overlay_files "$root")
+compose=(docker compose --project-name "$project" -f "$root/docker-compose.yml" -f "$root/docker-compose.ci.yml" ${_overlay_files[@]/#/-f})
 container=$("${compose[@]}" ps -q redpanda)
 [[ -n "$container" ]] || { echo 'Redpanda is not running' >&2; exit 1; }
 [[ $(docker inspect --format '{{index .Config.Labels "com.docker.compose.project"}}' "$container") == "$project" ]] || {
