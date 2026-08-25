@@ -117,6 +117,7 @@ jobs:
           node .github/actions/docker-infra/scripts/ci-runtime-endpoint-contract.test.mjs
           node .github/actions/docker-infra/scripts/sanitize-ci-runtime-diagnostics.test.mjs
           bash .github/actions/docker-infra/scripts/ci-runtime-env.test.sh
+          bash .github/actions/docker-infra/scripts/provision-e2e-postgres-ca.test.sh
           bash .github/actions/docker-infra/scripts/ci-runtime-keycloak-credentials.test.sh
           bash .github/actions/docker-infra/scripts/ci-runtime-compose.test.sh
           bash .github/actions/docker-infra/scripts/ci-runtime-cleanup.test.sh

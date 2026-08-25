@@ -4,7 +4,7 @@ set -euo pipefail
 dir=$(cd -- "$(dirname -- "$0")" && pwd)
 root=$(git rev-parse --show-toplevel); temp=$(mktemp -d); trap 'rm -rf "$temp"' EXIT
 mkdir -p "$temp/scripts" "$temp/bin" "$temp/runtime"; log="$temp/commands.log"
-mkdir -p "$temp/e2e-ca"; printf 'ca\n' > "$temp/e2e-ca/ca.crt"
+mkdir -p "$temp/e2e-ca"; printf 'ca\n' > "$temp/e2e-ca/ca.crt"; printf 'ca\n' > "$temp/e2e-ca/postgres-ca.crt"
 # Serialize multi-line appends into the shared COMMAND_LOG: concurrent A/B
 # bootstraps interleave separate >> writes otherwise, breaking the
 # line-adjacency assertions (~20% flake). One flock-guarded append per

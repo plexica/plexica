@@ -79,12 +79,28 @@ done
 if bash "$script" write-host "$dir" PLUGIN_DB_SSL_ROOT_CERT_PATH /etc/ssl/certs/evil.pem; then exit 1; fi
 if bash "$script" write-host "$dir" PLUGIN_DB_SSL_ROOT_CERT_PATH /etc/ssl/certs/ca-certificates.crt; then exit 1; fi
 host_source="$(dirname "$script")/source-ci-runtime-host.sh"
-environment=$(CI_RUNTIME_DIR="$dir" bash -c 'source "$1"; printf "%s|%s|%s|%s|%s" "$DATABASE_URL" "$KEYCLOAK_URL" "$REDIS_URL" "$MINIO_ENDPOINT" "$KAFKA_BROKERS"' _ "$host_source")
+environment=$(env -u E2E_POSTGRES_TLS_SOURCE CI_RUNTIME_DIR="$dir" bash -c 'source "$1"; printf "%s|%s|%s|%s|%s" "$DATABASE_URL" "$KEYCLOAK_URL" "$REDIS_URL" "$MINIO_ENDPOINT" "$KAFKA_BROKERS"' _ "$host_source")
 [[ "$environment" == 'postgresql://plexica:changeme@127.0.0.1:32001/plexica|http://127.0.0.1:32000|redis://127.0.0.1:32002|http://127.0.0.1:32003|127.0.0.1:32004' ]]
-minio_environment=$(CI_RUNTIME_DIR="$dir" bash -c 'source "$1"; printf "%s|%s" "$MINIO_ACCESS_KEY" "$MINIO_SECRET_KEY"' _ "$host_source")
+minio_environment=$(env -u E2E_POSTGRES_TLS_SOURCE CI_RUNTIME_DIR="$dir" bash -c 'source "$1"; printf "%s|%s" "$MINIO_ACCESS_KEY" "$MINIO_SECRET_KEY"' _ "$host_source")
 [[ "$minio_environment" == '00112233445566778899aabb|00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff' ]]
-tls_environment=$(CI_RUNTIME_DIR="$dir" bash -c 'source "$1"; printf "%s|%s" "$PLUGIN_DB_SSL_MODE" "${PLUGIN_DB_SSL_ROOT_CERT_PATH:-}"' _ "$host_source")
+tls_environment=$(env -u E2E_POSTGRES_TLS_SOURCE CI_RUNTIME_DIR="$dir" bash -c 'source "$1"; printf "%s|%s" "$PLUGIN_DB_SSL_MODE" "${PLUGIN_DB_SSL_ROOT_CERT_PATH:-}"' _ "$host_source")
 [[ "$tls_environment" == 'disable|' ]]
+# E2E Postgres CA trust env: derived from E2E_POSTGRES_TLS_SOURCE and exported
+# to host consumers (Node: NODE_EXTRA_CA_CERTS, OpenSSL: SSL_CERT_FILE) only
+# when the admission-provisioned CA bundle actually exists — fail closed.
+# Without an admission-provisioned CA source no trust keys are exported.
+no_ca=$(env -u E2E_POSTGRES_TLS_SOURCE CI_RUNTIME_DIR="$dir" bash -c 'source "$1"; printf "%s|%s" "${NODE_EXTRA_CA_CERTS:-}" "${SSL_CERT_FILE:-}"' _ "$host_source")
+[[ "$no_ca" == '|' ]]
+# With one set, a missing staged bundle is fail-closed.
+if CI_RUNTIME_DIR="$dir" E2E_POSTGRES_TLS_SOURCE="$temp/plexica-ci/e2e-postgres-ca" \
+  bash -c 'source "$0"' "$host_source" >/dev/null 2>&1; then
+  echo 'Host manifest sourced while the E2E Postgres CA bundle is missing' >&2; exit 1
+fi
+mkdir -p "$temp/plexica-ci/e2e-postgres-ca"
+: > "$temp/plexica-ci/e2e-postgres-ca/postgres-ca.crt"
+ca_environment=$(CI_RUNTIME_DIR="$dir" E2E_POSTGRES_TLS_SOURCE="$temp/plexica-ci/e2e-postgres-ca" \
+  bash -c 'source "$1"; printf "%s|%s" "$NODE_EXTRA_CA_CERTS" "$SSL_CERT_FILE"' _ "$host_source")
+[[ "$ca_environment" == "$temp/plexica-ci/e2e-postgres-ca/postgres-ca.crt|$temp/plexica-ci/e2e-postgres-ca/postgres-ca.crt" ]]
 # export-host guard: like the Keycloak credentials manifest, host.env must be
 # owner-only (mode 600) before its plaintext secrets are sourced.
 chmod 644 "$dir/host.env"

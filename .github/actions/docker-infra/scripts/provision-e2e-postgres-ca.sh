@@ -1,16 +1,21 @@
 #!/usr/bin/env bash
-# Provision the runner-scoped E2E PostgreSQL CA material and install the CA
-# into the host trust store. Idempotent: existing material is reused, and the
-# trust-store step runs only when the installed fingerprint differs.
+# Provision the runner-scoped E2E PostgreSQL CA material and export host-process
+# trust environment for it. Idempotent: existing material is reused, and the
+# optional system-store install runs only when the fingerprint differs.
 #
 # The contract stack (and the canonical production E2E stack) run postgres
 # with TLS; plugin sidecars connect with sslmode=verify-full using a CA bind
-# of the HOST system bundle (/etc/ssl/certs/ca-certificates.crt). The runner
-# therefore needs a stable E2E CA in that bundle BEFORE any runtime boots.
+# of the HOST system bundle (/etc/ssl/certs/ca-certificates.crt). Host-side
+# consumers (Node: playwright/global-setup; OpenSSL: prisma) trust the CA via
+# NODE_EXTRA_CA_CERTS / SSL_CERT_FILE pointing INSIDE the runner-owned runtime
+# directory — GitHub-hosted runners have no root access, so writing into
+# system stores must never be required nor fatal.
 #
 # Usage: provision-e2e-postgres-ca.sh <target-dir>
 # Exports on stdout: export lines suitable for `eval`:
 #   E2E_POSTGRES_TLS_SOURCE=<target-dir>
+#   NODE_EXTRA_CA_CERTS=<target-dir>/postgres-ca.crt
+#   SSL_CERT_FILE=<target-dir>/postgres-ca.crt
 set -euo pipefail
 
 fail() { printf '%s\n' "$*" >&2; exit 1; }
@@ -36,20 +41,26 @@ EOF
   chmod 600 "$dir"/*.key; chmod 644 "$dir"/*.crt
 fi
 
+# Host-process trust staging: the CA lives inside the runner-owned (0700)
+# runtime directory and is exported via trust env below. Never a system path.
+cp -- "$dir/ca.crt" "$dir/postgres-ca.crt"
+chmod 644 "$dir/postgres-ca.crt"
+
+printf 'export E2E_POSTGRES_TLS_SOURCE=%q\n' "$dir"
+printf 'export NODE_EXTRA_CA_CERTS=%q\nexport SSL_CERT_FILE=%q\n' \
+  "$dir/postgres-ca.crt" "$dir/postgres-ca.crt"
+
+# Best-effort system-store install, only when passwordless root is available.
+# Never fatal: on unprivileged runners the exported trust env above is the
+# sole trust mechanism, and this step must not fail the job.
 fingerprint=$(openssl x509 -in "$dir/ca.crt" -noout -fingerprint -sha256 | cut -d= -f2)
 installed_marker="$dir/.trust-installed"
-if [[ ${CI_E2E_CA_SKIP_TRUST_STORE:-0} == 1 ]]; then
-  printf 'export E2E_POSTGRES_TLS_SOURCE=%q\n' "$dir"
-  exit 0
+if [[ $(cat "$installed_marker" 2>/dev/null || true) == "$fingerprint" ]]; then exit 0; fi
+if command -v sudo >/dev/null 2>&1 && sudo -n true >/dev/null 2>&1 &&
+  command -v update-ca-certificates >/dev/null 2>&1; then
+  sudo -n cp -- "$dir/ca.crt" /usr/local/share/ca-certificates/plexica-e2e-postgres-ca.crt \
+    >/dev/null 2>&1 || true
+  sudo -n update-ca-certificates >/dev/null 2>&1 || true
 fi
-if [[ $(cat "$installed_marker" 2>/dev/null || true) != "$fingerprint" ]]; then
-  # The system bundle is runner state by design: plugin sidecars mount it
-  # read-only, so a per-run store edit is impossible and a stable CA plus an
-  # idempotent install is the only zero-residual-per-run option.
-  cp -- "$dir/ca.crt" /usr/local/share/ca-certificates/plexica-e2e-postgres-ca.crt \
-    || fail 'Cannot stage the E2E CA into /usr/local/share/ca-certificates'
-  update-ca-certificates >/dev/null 2>&1 || fail 'update-ca-certificates failed'
-  printf '%s\n' "$fingerprint" > "$installed_marker"
-  chmod 600 "$installed_marker"
-fi
-printf 'export E2E_POSTGRES_TLS_SOURCE=%q\n' "$dir"
+printf '%s\n' "$fingerprint" > "$installed_marker"
+chmod 600 "$installed_marker"

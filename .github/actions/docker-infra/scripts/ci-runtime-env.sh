@@ -95,6 +95,15 @@ export_host() {
   for key in "${keys[@]}"; do printf 'export %s=%q\n' "$key" "${!key}"; done
   printf 'export DATABASE_URL=%q\nexport KEYCLOAK_URL=%q\nexport REDIS_URL=%q\nexport MINIO_ENDPOINT=%q\n' \
     "$POSTGRES_HOST_URL" "$KEYCLOAK_HOST_ADMIN_BASE" "$REDIS_HOST_URL" "$MINIO_HOST_URL"
+  # E2E Postgres CA trust for host processes (Node via NODE_EXTRA_CA_CERTS,
+  # OpenSSL-based tools like prisma via SSL_CERT_FILE): derived from the
+  # admission-provisioned CA directory, staged inside the runner-owned runtime
+  # tree by provision-e2e-postgres-ca.sh — never a system store path.
+  if [[ -n ${E2E_POSTGRES_TLS_SOURCE:-} ]]; then
+    ca_cert="$E2E_POSTGRES_TLS_SOURCE/postgres-ca.crt"
+    [[ -f $ca_cert ]] || fail 'E2E_POSTGRES_TLS_SOURCE is set but its postgres-ca.crt is missing'
+    printf 'export NODE_EXTRA_CA_CERTS=%q\nexport SSL_CERT_FILE=%q\n' "$ca_cert" "$ca_cert"
+  fi
 }
 assert_host() { node "$script_dir/ci-runtime-endpoint-contract.mjs" host "$1" "$2" || fail "Host consumer received invalid $1"; }
 assert_container() { node "$script_dir/ci-runtime-endpoint-contract.mjs" container "$1" "$2" || fail "Container consumer received invalid $1"; }
