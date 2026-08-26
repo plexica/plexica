@@ -16,6 +16,9 @@ function parseUrl(url: string): { host: string; port: string } {
     url,
   ]);
   const [host, port] = stdout.toString().trim().split('\n');
+  if (host === undefined || port === undefined) {
+    throw new Error(`unexpected parser output: ${stdout.toString()}`);
+  }
   return { host, port };
 }
 
