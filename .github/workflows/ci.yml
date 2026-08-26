@@ -114,6 +114,13 @@ jobs:
         run: pnpm -r --filter='!@plexica/plugin-crm' --filter='!plexica' run build
       - name: Test CI runtime contracts
         run: |
+          # Belt-and-braces for contract hermeticity: drop the job-scoped keys
+          # exported via GITHUB_ENV (admission, encryption material, infra
+          # credentials) before any contract runs; each test re-seeds its own.
+          unset NODE_EXTRA_CA_CERTS SSL_CERT_FILE E2E_POSTGRES_TLS_SOURCE \
+            CI_COMPOSE_PROJECT CI_RUNTIME_DIR \
+            EVENT_KEY_ENCRYPTION_KEY PLUGIN_DB_ENCRYPTION_KEY PLUGIN_CREDENTIAL_PEPPER \
+            POSTGRES_PASSWORD MINIO_ACCESS_KEY MINIO_SECRET_KEY
           node .github/actions/docker-infra/scripts/ci-runtime-endpoint-contract.test.mjs
           node .github/actions/docker-infra/scripts/sanitize-ci-runtime-diagnostics.test.mjs
           bash .github/actions/docker-infra/scripts/ci-runtime-env.test.sh

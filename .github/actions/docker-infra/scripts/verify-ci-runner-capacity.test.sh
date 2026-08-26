@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+source "$(dirname -- "$0")/ci-test-env-guard.sh"
 
 script="$(dirname "$0")/verify-ci-runner-capacity.sh"
 temp=$(mktemp -d); trap 'rm -rf "$temp"' EXIT

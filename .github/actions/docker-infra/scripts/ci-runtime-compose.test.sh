@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+source "$(dirname -- "$0")/ci-test-env-guard.sh"
 
 temp=$(mktemp -d); trap 'rm -rf "$temp"' EXIT
 export RUNNER_TEMP="$temp" CI_COMPOSE_PROJECT=plexica-ci-compose-123456

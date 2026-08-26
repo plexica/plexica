@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+source "$(dirname -- "$0")/ci-test-env-guard.sh"
 
 # Behavioral lifecycle proof: drives ci-runtime-compose.sh, verify-health.sh,
 # and their fail-closed branches through real code paths with mocked docker and

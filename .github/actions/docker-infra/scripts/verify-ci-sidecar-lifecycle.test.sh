@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+source "$(dirname -- "$0")/ci-test-env-guard.sh"
 
 script_dir=$(cd -- "$(dirname -- "$0")" && pwd)
 temp=$(mktemp -d); trap 'rm -rf "$temp"' EXIT

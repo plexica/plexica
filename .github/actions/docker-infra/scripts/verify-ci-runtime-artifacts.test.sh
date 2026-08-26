@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+source "$(dirname -- "$0")/ci-test-env-guard.sh"
 
 root=$(git rev-parse --show-toplevel)
 temp=$(mktemp -d); trap 'rm -rf "$temp"' EXIT

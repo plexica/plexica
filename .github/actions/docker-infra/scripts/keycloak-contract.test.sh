@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+source "$(dirname -- "$0")/ci-test-env-guard.sh"
 
 compose="$(git rev-parse --show-toplevel)/docker-compose.ci.yml"
 grep -F "KC_HOSTNAME_STRICT: 'false'" "$compose" >/dev/null

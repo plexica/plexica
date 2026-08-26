@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+source "$(dirname -- "$0")/ci-test-env-guard.sh"
 
 entrypoint="$(git rev-parse --show-toplevel)/infra/redpanda/ci-entrypoint.sh"
 temp=$(mktemp -d); trap 'rm -rf "$temp"' EXIT
