@@ -45,7 +45,8 @@ export function assertCiPluginContainer(
   const hasHostEndpoint = (inspect.Config.Env ?? []).some((entry) =>
     /(?:localhost|127\.0\.0\.1|host\.docker\.internal|host-gateway)/i.test(entry)
   );
-  const expectedBind = `${config.PLUGIN_DB_SSL_ROOT_CERT_PATH}:${PLUGIN_CONTAINER_CA_PATH}:ro`;
+  const caSource = config.CI_RUNTIME_CA_FILE ?? config.PLUGIN_DB_SSL_ROOT_CERT_PATH;
+  const expectedBind = `${caSource}:${PLUGIN_CONTAINER_CA_PATH}:ro`;
   if (inspect.Name && inspect.Name !== `/${identity.name}`) {
     throw new CiPluginContractViolation('CI plugin container name does not match its identity');
   }

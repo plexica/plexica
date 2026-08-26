@@ -30,6 +30,7 @@ case "$*" in
           services[service].command = process.env.CI_RENDER_AMBIENT ? "pnpm start" : "corepack enable && corepack prepare pnpm@10.33.0 --activate && pnpm start";
         }
         services["core-api-e2e"].environment = { NODE_ENV: "production", KEYCLOAK_URL: "http://keycloak:8080", KEYCLOAK_CONTAINER_ADMIN_JWKS_BASE: "http://keycloak:8080", PLUGIN_DOCKER_HOST: "http://plugin-docker-proxy:2375" };
+        services["core-api-e2e"].volumes = process.env.CI_RENDER_NO_CA ? [] : [{ type: "bind", source: `${process.env.CI_RUNTIME_DIR}/postgres-ca.crt`, target: "/run/plexica-ci/postgres-ca.crt", read_only: true }];
        services["plugin-docker-proxy"] = { networks: { "plugin-docker-control": { aliases: ["plugin-docker-proxy"] } } };
        services["keycloak-init"] = { environment: { KEYCLOAK_WEB_ORIGIN: process.env.CI_RENDER_STATIC ? "http://localhost:3000" : undefined } };
       services.redpanda.command = [];
@@ -56,6 +57,9 @@ if CI_RENDER_STATIC=1 run >/dev/null 2>&1; then
 fi
 if CI_RENDER_AMBIENT=1 run >/dev/null 2>&1; then
   echo 'Render guard accepted an ambient pnpm command' >&2; exit 1
+fi
+if CI_RENDER_NO_CA=1 run >/dev/null 2>&1; then
+  echo 'Render guard accepted a Core without the project E2E Postgres CA bind' >&2; exit 1
 fi
 if CI_COMPOSE_PROJECT=plexica-ci-foreign-123456 CI_RUNTIME_DIR="$runtime" PATH="$temp/bin:$PATH" bash "$dir/verify-ci-compose-render.sh" "$project" >/dev/null 2>&1; then
   echo 'Render guard accepted a mismatched CI project context' >&2; exit 1

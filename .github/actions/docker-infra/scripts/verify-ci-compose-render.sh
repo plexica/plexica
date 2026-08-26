@@ -50,6 +50,15 @@ if (core.environment.NODE_ENV !== "production" || core.environment.KEYCLOAK_HOST
 if (core.environment.PLUGIN_DOCKER_HOST !== "http://plugin-docker-proxy:2375") {
   throw new Error("Core lacks the scoped plugin Docker control endpoint");
 }
+// Project CA trust: Core must receive the staged E2E Postgres CA read-only at
+// the contract path — never the host system bundle.
+const caMount = (core.volumes ?? []).find(
+  (volume) => volume.target === "/run/plexica-ci/postgres-ca.crt"
+);
+if (!caMount || caMount.read_only !== true ||
+    caMount.source !== `${process.env.CI_RUNTIME_DIR}/postgres-ca.crt`) {
+  throw new Error("Core does not bind the project E2E Postgres CA from the runtime dir");
+}
 for (const service of ["core-api-e2e", "web-e2e", "admin-e2e"]) {
   const value = config.services[service];
   if (!String(value.image).startsWith("node:24-bookworm@sha256:") ||

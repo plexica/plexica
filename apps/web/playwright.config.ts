@@ -56,8 +56,14 @@ const RUN_HINT = 'Use "pnpm --filter web test:e2e:production" for an isolated ru
 const CREDENTIAL_PEPPER = requiredRunValue('PLUGIN_CREDENTIAL_PEPPER', RUN_HINT);
 const EVENT_ENCRYPTION_KEY = requiredRunValue('EVENT_KEY_ENCRYPTION_KEY', RUN_HINT);
 const PLUGIN_DB_ENCRYPTION_VALUE = requiredRunValue('PLUGIN_DB_ENCRYPTION_KEY', RUN_HINT);
+// Trust never comes from the host system bundle: CI-runtime host processes use
+// the NODE_EXTRA_CA_CERTS / SSL_CERT_FILE exports, and Core runs containerized
+// with the project CA mounted at CI_RUNTIME_CA_FILE (see ci-runtime-env.sh).
 const PLUGIN_DB_CA_PATH = CI_RUNTIME
-  ? process.env['PLUGIN_DB_SSL_ROOT_CERT_PATH'] ?? '/etc/ssl/certs/ca-certificates.crt'
+  ? process.env['PLUGIN_DB_SSL_ROOT_CERT_PATH'] ??
+    (process.env['E2E_POSTGRES_TLS_SOURCE']
+      ? `${process.env['E2E_POSTGRES_TLS_SOURCE']}/postgres-ca.crt`
+      : '')
   : requiredRunValue('PLUGIN_DB_SSL_ROOT_CERT_PATH', RUN_HINT);
 
 // ── Hardcoded E2E defaults ────────────────────────────────────────────────────

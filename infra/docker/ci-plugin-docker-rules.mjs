@@ -2,7 +2,10 @@ import { createHash } from 'node:crypto';
 import { URL } from 'node:url';
 
 export const project = process.env.CI_RUNTIME_PROJECT;
-export const caBind = '/etc/ssl/certs/ca-certificates.crt:/tmp/plexica-postgres-ca.crt:ro';
+// The single allowed bind: the project E2E Postgres CA staged on the Docker
+// host under /run/plexica-ci (postgres-host-ca-init), bind-mounted read-only
+// at the sidecars' container path. The host system bundle is never trusted.
+export const caBind = '/run/plexica-ci/postgres-ca.crt:/tmp/plexica-postgres-ca.crt:ro';
 const sidecarImage = process.env.PLUGIN_SIDECAR_IMAGE ?? '';
 const harnessImage = process.env.CI_SIDECAR_HARNESS_IMAGE ?? '';
 const digestPinned = /^(?:[a-z0-9][a-z0-9.-]*(?::[0-9]+)?\/)?[a-z0-9][a-z0-9._/-]*(?::[a-z0-9._-]+)?@sha256:[a-f0-9]{64}$/;

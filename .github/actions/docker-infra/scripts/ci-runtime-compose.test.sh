@@ -39,34 +39,37 @@ PATH="$temp/bin:$PATH" bash "$script" write-core
 PATH="$temp/bin:$PATH" bash "$script" write-browser
 scope="ci-$(printf '%s' "$CI_COMPOSE_PROJECT" | sha256sum | cut -c1-28)"
 [[ "$(bash "$(dirname "$0")/ci-runtime-scope.sh" "$CI_COMPOSE_PROJECT")" == "$scope" ]]
+grep -Fxe "PLUGIN_RUNTIME_SCOPE=$scope" -e 'KAFKA_BROKERS=redpanda:9092' -e 'CI_RUNTIME_CONTRACT_CONTAINER=1' \
+  -e 'PLUGIN_DB_SSL_ROOT_CERT_PATH=/run/plexica-ci/postgres-ca.crt' -e 'CI_RUNTIME_CA_FILE=/run/plexica-ci/postgres-ca.crt' \
+  "$CI_RUNTIME_DIR/container.env" >/dev/null
 grep -Fx 'CORE_API_PUBLIC_BASE=http://127.0.0.1:32006' "$CI_RUNTIME_DIR/host.env" >/dev/null
-grep -Fx "PLUGIN_RUNTIME_SCOPE=$scope" "$CI_RUNTIME_DIR/container.env" >/dev/null
-grep -Fx 'KAFKA_BROKERS=redpanda:9092' "$CI_RUNTIME_DIR/container.env" >/dev/null && grep -Fx 'CI_RUNTIME_CONTRACT_CONTAINER=1' "$CI_RUNTIME_DIR/container.env" >/dev/null
-grep -Fx 'MAILPIT_UI_BASE=http://127.0.0.1:32011' "$CI_RUNTIME_DIR/host.env" >/dev/null
-grep -Fx 'MAILPIT_SMTP_URL=smtp://127.0.0.1:32010' "$CI_RUNTIME_DIR/host.env" >/dev/null
-grep -Fx 'SMTP_HOST=mailpit' "$CI_RUNTIME_DIR/container.env" >/dev/null
-grep -Fx 'LOKI_URL=http://loki:3100' "$CI_RUNTIME_DIR/container.env" >/dev/null
-grep -Fx 'NODE_ENV=production' "$CI_RUNTIME_DIR/container.env" >/dev/null
+grep -Fxe 'MAILPIT_UI_BASE=http://127.0.0.1:32011' -e 'MAILPIT_SMTP_URL=smtp://127.0.0.1:32010' "$CI_RUNTIME_DIR/host.env" >/dev/null
+grep -Fxe 'SMTP_HOST=mailpit' -e 'LOKI_URL=http://loki:3100' -e 'NODE_ENV=production' "$CI_RUNTIME_DIR/container.env" >/dev/null
 # Presigned plugin-asset URLs must target the browser-reachable loopback
 # mapping while storage ops keep the container-internal endpoint.
-grep -Fx 'MINIO_ENDPOINT=http://minio:9000' "$CI_RUNTIME_DIR/container.env" >/dev/null
-grep -Fx 'MINIO_PUBLIC_ENDPOINT=http://127.0.0.1:32003' "$CI_RUNTIME_DIR/container.env" >/dev/null
+grep -Fxe 'MINIO_ENDPOINT=http://minio:9000' -e 'MINIO_PUBLIC_ENDPOINT=http://127.0.0.1:32003' "$CI_RUNTIME_DIR/container.env" >/dev/null
 # Canonical E2E rate-limit tuning must reach the contract Core container: the
 # host-run suite raises RATE_LIMIT_MAX/ADMIN_RATE_LIMIT_MAX via coreApiEnv,
 # and rate-limit.spec requires XFF isolation through a trusted proxy hop.
-grep -Fx 'RATE_LIMIT_MAX=10000' "$CI_RUNTIME_DIR/container.env" >/dev/null
-grep -Fx 'ADMIN_RATE_LIMIT_MAX=10000' "$CI_RUNTIME_DIR/container.env" >/dev/null
-grep -Fx 'RATE_LIMIT_RESOLVE_MAX=30' "$CI_RUNTIME_DIR/container.env" >/dev/null
+grep -Fxe 'RATE_LIMIT_MAX=10000' -e 'ADMIN_RATE_LIMIT_MAX=10000' -e 'RATE_LIMIT_RESOLVE_MAX=30' "$CI_RUNTIME_DIR/container.env" >/dev/null
 grep -Fx 'TRUST_PROXY=127.0.0.1,::1,::ffff:127.0.0.1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16' "$CI_RUNTIME_DIR/container.env" >/dev/null
 if grep -Eq 'LOKI_HOST_URL|MAILPIT_(SMTP_URL|UI_BASE)|KEYCLOAK_HOST_ADMIN_BASE' "$CI_RUNTIME_DIR/container.env"; then
   echo 'Container contract exposed runner-only endpoints' >&2; exit 1
 fi
 grep -Fx "EVENT_KEY_ENCRYPTION_KEY=$EVENT_KEY_ENCRYPTION_KEY" "$CI_RUNTIME_DIR/container.env" >/dev/null
-grep -Fx 'WEB_E2E_PUBLIC_BASE=http://127.0.0.1:32007' "$CI_RUNTIME_DIR/browser-endpoints.env" >/dev/null
-grep -Fx 'ADMIN_E2E_PUBLIC_BASE=http://127.0.0.1:32008' "$CI_RUNTIME_DIR/browser-endpoints.env" >/dev/null
-grep -Fx 'KEYCLOAK_PUBLIC_ISSUER_BASE=http://127.0.0.1:32004' "$CI_RUNTIME_DIR/browser-endpoints.env" >/dev/null
+grep -Fxe 'WEB_E2E_PUBLIC_BASE=http://127.0.0.1:32007' -e 'ADMIN_E2E_PUBLIC_BASE=http://127.0.0.1:32008' -e 'KEYCLOAK_PUBLIC_ISSUER_BASE=http://127.0.0.1:32004' "$CI_RUNTIME_DIR/browser-endpoints.env" >/dev/null
 [[ $(stat -c %a "$CI_RUNTIME_DIR/browser-endpoints.env") == 600 ]]
 grep -Fx 'REDPANDA_EXTERNAL_LISTENER=127.0.0.1:32005' "$CI_RUNTIME_DIR/redpanda-listener.env" >/dev/null
+# Runtime CA staging contract: write-infra copies the admission-provisioned
+# project CA (mode 644, byte-identical) before core-api-e2e is created, and
+# fails closed when the source is set but incomplete.
+ca_dir="$temp/e2e-ca"; mkdir -p "$ca_dir"; printf 'ca\n' > "$ca_dir/postgres-ca.crt"
+if E2E_POSTGRES_TLS_SOURCE="$ca_dir/absent" PATH="$temp/bin:$PATH" bash "$script" write-infra 2>"$temp/ca.err"; then
+  echo 'write-infra accepted a CA source without postgres-ca.crt' >&2; exit 1
+fi
+E2E_POSTGRES_TLS_SOURCE="$ca_dir" PATH="$temp/bin:$PATH" bash "$script" write-infra
+cmp -s "$ca_dir/postgres-ca.crt" "$CI_RUNTIME_DIR/postgres-ca.crt"
+[[ $(stat -c %a "$CI_RUNTIME_DIR/postgres-ca.crt") == 644 ]]
 # Helper resolution must not depend on the invoking working directory: the
 # contract helper is resolved from the script's own location (BASH_SOURCE),
 # so write-infra succeeds from anywhere (regression: it once resolved a

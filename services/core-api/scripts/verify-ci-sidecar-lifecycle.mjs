@@ -39,7 +39,7 @@ try {
       identity.labels['com.docker.compose.project'] ||
     Object.keys(inspect.Config.Labels ?? {}).length !== Object.keys(identity.labels).length ||
     inspect.HostConfig.Binds?.[0] !==
-      '/etc/ssl/certs/ca-certificates.crt:/tmp/plexica-postgres-ca.crt:ro' ||
+      '/run/plexica-ci/postgres-ca.crt:/tmp/plexica-postgres-ca.crt:ro' ||
     Object.keys(inspect.HostConfig.PortBindings ?? {}).length ||
     Object.values(inspect.NetworkSettings.Ports ?? {}).some((value) => value !== null)
   )

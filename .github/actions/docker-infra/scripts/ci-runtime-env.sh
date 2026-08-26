@@ -52,7 +52,10 @@ init() {
   # compose render: the CI overlay resolves env_file eagerly at project-load
   # time, while their values are discovered later (write-infra/write-browser
   # stages) before any dependent service is created. Consumers fail closed.
-  : > "$dir/host.env"; : > "$dir/container.env"; : > "$dir/runtime-config.js"; : > "$dir/redpanda-listener.env"; : > "$dir/sidecar-images.env"; : > "$dir/browser-endpoints.env"
+  # postgres-ca.crt follows the same pattern: pre-created empty so the core
+  # volume bind always resolves; write-infra populates it from the
+  # admission-provisioned CA source before core-api-e2e is created.
+  : > "$dir/host.env"; : > "$dir/container.env"; : > "$dir/runtime-config.js"; : > "$dir/redpanda-listener.env"; : > "$dir/sidecar-images.env"; : > "$dir/browser-endpoints.env"; : > "$dir/postgres-ca.crt"
   chmod 600 "$dir"/*
   printf '%s\n' "$dir"
 }

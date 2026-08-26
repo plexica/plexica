@@ -32,6 +32,7 @@ export const containerBase = {
   PLUGIN_DOCKER_HOST: 'http://plugin-docker-proxy:2375',
   CI_RUNTIME_PROJECT: contractProject,
   CI_RUNTIME_CONTRACT_CONTAINER: '1',
+  CI_RUNTIME_CA_FILE: '/run/plexica-ci/postgres-ca.crt',
 };
 
 export const hostBase = {

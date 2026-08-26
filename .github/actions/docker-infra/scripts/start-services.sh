@@ -16,13 +16,17 @@ set -a; source "$runtime/keycloak-credentials.env"; set +a
 bash "$script_dir/verify-ci-compose-render.sh" "$project"
 bash "$script_dir/verify-ci-runtime-artifacts.sh"
 # TLS staging: generate the server certificate into the shared volume BEFORE
-# postgres starts (its overlay command requires /tls/server.* to exist).
+# postgres starts (its overlay command requires /tls/server.* to exist), and
+# stage the project CA onto the Docker host (/run/plexica-ci) so the sidecar
+# bind source resolves on the daemon — never the system trust store.
 if [[ -n ${E2E_POSTGRES_TLS_SOURCE:-} ]]; then
-  "${compose[@]}" up -d postgres-tls-init
-  # One-shot init exits 0 on success, so resolve it with -a (stopped included).
-  tls_init=$("${compose[@]}" ps -aq postgres-tls-init)
-  [[ -n "$tls_init" ]] || { echo 'postgres-tls-init was not created' >&2; exit 1; }
-  [[ $(docker wait "$tls_init") == 0 ]] || { docker logs "$tls_init" >&2; exit 1; }
+  "${compose[@]}" up -d postgres-tls-init postgres-host-ca-init
+  # One-shot inits exit 0 on success, so resolve each with -a (stopped included).
+  for service in postgres-tls-init postgres-host-ca-init; do
+    init=$("${compose[@]}" ps -aq "$service")
+    [[ -n "$init" ]] || { echo "$service was not created" >&2; exit 1; }
+    [[ $(docker wait "$init") == 0 ]] || { docker logs "$init" >&2; exit 1; }
+  done
 fi
 "${compose[@]}" create postgres redis minio keycloak mailpit loki
 "${compose[@]}" start postgres redis minio keycloak mailpit loki

@@ -39,6 +39,7 @@ for (const [key, value] of [
   ['PLUGIN_DB_SSL_MODE', 'verify-ca'],
   // The CA path is a container-only key: host-kind validation rejects it
   // entirely because runner CLIs never open plugin TLS connections.
+  ['PLUGIN_DB_SSL_ROOT_CERT_PATH', '/run/plexica-ci/postgres-ca.crt'],
   ['PLUGIN_DB_SSL_ROOT_CERT_PATH', '/etc/ssl/certs/ca-certificates.crt'],
   ['PLUGIN_DB_SSL_ROOT_CERT_PATH', '/etc/ssl/certs/evil.pem'],
   ['PLUGIN_DB_SSL_ROOT_CERT_PATH', ''],
@@ -49,6 +50,10 @@ for (const [key, value] of [
   ['CI_RUNTIME_CONTRACT_CONTAINER', '1'],
   ['KAFKA_BROKERS', 'redpanda:9092'],
   ['PLUGIN_DB_SSL_MODE', 'verify-full'],
+  // Only the mounted project CA path is admitted: the host system bundle
+  // lacks the E2E Postgres CA and must never be trusted by containers.
+  ['PLUGIN_DB_SSL_ROOT_CERT_PATH', '/run/plexica-ci/postgres-ca.crt'],
+  ['CI_RUNTIME_CA_FILE', '/run/plexica-ci/postgres-ca.crt'],
   ['PLUGIN_RUNTIME_SCOPE', 'ci-0123456789abcdef0123456789ab'],
   ['KEYCLOAK_ADMIN_PASSWORD', 'not-a-url'],
   ['EVENT_KEY_ENCRYPTION_KEY', 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'],
@@ -56,6 +61,19 @@ for (const [key, value] of [
   ['PLUGIN_CREDENTIAL_PEPPER', '0123456789abcdef0123456789abcdef'],
 ]) {
   if (!acceptsContainer(key, value)) throw new Error(`Rejected approved scalar contract ${key}`);
+}
+for (const key of ['PLUGIN_DB_SSL_ROOT_CERT_PATH', 'CI_RUNTIME_CA_FILE']) {
+  for (const value of [
+    '/etc/ssl/certs/ca-certificates.crt',
+    '/etc/ssl/certs/evil.pem',
+    '/run/plexica-ci/../plexica-ci/postgres-ca.crt',
+    '/run/plexica-ci/postgres-ca.pem',
+    '',
+  ]) {
+    if (acceptsContainer(key, value)) {
+      throw new Error(`Accepted non-project CA path for ${key}: ${value}`);
+    }
+  }
 }
 if (acceptsContainer('KAFKA_BROKERS', 'http://redpanda:9092')) {
   throw new Error('Accepted a URL where the Kafka scalar contract is required');

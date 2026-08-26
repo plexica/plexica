@@ -77,6 +77,27 @@ describe('CI runtime contract — R8 plugin Docker control is the private proxy'
   });
 });
 
+describe('CI runtime contract — R11 container mode requires the exact runtime CA path', () => {
+  // A present-but-wrong value fails at the Zod literal; an absent value must
+  // still fail closed in the cross-field container contract.
+  it.each([
+    '/etc/ssl/certs/ca-certificates.crt',
+    '/run/plexica-ci/postgres-ca.pem',
+  ])('rejects CI_RUNTIME_CA_FILE=%s', (caFile) => {
+    expect(() => parseConfig({ ...containerBase, CI_RUNTIME_CA_FILE: caFile })).toThrow(
+      /Invalid literal value/
+    );
+  });
+  it('rejects a missing CI_RUNTIME_CA_FILE in the container contract', () => {
+    expect(() => parseConfig({ ...containerBase, CI_RUNTIME_CA_FILE: undefined })).toThrow(
+      /runtime Postgres CA/
+    );
+  });
+  it('host mode passes without the runtime CA variable', () => {
+    expect(parseConfig(hostBase).CI_RUNTIME_CA_FILE).toBeUndefined();
+  });
+});
+
 describe('CI runtime contract — R9 KAFKA_BROKERS is strict loopback on host, Compose DNS in containers', () => {
   it('host mode accepts an inspected loopback listener', () => {
     expect(parseConfig(hostBase).KAFKA_BROKERS).toBe('127.0.0.1:9092');

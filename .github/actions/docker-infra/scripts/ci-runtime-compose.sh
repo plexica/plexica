@@ -39,8 +39,21 @@ endpoint_when_allocated() {
 }
 write_host() { bash "$contract" write-host "$runtime" "$1" "$2"; }
 write_container() { bash "$contract" write-container "$runtime" "$1" "$2"; }
+# Runtime CA staging: the admission-provisioned project CA is copied into the
+# runner-owned runtime dir so core-api-e2e can bind-mount it at
+# /run/plexica-ci/postgres-ca.crt. Must run before that container is created.
+stage_runtime_ca() {
+  [[ -n ${E2E_POSTGRES_TLS_SOURCE:-} ]] || return 0
+  local source="$E2E_POSTGRES_TLS_SOURCE/postgres-ca.crt"
+  [[ -f $source ]] || { echo 'E2E_POSTGRES_TLS_SOURCE is set but its postgres-ca.crt is missing' >&2; return 1; }
+  cp -- "$source" "$runtime/postgres-ca.crt"
+  # Non-root sidecar runtime users read the bind-mounted copy through Core's
+  # contract; the runner-owned 0700 directory gates host access.
+  chmod 644 "$runtime/postgres-ca.crt"
+}
 write_infra() {
   local postgres redis minio keycloak loki mailpit_smtp mailpit_ui scope
+  stage_runtime_ca
   postgres=$(endpoint postgres 5432); redis=$(endpoint redis 6379)
   minio=$(endpoint minio 9000); keycloak=$(endpoint keycloak 8080); loki=$(endpoint loki 3100)
   mailpit_smtp=$(endpoint mailpit 1025); mailpit_ui=$(endpoint mailpit 8025)
@@ -60,7 +73,7 @@ write_infra() {
   # MINIO_PUBLIC_ENDPOINT lets the browser fetch presigned plugin assets from
   # the dynamic loopback MinIO mapping while core's own storage ops keep using
   # the container-internal endpoint.
-  bash "$contract" write-container-set "$runtime" CI_RUNTIME_CONTRACT_CONTAINER 1 DATABASE_URL "postgresql://${POSTGRES_USER:-plexica}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-plexica}" KEYCLOAK_URL http://keycloak:8080 REDIS_URL redis://redis:6379 MINIO_ENDPOINT http://minio:9000 MINIO_PUBLIC_ENDPOINT "$minio" LOKI_URL http://loki:3100 KAFKA_BROKERS redpanda:9092 KEYCLOAK_CONTAINER_ADMIN_JWKS_BASE http://keycloak:8080 KEYCLOAK_ADMIN_USER "$KEYCLOAK_ADMIN_USER" KEYCLOAK_ADMIN_PASSWORD "$KEYCLOAK_ADMIN_PASSWORD" KEYCLOAK_E2E_CLIENT_SECRET "$KEYCLOAK_E2E_CLIENT_SECRET" MINIO_ACCESS_KEY "${MINIO_ACCESS_KEY:?MinIO access key is required}" MINIO_SECRET_KEY "${MINIO_SECRET_KEY:?MinIO secret key is required}" EVENT_KEY_ENCRYPTION_KEY "$EVENT_KEY_ENCRYPTION_KEY" PLUGIN_DB_ENCRYPTION_KEY "$PLUGIN_DB_ENCRYPTION_KEY" PLUGIN_CREDENTIAL_PEPPER "$PLUGIN_CREDENTIAL_PEPPER" PLUGIN_DB_SSL_MODE verify-full PLUGIN_DB_SSL_ROOT_CERT_PATH /etc/ssl/certs/ca-certificates.crt SMTP_HOST mailpit SMTP_PORT 1025 NODE_ENV production PLUGIN_RUNTIME_SCOPE "$scope" PLUGIN_DOCKER_NETWORK "${project}_default" RATE_LIMIT_MAX 10000 ADMIN_RATE_LIMIT_MAX 10000 RATE_LIMIT_RESOLVE_MAX 30 TRUST_PROXY '127.0.0.1,::1,::ffff:127.0.0.1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16'
+  bash "$contract" write-container-set "$runtime" CI_RUNTIME_CONTRACT_CONTAINER 1 DATABASE_URL "postgresql://${POSTGRES_USER:-plexica}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-plexica}" KEYCLOAK_URL http://keycloak:8080 REDIS_URL redis://redis:6379 MINIO_ENDPOINT http://minio:9000 MINIO_PUBLIC_ENDPOINT "$minio" LOKI_URL http://loki:3100 KAFKA_BROKERS redpanda:9092 KEYCLOAK_CONTAINER_ADMIN_JWKS_BASE http://keycloak:8080 KEYCLOAK_ADMIN_USER "$KEYCLOAK_ADMIN_USER" KEYCLOAK_ADMIN_PASSWORD "$KEYCLOAK_ADMIN_PASSWORD" KEYCLOAK_E2E_CLIENT_SECRET "$KEYCLOAK_E2E_CLIENT_SECRET" MINIO_ACCESS_KEY "${MINIO_ACCESS_KEY:?MinIO access key is required}" MINIO_SECRET_KEY "${MINIO_SECRET_KEY:?MinIO secret key is required}" EVENT_KEY_ENCRYPTION_KEY "$EVENT_KEY_ENCRYPTION_KEY" PLUGIN_DB_ENCRYPTION_KEY "$PLUGIN_DB_ENCRYPTION_KEY" PLUGIN_CREDENTIAL_PEPPER "$PLUGIN_CREDENTIAL_PEPPER" PLUGIN_DB_SSL_MODE verify-full PLUGIN_DB_SSL_ROOT_CERT_PATH /run/plexica-ci/postgres-ca.crt CI_RUNTIME_CA_FILE /run/plexica-ci/postgres-ca.crt SMTP_HOST mailpit SMTP_PORT 1025 NODE_ENV production PLUGIN_RUNTIME_SCOPE "$scope" PLUGIN_DOCKER_NETWORK "${project}_default" RATE_LIMIT_MAX 10000 ADMIN_RATE_LIMIT_MAX 10000 RATE_LIMIT_RESOLVE_MAX 30 TRUST_PROXY '127.0.0.1,::1,::ffff:127.0.0.1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16'
   # core-api-e2e is created before write-browser, so the issuer must land in
   # browser-endpoints.env at infra time.
   bash "$contract" write-browser-endpoints "$runtime" KEYCLOAK_PUBLIC_ISSUER_BASE "$keycloak"

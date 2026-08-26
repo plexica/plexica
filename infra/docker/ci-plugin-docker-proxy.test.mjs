@@ -22,7 +22,7 @@ try {
     ExposedPorts: { '3000/tcp': {} },
     Labels: { 'io.plexica.installation': installId, 'io.plexica.runtime-scope': scope, 'io.plexica.runtime-project': project, 'com.docker.compose.project': project },
     HostConfig: {
-      Binds: ['/etc/ssl/certs/ca-certificates.crt:/tmp/plexica-postgres-ca.crt:ro'],
+      Binds: ['/run/plexica-ci/postgres-ca.crt:/tmp/plexica-postgres-ca.crt:ro'],
       NetworkMode: `${project}_default`,
       RestartPolicy: { Name: 'unless-stopped' },
       NanoCpus: 250000000,
@@ -36,7 +36,7 @@ try {
   if (
     forwarded[0].url !== `/containers/create?name=${name}` ||
     created.HostConfig.NetworkMode !== `${project}_default` ||
-    created.HostConfig.Binds?.[0] !== '/etc/ssl/certs/ca-certificates.crt:/tmp/plexica-postgres-ca.crt:ro' ||
+    created.HostConfig.Binds?.[0] !== '/run/plexica-ci/postgres-ca.crt:/tmp/plexica-postgres-ca.crt:ro' ||
     created.NetworkingConfig.EndpointsConfig[`${project}_default`].Aliases[0] !== name ||
     created.HostConfig.PortBindings ||
     created.HostConfig.ExtraHosts ||

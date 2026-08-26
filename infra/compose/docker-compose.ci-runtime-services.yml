@@ -31,6 +31,11 @@ services:
       # shadow it (compose `environment` beats `env_file`) and degrade installs.
     volumes:
       - .:/workspace:ro
+      # Project E2E Postgres CA staged by write-infra into the runner-owned
+      # runtime dir. Core validates it at startup (verify-full) and derives
+      # the sidecar CA bind from CI_RUNTIME_CA_FILE below — never the host
+      # system bundle, which does not contain this CA.
+      - ${CI_RUNTIME_DIR:?CI runtime directory is required}/postgres-ca.crt:/run/plexica-ci/postgres-ca.crt:ro
     networks:
       default:
       plugin-docker-control:

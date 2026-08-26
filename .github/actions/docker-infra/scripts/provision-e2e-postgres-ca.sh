@@ -4,12 +4,11 @@
 #
 # The contract stack (and the canonical production E2E stack) run postgres
 # with TLS; plugin sidecars connect with sslmode=verify-full using a CA bind
-# of the HOST system bundle (/etc/ssl/certs/ca-certificates.crt). Host-side
+# of the PROJECT CA (staged onto the Docker host under /run/plexica-ci by
+# postgres-host-ca-init and into Core via the runtime-dir bind). Host-side
 # consumers (Node: playwright/global-setup; OpenSSL: prisma) trust the CA via
 # NODE_EXTRA_CA_CERTS / SSL_CERT_FILE pointing INSIDE the runner-owned runtime
-# directory. The system trust store is never touched: sidecars bind the host
-# bundle live, so mutating it mid-flight would corrupt concurrent runs, and
-# GitHub-hosted runners have no root access anyway.
+# directory. The system trust store is never touched.
 #
 # Usage: provision-e2e-postgres-ca.sh <target-dir>
 # Exports on stdout: export lines suitable for `eval`:

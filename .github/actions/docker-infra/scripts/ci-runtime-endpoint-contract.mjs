@@ -49,7 +49,10 @@ const containerScalars = {
   SMTP_HOST: (input) => input === 'mailpit',
   SMTP_PORT: (input) => input === '1025',
   NODE_ENV: (input) => input === 'production',
-  PLUGIN_DB_SSL_ROOT_CERT_PATH: (input) => input === '/etc/ssl/certs/ca-certificates.crt',
+  // Project CA paths only: the host system bundle does not contain the E2E
+  // Postgres CA and must never be trusted by containerized Core or sidecars.
+  PLUGIN_DB_SSL_ROOT_CERT_PATH: (input) => input === '/run/plexica-ci/postgres-ca.crt',
+  CI_RUNTIME_CA_FILE: (input) => input === '/run/plexica-ci/postgres-ca.crt',
   // Canonical E2E rate-limit tuning (parity with the host-run suite's
   // coreApiEnv): raised generic/admin ceilings plus a proxy-hop trust list so
   // per-test X-Forwarded-For isolation stays effective inside the contract

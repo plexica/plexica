@@ -25,7 +25,8 @@ function ciEnv(): Record<string, string> {
     PLUGIN_RUNTIME_SCOPE: pluginRuntimeScope(PROJECT),
     PLUGIN_DOCKER_NETWORK: `${PROJECT}_default`,
     PLUGIN_DB_SSL_MODE: 'verify-full',
-    PLUGIN_DB_SSL_ROOT_CERT_PATH: '/etc/ssl/certs/ca-certificates.crt',
+    PLUGIN_DB_SSL_ROOT_CERT_PATH: '/run/plexica-ci/postgres-ca.crt',
+    CI_RUNTIME_CA_FILE: '/run/plexica-ci/postgres-ca.crt',
     PLUGIN_SIDECAR_IMAGE:
       'node:24-bookworm@sha256:' + 'a'.repeat(64),
     CI_SIDECAR_HARNESS_IMAGE:
@@ -41,7 +42,7 @@ function inspection(alias: string): Record<string, unknown> {
     HostConfig: {
       PortBindings: {},
       ExtraHosts: [],
-      Binds: ['/etc/ssl/certs/ca-certificates.crt:/tmp/plexica-postgres-ca.crt:ro'],
+      Binds: ['/run/plexica-ci/postgres-ca.crt:/tmp/plexica-postgres-ca.crt:ro'],
     },
     NetworkSettings: {
       Ports: { '3000/tcp': null },
