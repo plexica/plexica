@@ -1,3 +1,5 @@
+import { API_TIMEOUT_MS } from '../../../../e2e/playwright-base.js';
+
 import { ADMIN_TENANT_SLUG } from './admin-login.js';
 import { tenantApiUrl } from './tenant-hosts.js';
 
@@ -34,6 +36,7 @@ export async function createWorkspaceFixture(
     {
       headers: apiHeaders(token),
       data: { name },
+      timeout: API_TIMEOUT_MS,
     }
   );
   if (response.status() !== 201) {
@@ -53,13 +56,13 @@ export async function setWorkspaceMember(
 ): Promise<void> {
   const response = await page.request.post(
     tenantApiUrl(ADMIN_TENANT_SLUG, `/api/v1/workspaces/${workspaceId}/members`),
-    { headers: apiHeaders(adminToken), data: { userId, role } }
+    { headers: apiHeaders(adminToken), data: { userId, role }, timeout: API_TIMEOUT_MS }
   );
   if (response.status() === 201) return;
   if (response.status() === 409) {
     const update = await page.request.patch(
       tenantApiUrl(ADMIN_TENANT_SLUG, `/api/v1/workspaces/${workspaceId}/members/${userId}`),
-      { headers: apiHeaders(adminToken), data: { role } }
+      { headers: apiHeaders(adminToken), data: { role }, timeout: API_TIMEOUT_MS }
     );
     if (update.status() === 200) return;
   }

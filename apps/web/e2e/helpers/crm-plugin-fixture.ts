@@ -6,6 +6,8 @@
 // proxy health path until the backend answers before handing the install to
 // any spec.
 
+import { API_TIMEOUT_MS } from '../../../../e2e/playwright-base.js';
+
 import { ADMIN_TENANT_SLUG, uniqueName } from './admin-login.js';
 import { pluginProxyRequestWithRetry } from './plugin-proxy-retry.js';
 import { createWorkspaceFixture } from './plugin-fixtures.js';
@@ -35,9 +37,7 @@ export async function listInstallations(
 ): Promise<Installation[]> {
   const response = await page.request.get(
     tenantApiUrl(ADMIN_TENANT_SLUG, '/api/v1/plugins/installed', { apiKey }),
-    {
-      headers: apiHeaders(token),
-    }
+    { headers: apiHeaders(token), timeout: API_TIMEOUT_MS }
   );
   if (response.status() !== 200) {
     throw new Error(`Installed plugin fixture lookup failed: ${response.status()}`);
@@ -77,7 +77,7 @@ async function deleteScratchWorkspace(
     tenantApiUrl(ADMIN_TENANT_SLUG, `/api/v1/workspaces/${workspaceId}`, {
       apiKey: options.apiKey,
     }),
-    { headers: apiHeaders(token) }
+    { headers: apiHeaders(token), timeout: API_TIMEOUT_MS }
   );
 }
 
@@ -108,6 +108,7 @@ async function warmUpPluginProxy(
             'X-Tenant-Slug': ADMIN_TENANT_SLUG,
             'X-Plexica-Workspace-Id': workspaceId,
           },
+          timeout: API_TIMEOUT_MS,
         }
       );
       return { status: response.status(), body: await response.text() };
@@ -131,7 +132,7 @@ export async function ensureCrmInstalled(
   if (existing !== undefined) return existing.id;
   const response = await page.request.post(
     tenantApiUrl(ADMIN_TENANT_SLUG, '/api/v1/plugins/crm/install', { apiKey: options.apiKey }),
-    { headers: apiHeaders(token), data: {} }
+    { headers: apiHeaders(token), data: {}, timeout: API_TIMEOUT_MS }
   );
   if (!response.ok()) {
     throw new Error(`CRM contract fixture provisioning failed: ${response.status()} ${await response.text()}`);
@@ -179,7 +180,7 @@ export async function ensureCrmUninstalled(
     tenantApiUrl(ADMIN_TENANT_SLUG, `/api/v1/plugins/${existing.id}/uninstall`, {
       apiKey: options.apiKey,
     }),
-    { headers: apiHeaders(token), data: {} }
+    { headers: apiHeaders(token), data: {}, timeout: API_TIMEOUT_MS }
   );
   if (!response.ok()) {
     throw new Error(`CRM uninstall arrangement failed: ${response.status()} ${await response.text()}`);

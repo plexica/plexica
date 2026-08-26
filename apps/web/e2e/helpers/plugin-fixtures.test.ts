@@ -6,9 +6,12 @@
 
 import { describe, expect, it } from 'vitest';
 
+import { API_TIMEOUT_MS } from '../../../../e2e/playwright-base.js';
+
 import { ensureCrmInstalled } from './crm-plugin-fixture.js';
 import {
   assertJsonPostsCarryBody,
+  assertRequestsCarryApiTimeout,
   fakePage,
 } from './plugin-fixtures.fakes.js';
 import { createWorkspaceFixture } from './plugin-fixtures.js';
@@ -52,6 +55,9 @@ describe('plugin e2e fixtures', () => {
     // serializable (possibly empty) JSON body, never a header-only payload.
     expect(install?.options?.data).toEqual({});
     assertJsonPostsCarryBody(requests);
+    // Regression guard for run 32934334508: every fixture API call carries the
+    // explicit 30s timeout so install/uninstall survives CI load.
+    assertRequestsCarryApiTimeout(requests, API_TIMEOUT_MS);
   });
 
   it('ensureCrmInstalled polls until the installation reads active on a later poll', async () => {
@@ -146,5 +152,6 @@ describe('plugin e2e fixtures', () => {
 
     expect(workspaceId).toBe('ws-1');
     assertJsonPostsCarryBody(requests);
+    assertRequestsCarryApiTimeout(requests, API_TIMEOUT_MS);
   });
 });

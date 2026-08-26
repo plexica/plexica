@@ -36,6 +36,14 @@ const e2eDir = path.dirname(fileURLToPath(import.meta.url));
 /** Absolute path of the monorepo-root .env (loaded by each app config via dotenv). */
 export const MONOREPO_ROOT_ENV_PATH = path.resolve(e2eDir, '../.env');
 
+/**
+ * Explicit timeout for direct API calls made through `page.request.*` in E2E
+ * helpers. Playwright's implicit window is too tight for server-side install
+ * flows (migrations + role grants + sidecar start) under CI load — see live
+ * run 32934334508 where the CRM install POST timed out at 10s.
+ */
+export const API_TIMEOUT_MS = 30_000;
+
 /** Set an env var only when it is unset or empty. */
 export function setDefault(key: string, value: string): void {
   if (process.env[key] === undefined || process.env[key] === '') {

@@ -12,6 +12,7 @@ import type { Page } from '@playwright/test';
 export interface RecordedRequestOptions {
   headers?: Record<string, string>;
   data?: unknown;
+  timeout?: unknown;
 }
 
 export interface RecordedRequest {
@@ -59,8 +60,10 @@ export function fakePage(handler: (req: RecordedRequest) => FakeResponseOptions)
         fakeResponse(handler(record('POST', url, options))),
       patch: async (url: string, options?: Record<string, unknown>) =>
         fakeResponse(handler(record('PATCH', url, options))),
-      delete: async (url: string) => fakeResponse(handler(record('DELETE', url))),
-      get: async (url: string) => fakeResponse(handler(record('GET', url))),
+      delete: async (url: string, options?: Record<string, unknown>) =>
+        fakeResponse(handler(record('DELETE', url, options))),
+      get: async (url: string, options?: Record<string, unknown>) =>
+        fakeResponse(handler(record('GET', url, options))),
     },
   };
   return { page: page as unknown as Page, requests };
@@ -78,5 +81,19 @@ export function assertJsonPostsCarryBody(requests: RecordedRequest[]): void {
     ).toBeDefined();
     const body = post.options?.data;
     if (typeof body === 'string') expect(() => JSON.parse(body)).not.toThrow();
+  }
+}
+
+/**
+ * Regression guard for live run 32934334508: every recorded request must carry
+ * the explicit API timeout — Playwright's implicit window is too tight for
+ * server-side install flows under CI load.
+ */
+export function assertRequestsCarryApiTimeout(requests: RecordedRequest[], expected: unknown): void {
+  expect(requests.length).toBeGreaterThan(0);
+  for (const req of requests) {
+    expect(req.options?.timeout, `request ${req.method} ${req.url} misses the API timeout`).toBe(
+      expected
+    );
   }
 }
