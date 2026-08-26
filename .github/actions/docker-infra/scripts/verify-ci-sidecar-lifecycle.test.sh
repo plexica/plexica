@@ -89,7 +89,7 @@ rm -f "$runtime/sidecar-images.env"
 PATH="$temp/bin:$PATH" PUBLISH_SIDECAR_IMAGES_CMD="$temp/bin/publish-sidecar-images.sh" COMMAND_LOG="$temp/commands-crm-build" RUNNER_TEMP="$temp" CI_COMPOSE_PROJECT="$CI_COMPOSE_PROJECT" CI_RUNTIME_DIR="$runtime" \
   MOCK_CRM_ABSENT=1 bash "$script_dir/verify-ci-sidecar-lifecycle.sh"
 crm_id='sha256:2222222222222222222222222222222222222222222222222222222222222222'
-crm_build="build -q --tag plexica-crm-plugin:$CI_COMPOSE_PROJECT --file $PWD/examples/plugins/crm/Dockerfile $PWD"
+repo_root=$(cd -- "$script_dir/../../../.." && pwd); crm_build="build -q --tag plexica-crm-plugin:$CI_COMPOSE_PROJECT --file $repo_root/examples/plugins/crm/Dockerfile $repo_root"
 grep -Fx "$crm_build" "$temp/commands-crm-build" >/dev/null ||
   { echo 'Sidecar proof did not build the missing CRM plugin image before publishing' >&2; exit 1; }
 build_line=$(grep -n '^build -q --tag plexica-crm-plugin' "$temp/commands-crm-build" | cut -d: -f1)
