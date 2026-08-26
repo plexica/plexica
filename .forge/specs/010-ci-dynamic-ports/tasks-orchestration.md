@@ -71,17 +71,30 @@
   - **Verification**: `/forge-review .forge/specs/010-ci-dynamic-ports/`; confirm the completed workflow uploads non-secret admission and scoped diagnostic artifacts for both jobs.
   - **200-line guard**: Re-run `pnpm test:line-gate && pnpm check:lines` after any review fix.
 
+## Phase 7 — Scoped triggering follow-up (2026-08-26)
+
+- [x] **7.1** `[M]` `[CI-PORT-13]` Gate `ci-runtime-contract` on `workflow_dispatch`/detected
+  CI-infrastructure changes; run the single-project full E2E suite in `ci` when skipped.
+  - **Files**: Create `detect-ci-infra-changes.sh(+.test.sh)`, `run-single-project-e2e-suite.sh(+.test.sh)`,
+    `run-ci-contract-tests.sh`; modify `.github/workflows/ci.yml`, `ci-workflow-contract.test.mjs`.
+  - **Implementation**: See CI-PORT-13. Session decision SD-05; ADR-031 revised 2026-08-26.
+  - **Acceptance mapping**: CI-PORT-13; Constitution Rules 1, 2, 4.
+  - **Dependencies**: Task 6.2.
+  - **Verification**: `bash .github/actions/docker-infra/scripts/{detect-ci-infra-changes,run-single-project-e2e-suite}.test.sh`;
+    `node ci-workflow-contract.test.mjs`; `pnpm check:lines`.
+  - **200-line guard**: `ci.yml` at 200/200 — any further job addition needs a prior extraction.
+
 ---
 
 ## Summary
 
 | Metric | Value |
 | --- | --- |
-| Total tasks | 18 |
-| Total phases | 6 |
+| Total tasks | 19 |
+| Total phases | 7 |
 | Parallelizable tasks | 7; 1.1/1.2, 2.2/2.3, 3.1/3.2, and 4.1 may proceed in their indicated phases |
-| Requirements covered | CI-PORT-01 through CI-PORT-12 |
-| Estimated effort | 40–56 hours |
+| Requirements covered | CI-PORT-01 through CI-PORT-13 |
+| Estimated effort | 40–56 hours (+4–6h for Phase 7) |
 | Scope assessment | Feature-scale, but near the upper boundary; do not escalate if one team can complete the staged lanes under ADR-031. Escalate to an epic if CI runner remediation, new infrastructure, or local/production contract changes are discovered. |
 
 ## Cross-references

@@ -8,8 +8,30 @@ on:
   workflow_dispatch:
 
 jobs:
+  # CI-PORT-13 pre-flight: no Docker/no admission, runs every trigger.
+  detect-ci-infra-changes:
+    name: Detect CI-infrastructure changes
+    runs-on: self-hosted
+    timeout-minutes: 5
+    outputs:
+      heavy: ${{ steps.detect.outputs.heavy }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Detect changed CI-infrastructure paths
+        id: detect
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BEFORE_SHA: ${{ github.event.before }}
+        run: bash .github/actions/docker-infra/scripts/detect-ci-infra-changes.sh
+
+  # CI-PORT-13 (ADR-031, revised 2026-08-26): dispatch/detected-change/fail-open.
   ci-runtime-contract:
     name: Concurrent runtime contract
+    needs: [detect-ci-infra-changes]
+    if: always() && !cancelled() && (github.event_name == 'workflow_dispatch' || needs.detect-ci-infra-changes.result != 'success' || needs.detect-ci-infra-changes.outputs.heavy == 'true')
     runs-on: self-hosted
     timeout-minutes: 90
     steps:
@@ -23,10 +45,7 @@ jobs:
       - name: Setup pnpm via Corepack
         run: corepack enable && corepack prepare pnpm@10.33.0 --activate
       - name: Generate run-scoped encryption material
-        shell: bash
-        run: |
-          key() { openssl rand -base64 32 | tr '+/' '-_' | tr -d '=\n'; }
-          printf 'EVENT_KEY_ENCRYPTION_KEY=%s\nPLUGIN_DB_ENCRYPTION_KEY=%s\nPLUGIN_CREDENTIAL_PEPPER=%s\n' "$(key)" "$(openssl rand -hex 32)" "$(key)" >> "$GITHUB_ENV"
+        run: bash .github/actions/docker-infra/scripts/generate-ci-runtime-secrets.sh >> "$GITHUB_ENV"
       - run: pnpm install --frozen-lockfile
       - name: Build Compose runtime artifacts
         env:
@@ -82,11 +101,14 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  # Tolerates a SKIPPED contract (CI-PORT-13) but not a failed one.
   ci:
     name: Build, test, and validate
     needs: [ci-runtime-contract, quality]
+    if: always() && !cancelled() && needs.quality.result == 'success' && (needs.ci-runtime-contract.result == 'success' || needs.ci-runtime-contract.result == 'skipped')
     runs-on: self-hosted
-    timeout-minutes: 90
+    # 120 (raised from 90, 2026-08-26): adds the single-project E2E fallback.
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/ci-runner-admission
@@ -98,10 +120,7 @@ jobs:
       - name: Setup pnpm via Corepack
         run: corepack enable && corepack prepare pnpm@10.33.0 --activate
       - name: Generate run-scoped encryption material
-        shell: bash
-        run: |
-          key() { openssl rand -base64 32 | tr '+/' '-_' | tr -d '=\n'; }
-          printf 'EVENT_KEY_ENCRYPTION_KEY=%s\nPLUGIN_DB_ENCRYPTION_KEY=%s\nPLUGIN_CREDENTIAL_PEPPER=%s\nPOSTGRES_PASSWORD=%s\nMINIO_ACCESS_KEY=%s\nMINIO_SECRET_KEY=%s\n' "$(key)" "$(openssl rand -hex 32)" "$(key)" "$(openssl rand -hex 24)" "$(openssl rand -hex 24)" "$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+        run: bash .github/actions/docker-infra/scripts/generate-ci-runtime-secrets.sh --full >> "$GITHUB_ENV"
       - run: pnpm install --frozen-lockfile
       - run: pnpm test:line-gate && pnpm check:lines
       - run: pnpm --filter @plexica/keycloak-theme build
@@ -113,35 +132,7 @@ jobs:
           VITE_E2E: 'true'
         run: pnpm -r --filter='!@plexica/plugin-crm' --filter='!plexica' run build
       - name: Test CI runtime contracts
-        run: |
-          # Belt-and-braces for contract hermeticity: drop the job-scoped keys
-          # exported via GITHUB_ENV (admission, encryption material, infra
-          # credentials) before any contract runs; each test re-seeds its own.
-          unset NODE_EXTRA_CA_CERTS SSL_CERT_FILE E2E_POSTGRES_TLS_SOURCE \
-            CI_COMPOSE_PROJECT CI_RUNTIME_DIR \
-            EVENT_KEY_ENCRYPTION_KEY PLUGIN_DB_ENCRYPTION_KEY PLUGIN_CREDENTIAL_PEPPER \
-            POSTGRES_PASSWORD MINIO_ACCESS_KEY MINIO_SECRET_KEY
-          node .github/actions/docker-infra/scripts/ci-runtime-endpoint-contract.test.mjs
-          node .github/actions/docker-infra/scripts/sanitize-ci-runtime-diagnostics.test.mjs
-          bash .github/actions/docker-infra/scripts/ci-runtime-env.test.sh
-          bash .github/actions/docker-infra/scripts/provision-e2e-postgres-ca.test.sh
-          bash .github/actions/docker-infra/scripts/ci-runtime-keycloak-credentials.test.sh
-          bash .github/actions/docker-infra/scripts/ci-runtime-compose.test.sh
-          bash .github/actions/docker-infra/scripts/ci-runtime-cleanup.test.sh
-          bash .github/actions/docker-infra/scripts/ensure-topics.test.sh
-          bash .github/actions/docker-infra/scripts/keycloak-contract.test.sh
-          bash .github/actions/docker-infra/scripts/redpanda-contract.test.sh
-          bash .github/actions/docker-infra/scripts/verify-ci-runtime-artifacts.test.sh
-          bash .github/actions/docker-infra/scripts/verify-ci-runner-capacity.test.sh
-          node .github/actions/docker-infra/scripts/ci-workflow-contract.test.mjs
-          bash .github/actions/docker-infra/scripts/ci-runtime-lifecycle.test.sh
-          bash .github/actions/docker-infra/scripts/verify-ci-sidecar-lifecycle.test.sh
-          bash .github/actions/docker-infra/scripts/verify-ci-compose-render.test.sh
-          bash .github/actions/docker-infra/scripts/wait-services.test.sh
-          bash .github/actions/docker-infra/scripts/wait-for-http.test.sh
-          bash .github/actions/docker-infra/scripts/down-ci-runtime-project.test.sh
-          bash .github/actions/docker-infra/scripts/verify-concurrent-ci-runtime.test.sh
-          node infra/docker/ci-plugin-docker-proxy.test.mjs
+        run: bash .github/actions/docker-infra/scripts/run-ci-contract-tests.sh
       - name: Start independent project runtime
         uses: ./.github/actions/docker-infra
         with:
@@ -166,6 +157,11 @@ jobs:
           export LOKI_URL="$LOKI_HOST_URL" \
             SMTP_HOST="${mailpit_address%:*}" SMTP_PORT="${mailpit_address##*:}"
           pnpm --filter core-api test
+      - name: Run single-project browser E2E suite (web + admin)
+        # CI-PORT-13 fallback: only when ci-runtime-contract was skipped for
+        # this trigger; same suites, single project, unconditional Rule 1 E2E.
+        if: needs.ci-runtime-contract.result == 'skipped'
+        run: bash .github/actions/docker-infra/scripts/run-single-project-e2e-suite.sh
       - name: Collect scoped diagnostics
         if: always()
         uses: ./.github/actions/docker-infra

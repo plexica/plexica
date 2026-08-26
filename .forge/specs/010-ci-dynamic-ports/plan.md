@@ -133,10 +133,48 @@ bad evidence exits nonzero. A unique `if: always()` upload retains non-secret
 evidence with `if-no-files-found: error`; no retry, skip, downscale, bypass, or
 `continue-on-error` is permitted.
 
+### 5a. Job graph and conditional triggering (2026-08-26)
+
+A fourth job, `detect-ci-infra-changes`, runs unconditionally on every
+trigger. It is intentionally lightweight: `actions/checkout@v7` with
+`fetch-depth: 0` plus one script invocation, no admission, no Node/pnpm — it
+consumes none of the capacity the admission gate protects. It computes a
+`heavy` boolean from the triggering diff (`git diff --no-renames --name-only`,
+merge-base `BASE_SHA...HEAD_SHA` for `pull_request`, direct `BEFORE_SHA
+GITHUB_SHA` for `push`, unconditionally `true` for `workflow_dispatch`)
+against the fixed CI-infrastructure path set (CI-PORT-13); any diff error,
+unresolved SHA (including an all-zero `before`), or unrecognized event forces
+`true`.
+
+```text
+detect-ci-infra-changes (always runs, no Docker/no admission)
+        | outputs.heavy = true|false
+        |-- workflow_dispatch OR heavy=='true' OR detect result != 'success'
+        |       `-> ci-runtime-contract RUNS (two-project contract, unchanged)
+        `-- otherwise
+                `-> ci-runtime-contract SKIPPED (reports "skipped", not a failure)
+
+quality -- always runs, unchanged --------------------------------------+
+                                                                         |
+ci  if: always() && !cancelled() && quality==success && (contract==success||contract==skipped)
+    |-- single-project bootstrap, core-api vitest -- unchanged
+    `-- if contract==skipped: run the single-project full web/admin
+        Playwright suite (contract spec + rest) -- new step
+```
+
+`ci-runtime-contract`'s own bootstrap/verify script
+(`verify-concurrent-ci-runtime.sh`) is unmodified by this gating: the
+two-project contract, when it runs, behaves exactly as before.
+
 ## 6. Target implementation/configuration files
 | Path | Required change / proof |
 | --- | --- |
-| `.github/workflows/ci.yml` | Add independent contract job, labels/needs, post-checkout admission, scoped artifacts/teardown; delete port and process-wide cleanup. |
+| `.github/workflows/ci.yml` | Add independent contract job, labels/needs, post-checkout admission, scoped artifacts/teardown; delete port and process-wide cleanup. Add `detect-ci-infra-changes`; gate `ci-runtime-contract` on `workflow_dispatch` or its `heavy` output (fail-open on non-success); gate `ci` to tolerate a skipped contract but not a failed one; add the single-project E2E step to `ci` (2026-08-26). |
+| `.github/actions/docker-infra/scripts/detect-ci-infra-changes.sh` | New (2026-08-26). Computes the `heavy` output from the triggering diff against the CI-PORT-13 path set; fail-open, never a non-zero exit for diff ambiguity. |
+| `.github/actions/docker-infra/scripts/run-single-project-e2e-suite.sh` | New (2026-08-26). Publishes plugin UI assets, then runs both apps' canonical global setup and full Playwright suites (contract spec + rest) against the single project `ci` already bootstraps, reusing `ci-runtime-e2e-suite.sh`'s `run_global_setup`/`run_playwright` unmodified. |
+| `.github/actions/docker-infra/scripts/run-ci-contract-tests.sh` | New (2026-08-26). Mechanical extraction of the existing "Test CI runtime contracts" step body — no behavior change — to keep `ci.yml` under the 200-line gate. |
+| `.github/actions/docker-infra/scripts/generate-ci-runtime-secrets.sh` | New (2026-08-26). Per-run encryption/credential material (base set; `--full` adds Postgres/MinIO), shared by both jobs to keep `ci.yml` under the 200-line gate. |
+| `.github/actions/docker-infra/scripts/ci-workflow-credentials.test.mjs` | New (2026-08-26). Split from `ci-workflow-contract.test.mjs` (Rule 4): docker-infra admission order plus credential generation/passing contract only. |
 | `.github/actions/docker-infra/action.yml` | Accept project/runtime directory and stage create, inspect, start, wait, and scoped down. |
 | `.github/actions/docker-infra/scripts/{verify-ci-runner-capacity,ci-runtime-env,verify-ci-compose-render,verify-concurrent-ci-runtime,start-services,wait-services}.sh` | admission; atomic dual contracts; render/DNS/loopback guards; two-project verifier/sentinels; staged lifecycle. |
 | `docker-compose.ci.yml` | Remove fixed name; override all ports; define `core-api-e2e`, `web-e2e`, `admin-e2e`; mount private runtime config; Redpanda listener gate. |
@@ -163,7 +201,8 @@ After the scoped Compose runtime starts, the admitted-runner-only sidecar proof 
 | CI-PORT-01–03 | render/contract guards, dynamic maps, wrong-source negative tests |
 | CI-PORT-04–06 | Compose Core E2E, empty same-origin browser base plus `/api` client paths, DNS-only Vite/preview proxy and Core JWKS/Admin checks |
 | CI-PORT-07–08 | sidecar lifecycle/proxy negatives; reconciliation readback/isolation |
-| CI-PORT-09 | two independently bootstrapped A/B web/admin full E2E stacks |
+| CI-PORT-09 | two independently bootstrapped A/B web/admin full E2E stacks, when the contract runs |
+| CI-PORT-13 | pre-flight `if:` gating on `workflow_dispatch`/detected path, fail-open branches, single-project Playwright fallback in `ci` |
 | CI-PORT-10–12 | pre-work admission, retained sanitized diagnostics, CI-only Vite binding, and discovered-loopback readiness |
 
 ADR-031 remains sufficient: this plan operationalizes its selected CI contract;

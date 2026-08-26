@@ -56,9 +56,10 @@ ADR-013 local-process plugin development remain unchanged.
    Keycloak state, Kafka topics, credentials, fixtures, labels, and teardown
    selection. Host admin/tenant provisioning uses only the manifest host-admin
    URL and proves exact callback/origin/logout/PKCE/role scope by readback.
-9. **CI-PORT-09 Independent contract.** `ci-runtime-contract` bootstraps itself
-   and runs two concurrent project full web/admin E2E stacks; `ci` requires it and
-   may not consume its Docker state.
+9. **CI-PORT-09 Independent contract.** When it runs, `ci-runtime-contract`
+   bootstraps itself and runs two concurrent project full web/admin E2E
+   stacks; `ci` requires it and may not consume its Docker state. Its
+   triggering condition is scoped by CI-PORT-13.
 10. **CI-PORT-10 Admission.** Both jobs run on the default `self-hosted`
     runner (revised 2026-08-24 from the dedicated labelled runner). Immediately
     after checkout each
@@ -74,6 +75,28 @@ ADR-013 local-process plugin development remain unchanged.
     the runner. Outside that contract, the host option remains unset and Vite's
     safe local default applies. Readiness must request each discovered manifest
     loopback web/admin mapping from the host before Playwright begins.
+13. **CI-PORT-13 Scoped triggering and single-project equivalence.**
+    `ci-runtime-contract` runs only on `workflow_dispatch` or when a
+    dedicated pre-flight job detects a changed path under the fixed
+    CI-infrastructure path set (workflows, composite actions and their
+    scripts, root and `infra/compose` Compose files, `infra/docker`, the
+    root `e2e/` harness, both apps' Playwright configs, both
+    `ci-runtime-contract.spec.ts` files, the plugin sidecar identity/proxy
+    services (CI-PORT-07), and the Keycloak public-issuer/container-DNS split
+    plus same-origin `apiBase` boundary files (CI-PORT-04, CI-PORT-06) — the
+    application code implementing exactly the isolation properties this
+    contract proves). Any pre-flight failure, timeout,
+    unreadable diff, or unrecognized event fails open to running the
+    contract; a clean diff against a recognized event that touches none of
+    those paths is the only path that skips it. This is independent of
+    CI-PORT-11: CI-PORT-11 forbids weakening the contract while it executes
+    (no retry/skip/downscale/continue-on-error/bypass inside a run);
+    CI-PORT-13 governs, before the job starts, whether that run happens at
+    all for a given trigger. When `ci-runtime-contract` is skipped, `ci` runs
+    the identical full single-project web/admin Playwright suite (including
+    the contract spec) against the single project it already bootstraps, so
+    every trigger retains real E2E coverage (Constitution Rule 1) regardless
+    of which path is taken.
 
 ## Acceptance Criteria
 - Two concurrent projects have distinct networks, volumes, ports, Keycloak
@@ -151,7 +174,7 @@ ADR-013 local-process plugin development remain unchanged.
 ## Constitution compliance
 | Rule | Status | Evidence |
 | --- | --- | --- |
-| 1 — E2E | Compliant | Blocking two-project browser/API Keycloak, plugin, and Kafka flows. |
+| 1 — E2E | Compliant | Blocking two-project browser/API Keycloak, plugin, and Kafka flows when the contract runs; single-project fallback in `ci` when it is skipped (CI-PORT-13). |
 | 2 — Green CI | Compliant | Admission and all verifier evidence fail hard. |
 | 4 — Files <=200 | Compliant | Focused helpers plus line gate. |
 | 5 — ADR | Compliant | ADR-031 records infrastructure/auth boundary. |

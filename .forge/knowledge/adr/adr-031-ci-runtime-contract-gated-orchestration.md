@@ -6,6 +6,13 @@
 **Revised**: 2026-08-24 — runner class changed to the default `self-hosted`
 runner per user decision; measured capacity admission is retained without the
 dedicated class marker.
+**Revised**: 2026-08-26 — `ci-runtime-contract` is now gated: it runs only on
+`workflow_dispatch` or when a lightweight pre-flight job detects a change
+under a fixed CI-infrastructure path set (fail-open to running on any
+detection uncertainty, timeout, or job-level failure). When it does not run,
+`ci` runs the same full single-project web/admin Playwright suite the
+contract also exercises, so every trigger keeps real E2E coverage without the
+doubled two-project environment. See CI-PORT-13.
 **Deciders**: Plexica Team and user
 **Related**: Spec 010; ADR-004; ADR-013
 
@@ -45,7 +52,16 @@ enforceable project and runner-capacity boundary.
    precedes install/build/Docker pull/start. It hard-fails unless measured
    >=4 CPUs, >=16 GiB cgroup memory, >=12 GiB availability/headroom, and >=60
    GiB Docker storage are measured and retained as non-secret evidence under a
-   machine-shared flock serialization lock.
+   machine-shared flock serialization lock. `ci-runtime-contract` itself runs
+   only on `workflow_dispatch` or when a dedicated `self-hosted` pre-flight
+   job (no admission, no Node/pnpm — it does not consume the capacity the
+   admission gate protects) reports a change under a fixed
+   CI-infrastructure path set; any pre-flight failure, timeout, or
+   unrecognized event fails open to running the contract. When the contract
+   is skipped, `ci` runs the identical full single-project web/admin
+   Playwright suite (contract spec plus the rest) that the contract job also
+   proves, so Rule 1 (E2E) coverage never depends on which path a given
+   trigger takes (revised 2026-08-26).
 5. The independently bootstrapped contract job starts two projects concurrently,
    proving Keycloak issuer/JWKS/provisioning direction, Redpanda metadata and
    round trip, private plugin routing, scoped failure/teardown, and B survival.
@@ -79,17 +95,38 @@ images, publish ports, mount host paths beyond the CA bundle, or reach the host
 gateway.
 
 ## Consequences
-**Positive:** concurrent isolation, correct dynamic public issuer, internal Core
-backchannels, private sidecars, and observable capacity admission.
-**Negative:** staged Keycloak setup, duplicate job admission/bootstrap, and
-strict CI-only sidecar inspection.
-**Neutral:** no schema/public API/dependency/production hosting change; ordinary
-local Compose and ADR-013 development stay available.
+**Positive:** concurrent isolation, correct dynamic public issuer, internal
+Core backchannels, private sidecars, observable capacity admission, and
+(2026-08-26) ordinary PRs/pushes no longer pay the doubled two-project E2E
+cost while still keeping real single-project E2E coverage on every trigger.
+**Negative:** staged Keycloak setup, duplicate job admission/bootstrap,
+strict CI-only sidecar inspection, and (2026-08-26) the two-project isolation
+proof itself (Keycloak issuer separation, prior-port sentinel, cross-project
+sidecar isolation) is re-verified only on `workflow_dispatch` or a
+CI-infrastructure path change, not on every trigger — mitigated by the
+fail-open default and the broad `.github/**` coverage of the fixed path set.
+**Neutral:** no schema/public API/dependency/production hosting change;
+ordinary local Compose and ADR-013 development stay available.
+
+## Platform assumption requiring one empirical verification (2026-08-26)
+The scoped-triggering design (CI-PORT-13) relies on GitHub treating a
+required status check's `skipped` conclusion as satisfying branch
+protection, so that ordinary PRs are not permanently blocked on "Concurrent
+runtime contract" when it is intentionally skipped. GitHub's documentation
+states required status checks "must have a successful, skipped, or neutral
+status" to allow merging — this is a platform behavior, not something this
+repository's own tests (`ci-workflow-contract.test.mjs` does static YAML
+pattern-matching only) can verify. Before relying on this for a real merge,
+open one throwaway PR that touches only an application file, confirm
+`ci-runtime-contract` reports `skipped` and the PR is reported mergeable,
+then record the observed run URL here. If this assumption is ever wrong for
+this repository/ruleset, the failure mode is total: every ordinary PR would
+stay blocked on a check that never runs.
 
 ## Constitution alignment
 | Article | Status | Rationale |
 | --- | --- | --- |
-| Rule 1 — E2E | Compliant | Requires real two-project web/admin full-stack verification. |
+| Rule 1 — E2E | Compliant | Requires real two-project web/admin full-stack verification when the contract runs, and an equivalent real single-project full web/admin run inside `ci` on every trigger where it does not (2026-08-26). |
 | Rule 2 — Green CI | Compliant | Evidence and verifier failures have no bypass. |
 | Rule 4 — Files <=200 | Compliant | Focused helpers and line gate required. |
 | Rule 5 — ADR | Compliant | Records CI infrastructure and auth-boundary decision. |
