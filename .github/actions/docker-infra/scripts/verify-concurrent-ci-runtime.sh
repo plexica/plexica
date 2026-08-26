@@ -59,7 +59,10 @@ cleanup() {
   trap - EXIT; set +e
   (( diagnostics_collected )) || collect || diagnostics=1
   for project in "${initialized[@]}"; do down "$project" || teardown=1; done
-  (( status == 0 && diagnostics == 0 && teardown == 0 )) || exit 1
+  (( status == 0 && diagnostics == 0 && teardown == 0 )) || {
+    printf 'Cleanup failed: script_status=%s diagnostics=%s teardown=%s\n' "$status" "$diagnostics" "$teardown" >&2
+    exit 1
+  }
 }
 trap cleanup EXIT
 trap 'cleanup; exit 130' INT TERM
@@ -154,6 +157,7 @@ failed_projects=()
 wait "$pid_a" || failed_projects+=("$project_a")
 wait "$pid_b" || failed_projects+=("$project_b")
 if (( ${#failed_projects[@]} )); then
+  printf 'Bootstrap failed for: %s (see this log above the teardown section)\n' "${failed_projects[*]}" >&2
   exit 1
 fi
 runtime_a="${RUNNER_TEMP}/plexica-ci/$project_a"; runtime_b="${RUNNER_TEMP}/plexica-ci/$project_b"

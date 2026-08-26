@@ -26,6 +26,9 @@ source "$(dirname "$0")/command-log.sh"
 append_log "$(basename "$0") $CI_COMPOSE_PROJECT"
   [[ "$(basename "$0")" != wait-services.sh || "${FAIL_WAIT_A:-0}" != 1 || "$CI_COMPOSE_PROJECT" != plexica-ci-a-* ]] || exit 1
 [[ "$(basename "$0")" != collect-ci-runtime-diagnostics.sh || "${FAIL_COLLECT:-0}" != 1 ]] || exit 1
+[[ "$(basename "$0")" != down-ci-runtime-project.sh || "${FAIL_DOWN_A_ONCE:-0}" != 1 || "$CI_COMPOSE_PROJECT" != plexica-ci-a-* ]] || {
+  if [[ ! -e "$CI_RUNTIME_DIR/.down-retried" ]]; then mkdir -p "$CI_RUNTIME_DIR"; touch "$CI_RUNTIME_DIR/.down-retried"; exit 1; fi
+}
 mkdir -p "$CI_RUNTIME_DIR"
   base=32000; [[ "$CI_COMPOSE_PROJECT" == plexica-ci-b-* ]] && base=32100
   admin=ci-admin-aaaaaaaaaaaaaaaa; [[ "$CI_COMPOSE_PROJECT" == plexica-ci-b-* ]] && admin=ci-admin-bbbbbbbbbbbbbbbb
@@ -129,8 +132,13 @@ EOF
 chmod +x "$temp/bin/"*
 
 # Happy path: exits 0, teardown exactly once per project, bootstrap ordering,
-# canonical seeding, per-project outputs, contract-skip pairing.
-run_verifier "$log" CI_RUNTIME_DIR="$temp/output"
+# canonical seeding, per-project outputs, contract-skip pairing. The explicit
+# rc pin guards the success path against cleanup regressions: the EXIT trap
+# re-runs down() for every initialized project and must stay a no-op for
+# already-torn-down ones (rmi-already-gone semantics) without flipping the
+# script's exit code away from 0.
+run_verifier "$log" CI_RUNTIME_DIR="$temp/output"; happy_rc=$?
+[[ "$happy_rc" == 0 ]] || { echo "Happy path exited $happy_rc, expected 0" >&2; exit 1; }
 contract teardown-once "$log"
 contract bootstrap-order "$log"
 contract canonical-seeding "$log"
@@ -150,7 +158,16 @@ expect_failure 'missing postgres TLS CA source' \
     bash "$dir/verify-concurrent-ci-runtime.sh" --full-e2e
 
 expect_failure 'failed runtime command' run_verifier "$temp/failure.log" CI_RUNTIME_DIR="$temp/output" FAIL_WAIT_A=1
+# The failing project must be NAMED on stderr, not just signalled via exit 1.
+grep -q 'Bootstrap failed for:' "$temp/fail.out" || { echo 'Failed project not reported' >&2; exit 1; }
 contract failure-flow "$temp/failure.log"
+# Regression (CI run 32916152024): a mid-run failure must stay fail-closed
+# even though cleanup then performs only idempotent no-op teardown work —
+# the retried down succeeds via the already-marked path, yet the original
+# nonzero status must still win, and the guard must SAY why it failed.
+expect_failure 'explicit project down failure stays fail-closed' \
+  run_verifier "$temp/down-a.log" CI_RUNTIME_DIR="$temp/output-downa" FAIL_DOWN_A_ONCE=1
+grep -q 'Cleanup failed:' "$temp/fail.out" || { echo 'Cleanup failure reason not reported' >&2; exit 1; }
 expect_failure 'partial runtime initialization failure' run_verifier "$temp/init-failure.log" CI_RUNTIME_DIR="$temp/output" FAIL_INIT_B=1
 contract init-failure "$temp/init-failure.log"
 expect_failure 'failed diagnostics collection' run_verifier "$temp/diagnostics.log" CI_RUNTIME_DIR="$temp/output" FAIL_COLLECT=1

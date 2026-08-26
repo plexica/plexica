@@ -21,6 +21,16 @@ mapfile -t _overlay_files < <(ci_compose_overlay_files "$root")
 compose=(docker compose --project-name "$project" -f "$root/docker-compose.yml" -f "$root/docker-compose.ci.yml" ${_overlay_files[@]/#/-f})
 
 cd "$root"
+# Concurrent A/B bootstraps share one working tree, and the CRM UI build
+# writes into the SHARED examples/plugins/crm/dist-ui directory. Two
+# simultaneous vite builds race there: one build's outDir wipe deletes the
+# sibling's freshly built assets between its build and its upload, failing
+# the upload with "Missing .../remoteEntry.js". Serialize build+upload per
+# runner so each project publishes a coherent dist-ui generation.
+lock_dir=${CI_PLUGIN_ASSETS_LOCK_DIR:-${RUNNER_TEMP:-/tmp}/plexica-ci}
+mkdir -p -- "$lock_dir"
+exec 9>"$lock_dir/plugin-assets-publish.lock"
+flock 9 || exit 1
 pnpm --filter @plexica/vite-plugin build
 pnpm --filter @plexica/plugin-crm build:ui
 

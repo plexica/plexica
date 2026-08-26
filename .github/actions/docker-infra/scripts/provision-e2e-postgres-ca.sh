@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
 # Provision the runner-scoped E2E PostgreSQL CA material and export host-process
-# trust environment for it. Idempotent: existing material is reused, and the
-# optional system-store install runs only when the fingerprint differs.
+# trust environment for it. Idempotent: existing material is reused.
 #
 # The contract stack (and the canonical production E2E stack) run postgres
 # with TLS; plugin sidecars connect with sslmode=verify-full using a CA bind
 # of the HOST system bundle (/etc/ssl/certs/ca-certificates.crt). Host-side
 # consumers (Node: playwright/global-setup; OpenSSL: prisma) trust the CA via
 # NODE_EXTRA_CA_CERTS / SSL_CERT_FILE pointing INSIDE the runner-owned runtime
-# directory — GitHub-hosted runners have no root access, so writing into
-# system stores must never be required nor fatal.
+# directory. The system trust store is never touched: sidecars bind the host
+# bundle live, so mutating it mid-flight would corrupt concurrent runs, and
+# GitHub-hosted runners have no root access anyway.
 #
 # Usage: provision-e2e-postgres-ca.sh <target-dir>
 # Exports on stdout: export lines suitable for `eval`:
@@ -49,18 +49,3 @@ chmod 644 "$dir/postgres-ca.crt"
 printf 'export E2E_POSTGRES_TLS_SOURCE=%q\n' "$dir"
 printf 'export NODE_EXTRA_CA_CERTS=%q\nexport SSL_CERT_FILE=%q\n' \
   "$dir/postgres-ca.crt" "$dir/postgres-ca.crt"
-
-# Best-effort system-store install, only when passwordless root is available.
-# Never fatal: on unprivileged runners the exported trust env above is the
-# sole trust mechanism, and this step must not fail the job.
-fingerprint=$(openssl x509 -in "$dir/ca.crt" -noout -fingerprint -sha256 | cut -d= -f2)
-installed_marker="$dir/.trust-installed"
-if [[ $(cat "$installed_marker" 2>/dev/null || true) == "$fingerprint" ]]; then exit 0; fi
-if command -v sudo >/dev/null 2>&1 && sudo -n true >/dev/null 2>&1 &&
-  command -v update-ca-certificates >/dev/null 2>&1; then
-  sudo -n cp -- "$dir/ca.crt" /usr/local/share/ca-certificates/plexica-e2e-postgres-ca.crt \
-    >/dev/null 2>&1 || true
-  sudo -n update-ca-certificates >/dev/null 2>&1 || true
-fi
-printf '%s\n' "$fingerprint" > "$installed_marker"
-chmod 600 "$installed_marker"
