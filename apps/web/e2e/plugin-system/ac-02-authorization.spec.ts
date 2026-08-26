@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
+import { coreApiUrl } from '../../../../e2e/playwright-base.js';
 import { expect, test } from '../helpers/base-fixture.js';
 import {
   ADMIN_TENANT_SLUG,
@@ -9,16 +10,16 @@ import {
   requireKeycloakInCI,
   uniqueName,
 } from '../helpers/admin-login.js';
+import { ensureCrmInstalled } from '../helpers/crm-plugin-fixture.js';
 import {
   createWorkspaceFixture,
-  ensureCrmInstalled,
   getBrowserToken,
   setWorkspaceMember,
 } from '../helpers/plugin-fixtures.js';
 
 import type { Page } from '@playwright/test';
 
-const API_BASE = process.env['PLAYWRIGHT_API_URL'] ?? 'http://localhost:3001';
+const API_BASE = coreApiUrl();
 let installId = '';
 let workspaceId = '';
 let nonMemberWorkspaceId = '';
@@ -78,6 +79,7 @@ test.describe.serial('004 Plugin System - AC-02: Plugin Proxy Authorization', ()
     const create = await page.request.post(proxyUrl, {
       headers: headers(token, workspaceId),
       data: { name: 'Member contact' },
+      timeout: 30_000,
     });
     expect(create.status(), await create.text()).toBe(201);
     expect((await create.json()) as { id: string }).toEqual(
@@ -101,7 +103,10 @@ test.describe.serial('004 Plugin System - AC-02: Plugin Proxy Authorization', ()
     const userId = await profileId(page, token);
     await setWorkspaceMember(page, adminToken, workspaceId, userId, 'viewer');
     const proxyUrl = `${API_BASE}/api/v1/plugins/${installId}/proxy/contacts`;
-    const read = await page.request.get(proxyUrl, { headers: headers(token, workspaceId) });
+    const read = await page.request.get(proxyUrl, {
+      headers: headers(token, workspaceId),
+      timeout: 30_000,
+    });
     expect(read.status(), 'viewer workspace role permits reads').toBe(200);
     const viewerContext = await page.request.get(
       `${API_BASE}/api/v1/plugins/${installId}/proxy/context`,
@@ -111,6 +116,7 @@ test.describe.serial('004 Plugin System - AC-02: Plugin Proxy Authorization', ()
     const write = await page.request.post(proxyUrl, {
       headers: headers(token, workspaceId),
       data: { name: 'Denied viewer contact' },
+      timeout: 30_000,
     });
     expect(write.status(), 'viewer workspace role denies writes').toBe(403);
   });
@@ -119,11 +125,14 @@ test.describe.serial('004 Plugin System - AC-02: Plugin Proxy Authorization', ()
     await loginAsAdmin(page);
     const adminToken = await getBrowserToken(page);
     const proxyUrl = `${API_BASE}/api/v1/plugins/${installId}/proxy/context`;
-    expect((await page.request.get(proxyUrl, { headers: headers(adminToken) })).status()).toBe(422);
+    expect(
+      (await page.request.get(proxyUrl, { headers: headers(adminToken), timeout: 30_000 })).status()
+    ).toBe(422);
     expect(
       (
         await page.request.get(proxyUrl, {
           headers: headers(adminToken, randomUUID()),
+          timeout: 30_000,
         })
       ).status()
     ).toBe(403);
@@ -136,6 +145,7 @@ test.describe.serial('004 Plugin System - AC-02: Plugin Proxy Authorization', ()
       (
         await page.request.get(proxyUrl, {
           headers: headers(viewerToken, nonMemberWorkspaceId),
+          timeout: 30_000,
         })
       ).status()
     ).toBe(403);

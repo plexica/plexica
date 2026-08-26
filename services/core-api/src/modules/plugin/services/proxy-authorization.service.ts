@@ -3,6 +3,7 @@ import { redis } from '../../../lib/redis.js';
 import { withCoreDb, withTenantDb } from '../../../lib/tenant-database.js';
 import { evaluate } from '../../abac/engine.js';
 import { PluginNotFoundError, WorkspaceVerifyError } from '../errors.js';
+import { manifestSchema } from '../schema/manifest.js';
 
 import { isPluginVisible } from './visibility.service.js';
 
@@ -22,6 +23,9 @@ export interface AuthorizedPluginProxy {
   pluginSlug: string;
   workspaceId: string;
   workspaceRole: WorkspaceRole;
+  // Declared sidecar TCP port from the published manifest. The proxy enforces
+  // it against the actual target under the CI runtime contract.
+  manifestPort?: number;
 }
 
 function checkedRole(role: string): WorkspaceRole {
@@ -85,10 +89,11 @@ export async function authorizePluginProxy(
     const plugin = await withCoreDb((coreDb) =>
       coreDb.plugin.findUnique({
         where: { id: installation.pluginId },
-        select: { slug: true },
+        select: { slug: true, manifest: true },
       })
     );
     if (!plugin) throw new PluginNotFoundError(`Installation ${input.installId}`);
+    const parsedManifest = manifestSchema.safeParse(plugin.manifest);
 
     const action = `${plugin.slug}:access`;
     if (!input.isTenantAdmin) {
@@ -110,6 +115,7 @@ export async function authorizePluginProxy(
       pluginSlug: plugin.slug,
       workspaceId: input.workspaceId,
       workspaceRole,
+      ...(parsedManifest.success ? { manifestPort: parsedManifest.data.hosting.port } : {}),
     };
   }, input.tenantContext);
 }

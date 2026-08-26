@@ -12,6 +12,7 @@ import {
   registerHealthObservability,
 } from './health-observability.service.js';
 import { registerDevBackend, unregisterDevBackend, getDevBackend } from './dev-backends.js';
+import { assertCiPluginTarget, isCiPluginRuntime } from './plugin-container-identity.js';
 
 import type { ProxyTarget } from './dev-backends.js';
 import type { FastifyRequest, FastifyReply } from 'fastify';
@@ -55,10 +56,11 @@ function sanitizeProxyPath(url: string): string {
   return decoded;
 }
 
-function validateTargetHost(targetUrl: string): void {
+function validateTargetHost(targetUrl: string, installId: string, expectedPort?: number): void {
   try {
     const parsed = new URL(targetUrl);
-    if (!ALLOWED_PROXY_HOSTS.includes(parsed.hostname)) {
+    assertCiPluginTarget(installId, targetUrl, expectedPort);
+    if (!isCiPluginRuntime() && !ALLOWED_PROXY_HOSTS.includes(parsed.hostname)) {
       throw new ValidationError(`Proxy target host "${parsed.hostname}" is not allowed`);
     }
   } catch (err) {
@@ -83,7 +85,7 @@ export async function proxyRequest(
 
   const pathSuffix = sanitizeProxyPath(request.url);
   const targetUrl = `${target.baseUrl}${pathSuffix}`;
-  validateTargetHost(targetUrl);
+  validateTargetHost(targetUrl, target.installId, access.manifestPort);
 
   const tenantContext = request.tenantContext;
   const keycloakUserId = request.user?.keycloakUserId ?? '';

@@ -73,7 +73,11 @@ export async function uninstallRoutes(fastify: FastifyInstance): Promise<void> {
               continue;
             }
             try {
-              await db.$executeRawUnsafe(`DROP TABLE IF EXISTS "${tableName}"`);
+              // CASCADE: plugin tables may reference each other (e.g. a deals
+              // table holding a contact FK). Without it the drop of a
+              // referenced table fails, uninstall leaves orphan tables behind,
+              // and the next install's migration fails on "already exists".
+              await db.$executeRawUnsafe(`DROP TABLE IF EXISTS "${tableName}" CASCADE`);
               logger.info({ tableName, installId }, 'Plugin table dropped');
             } catch (err: unknown) {
               const msg = err instanceof Error ? err.message : String(err);

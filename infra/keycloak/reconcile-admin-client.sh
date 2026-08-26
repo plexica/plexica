@@ -3,7 +3,18 @@
 set -Eeo pipefail
 
 KCADM=/opt/keycloak/bin/kcadm.sh
+# Under the CI runtime contract the origin arrives via browser-endpoints.env under
+# its manifest key; the fail-closed checks below still guard presence and format.
+if [[ ${CI_RUNTIME_CONTRACT:-} == 1 ]]; then
+  KEYCLOAK_ADMIN_ORIGIN=${ADMIN_E2E_PUBLIC_BASE:-}
+fi
+if [[ ${CI_RUNTIME_CONTRACT:-} == 1 && -z ${KEYCLOAK_ADMIN_ORIGIN:-} ]]; then
+  printf 'keycloak-init: ERROR: CI admin origin must be discovered\n' >&2; exit 1
+fi
 ADMIN_ORIGIN=${KEYCLOAK_ADMIN_ORIGIN:-http://localhost:3002}
+if [[ ${CI_RUNTIME_CONTRACT:-} == 1 && ! $ADMIN_ORIGIN =~ ^http://127\.0\.0\.1:[1-9][0-9]*$ ]]; then
+  printf 'keycloak-init: ERROR: CI admin origin must be an inspected manifest mapping\n' >&2; exit 1
+fi
 NODE_ENV=${NODE_ENV:-development}
 
 if [[ ! "$ADMIN_ORIGIN" =~ ^https?://[A-Za-z0-9.-]+(:[0-9]+)?$ ]]; then

@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+case "$*" in
+  *" port postgres 5432"*) echo 127.0.0.1:33001;;
+  *" port redis 6379"*) echo 127.0.0.1:33002;;
+  *" port minio 9000"*) echo 127.0.0.1:33003;;
+  *" port keycloak 8080"*) echo 127.0.0.1:33004;;
+  *" port loki 3100"*) echo 127.0.0.1:33009;;
+  *" port mailpit 1025"*) echo 127.0.0.1:33010;;
+  *" port mailpit 8025"*) echo 127.0.0.1:33011;;
+esac

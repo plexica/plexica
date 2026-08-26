@@ -2,8 +2,12 @@
 // Stack connectivity helpers for E2E tests.
 // Tests skip gracefully when the stack (API, Keycloak) is not running.
 
-const API_BASE = process.env['PLAYWRIGHT_API_URL'] ?? 'http://e2e.localhost:3001';
-const MAILPIT_BASE = process.env['PLAYWRIGHT_MAILPIT_URL'] ?? 'http://localhost:8025';
+import { coreApiUrl, isCiRuntimeContract, requiredRunValue } from '../../../../e2e/playwright-base.js';
+
+const API_BASE = coreApiUrl();
+const MAILPIT_BASE = isCiRuntimeContract()
+  ? requiredRunValue('PLAYWRIGHT_MAILPIT_URL', 'CI runtime requires the discovered Mailpit UI URL.')
+  : process.env['PLAYWRIGHT_MAILPIT_URL'] ?? 'http://localhost:8025';
 
 /**
  * Returns true when the core API is reachable.

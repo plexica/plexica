@@ -2,15 +2,13 @@
 // Real behavior: CRM migrations create tenant-local tables and contact queries
 // scoped to workspace B cannot observe rows belonging to workspace A.
 
+import { coreApiUrl } from '../../../../e2e/playwright-base.js';
 import { expect, test } from '../helpers/base-fixture.js';
 import { loginAsAdmin, requireKeycloakInCI, uniqueName } from '../helpers/admin-login.js';
-import {
-  createWorkspaceFixture,
-  ensureCrmInstalled,
-  getBrowserToken,
-} from '../helpers/plugin-fixtures.js';
+import { ensureCrmInstalled } from '../helpers/crm-plugin-fixture.js';
+import { createWorkspaceFixture, getBrowserToken } from '../helpers/plugin-fixtures.js';
 
-const API_BASE = process.env['PLAYWRIGHT_API_URL'] ?? 'http://localhost:3001';
+const API_BASE = coreApiUrl();
 
 test.describe('004 Plugin System — AC-07: Database Isolation', () => {
   test.beforeAll(() => {

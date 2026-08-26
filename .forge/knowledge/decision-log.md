@@ -6,7 +6,10 @@
 > For lessons learned from the v1 codebase, see
 > [lessons-learned.md](./lessons-learned.md).
 
-**Last Updated**: 2026-08-20 (ADR-030 registered — `@vitest/coverage-v8` coverage provider for core-api unit tests, catalog entry, GitHub Native Code Coverage + artifact reporting; PR #102)
+**Last Updated**: 2026-08-26 (ADR-031 amended — `ci-runtime-contract` scoped
+to `workflow_dispatch`/CI-infrastructure path changes with fail-open
+detection; `ci` runs the single-project E2E suite when the contract is
+skipped)
 
 ---
 
@@ -34,6 +37,15 @@ Foundational and current ADR lifecycle states:
 | ADR-028 | Automatic Prisma Client Generation Without a Database        | Accepted | 2026-08-11 |
 | ADR-029 | `@plexica/api-types` — Shared API Contract Package                     | Accepted | 2026-08-18  |
 | ADR-030 | `@vitest/coverage-v8` — Coverage Provider for core-api Unit Tests       | Accepted | 2026-08-20  |
+| ADR-031 | CI Runtime Contract and Gated Compose Orchestration                     | Accepted | 2026-08-21  |
+
+### ADR Acceptance Records
+
+| ADR | Decision Date | Status | Decision |
+| --- | --- | --- | --- |
+| ADR-031 | 2026-08-21 | Accepted | Final plan names Keycloak 26 request-host mode (no hostname/proxy headers), manifest-only host provisioning, bounded scoped sidecar identity, and mandatory post-checkout admission in both labelled jobs. |
+| ADR-031 | 2026-08-24 | Amended | CI jobs moved to the default `self-hosted` runner per user decision; measured capacity admission retained without the dedicated class marker. |
+| ADR-031 | 2026-08-26 | Amended | `ci-runtime-contract` gated to `workflow_dispatch` or a fail-open CI-infrastructure path detection; `ci` runs the single-project full web/admin Playwright suite whenever the contract is skipped, so every trigger keeps real E2E coverage without the doubled environment. |
 
 ---
 
@@ -111,6 +123,9 @@ Implementation order and gates are defined in
 | SD-01 | 2026-07-31    | Accepted | Integration test failures observed after Dependabot merges were caused by a **degraded dev stack** (PostgreSQL container crash-looping), not by test flakiness or the dependency bumps. With the stack healthy, the full integration suite passes **275/275 twice in a row** (incl. all previously skipped Keycloak/NFR tests). |
 | SD-02 | 2026-07-31    | Accepted | `countPluginInstallationsBatch()` must skip tenant schemas missing the `plugin_installations` table (`filterSchemasWithTable`) — real bug found during CI verification, fixed without ADR (internal robustness).                                                                              |
 | SD-03 | 2026-07-31    | Accepted | Test helper `ensureTenant()` must apply tenant migrations so freshly seeded schemas contain all DDL tables expected by the code under test — real bug found during CI verification, fixed without ADR (test fixture robustness).                                                              |
+| SD-04 | 2026-08-26    | Accepted | E2E Postgres trust is established exclusively by binding the PROJECT CA: staged into `$CI_RUNTIME_DIR/postgres-ca.crt` (write-infra), mounted into Core at `CI_RUNTIME_CA_FILE=/run/plexica-ci/postgres-ca.crt`, and staged onto the Docker host under `/run/plexica-ci` by the one-shot `postgres-host-ca-init` so sidecar bind sources resolve on the daemon. The system trust store is never mutated (follow-up to removing the sudo install, run 32924552620). |
+| SD-05 | 2026-08-26    | Accepted | `ci-runtime-contract` (two concurrent full-stack E2E projects) now runs only on `workflow_dispatch` or when a lightweight, admission-free pre-flight job (`detect-ci-infra-changes`) detects a changed path under a fixed CI-infrastructure set (`.github/**`, root/`infra/compose` Compose files, `infra/docker/**`, root `e2e/**`, both apps' Playwright configs, both `ci-runtime-contract.spec.ts` files, and the six plugin sidecar identity/proxy service files). The pre-flight fails open to running the contract on any diff error, unresolved SHA, or unrecognized event. `ci` tolerates a skipped (but not a failed) contract via an explicit `if: always() && ...` condition, and runs the identical single-project full web/admin Playwright suite itself whenever the contract was skipped, reusing `ci-runtime-e2e-suite.sh` unmodified and additionally publishing plugin UI assets — a gap the single project never exercised before, since only the contract's bootstrap called `publish-plugin-assets.sh`. Rationale: the original ADR-031 goal was safe dynamic-port concurrency on a shared self-hosted runner, already guaranteed by the project-scoping mechanism `ci` itself uses; running the full doubled two-project E2E suite on every ordinary PR was heavier than that goal required. Only the isolation *contract itself* is now scoped — Rule 1 E2E coverage remains unconditional on every trigger. |
+| SD-06 | 2026-08-26    | Accepted | Dual-model adversarial review of SD-05 found 5 consensus HIGH issues, all fixed: (1) both `git diff` calls in `detect-ci-infra-changes.sh` now use `-c core.quotePath=false` — without it, a non-ASCII/special-character path would be C-quoted and silently never match `is_heavy_path()`, undermining fail-open; (2) test coverage for `is_heavy_path()` raised from 2/16 to all branches, now 27/27 after finding (5) below; (3) `run-single-project-e2e-suite.sh` now mirrors `bootstrap()`'s Kafka round-trip proof (`ensure-topics.sh` + `verify-kafka-roundtrip.mjs` via the sourced host manifest) before publishing plugin assets — the prior version silently skipped the one property CI-PORT-05 exists to prove; (4) `if:` conditions on `ci-runtime-contract`/`ci` changed to `always() && !cancelled() && ...` so a cancelled workflow run does not still burn self-hosted runner minutes on jobs that should abort; (5) a follow-up review pass then found `is_heavy_path()` asymmetric — the 6 plugin sidecar files were in scope but the 11 files implementing the Keycloak public-issuer/container-DNS split (CI-PORT-06: `services/core-api/src/{lib/config.ts,middleware/auth-middleware.ts,middleware/jwks-cache.ts,lib/keycloak-admin-internal.ts,modules/admin/services/health-check-keycloak.ts}`) and the same-origin `apiBase` boundary (CI-PORT-04: `apps/{web,admin}/src/{lib/runtime-endpoints.ts,services/api-client.ts,services/keycloak-auth.ts}`) were not — added symmetrically. Also fixed: `run-ci-contract-tests.sh` sources `ci-test-env-guard.sh` instead of duplicating its unset list; `publish-plugin-assets.sh` invoked with an explicit `CI_COMPOSE_PROJECT`/`CI_RUNTIME_DIR` prefix for defensive consistency with `bootstrap()`; the TLS precondition test now covers "CA source set but `ca.crt` missing" in addition to "unset"; `ci` job `timeout-minutes` raised 90→120 for the added sequential Playwright pass. Documented but deliberately NOT fixed: the branch-protection assumption that a `skipped` required check satisfies merge — GitHub's own documentation confirms this ("must have a successful, skipped, or neutral status"), but it cannot be verified from this environment; ADR-031 records the citation and recommends one empirical smoke-test PR before relying on it for a real merge. |
 
 **Lesson**: before attributing integration failures to code changes, verify the
 dev stack is fully healthy (`docker compose ps` — all services `healthy`, incl.
@@ -139,84 +154,6 @@ written. This section tracks the resolution of each.
 | 8 | Unify the auth store? | [04#2](../../docs/review/04-packages-condivisi.md#2) | **Implemented**: `createAuthStore` factory in `@plexica/auth` with DI for realm, profile, persist, logout. Web: 180→63 lines. Admin: 156→33 lines. Dead `createAuthBaseSlice` removed. `idToken` added to `AuthState`. **Corrections 2026-08-19**: restored `createRehydrationHandler()` invocation (D8 had dropped it — session state never restored from sessionStorage) and front-channel logout via `getLogoutUrl(realm, idToken, postLogoutUri)` (D8 had replaced it with a plain redirect; pre-D8 behavior per PR #77 tests + spec 002-04). | — | 2026-08-18 |
 | 9 | Complete or remove the "dev-server HMR" feature? | [04#3](../../docs/review/04-packages-condivisi.md#3) | **Implemented**: removed. Deleted `plugin-dev-watcher.ts` (104 LOC) from apps/web, `dev-server-registration.ts` (78 LOC) from vite-plugin. Removed `startDevWatcher()` call from main.tsx. Removed `ws` + `@types/ws` deps. Dev plugin registration uses `registerBackend()` HTTP (already working in CLI template). | — | 2026-08-18 |
 | 10 | Parallelize the 174 E2E tests? | [05#20](../../docs/review/05-build-ci-infra.md#20) | **Implemented (incremental)**: 11 read-only spec files marked `mode: 'parallel'` (8 web + 3 admin) — intra-file parallelism only. `workers` stays at 1: Playwright runs files concurrently across workers by default, so raising workers would run mutating suites in parallel against the shared tenant/DB/realm state (adversarial review 2026-08-19). Full parallelism + tenant-per-worker isolation deferred to post-v1.0 CI measurement. | — | 2026-08-19 |
-
-### Decision 3 — RESOLVED: adopt `@plexica/sdk` in the CRM plugin
-
-**Resolution date**: 2026-08-18 — **Status**: Implemented.
-
-**Rationale**: the review explicitly labels the current state — an SDK that
-is published but never executed — as "the worst of the two". Removing the
-SDK would require retiring ADR-019 and indirectly weaken ADR-008's polyglot
-commitment (the TS SDK was the privileged DX for TypeScript plugin authors).
-The failure is one of integration, not design: the abstraction exists, it
-simply has no consumer. Dogfooding fixes that.
-
-**What was done**:
-
-1. **SDK refactored** (`packages/sdk/src/`):
-   - `db.ts` (NEW, 93 lines): `PluginDb` class with typed `pg.Pool`, `query()`, `queryOne()`, `pool.on('error')` handler, `close()`. Closes finding 04#16 (`getDb(): unknown` → `getDb(): Promise<Pool>`).
-   - `http.ts` (NEW, 84 lines): `PluginHttp` class with `callApi()` and `emitEvent()` extracted from the SDK class to stay under the 200-line constitution limit.
-   - `index.ts` (REWRITTEN, 118 lines): `PluginSDK` is now a thin facade over `PluginDb` + `PluginHttp` + event handler registry. Added `query()` and `queryOne()` convenience methods. Public types (`PluginEvent`, `PluginConfig`, etc.) and error classes re-exported.
-   - `errors.ts`: `DbAccessError` is now used by `PluginDb` (was previously a dead export).
-   - Tests: 22 passing (sdk.test.ts 199 lines + db.test.ts 164 lines).
-
-2. **CRM migrated** (`examples/plugins/crm/src/`):
-   - `sdk.ts` (NEW, 32 lines): singleton `PluginSDK` instance + `initSdk()`/`destroySdk()` lifecycle.
-   - `db.ts` (REWRITTEN, 33 lines): delegates `query()`/`queryOne()`/`getPool()` to the SDK. No longer creates its own `pg.Pool` — the SDK manages it.
-   - `routes/events.ts` (REWRITTEN, 137 lines): event handler for `plexica.workspace.created` registered via `sdk.onEvent()`; HTTP route validates envelope, handles E2E failure simulation, then delegates to `sdk.dispatchEvent()`. Business logic (idempotent pipeline creation) lives in the registered handler, not in the route.
-   - `app.ts` (MODIFIED, 37 lines): SDK initialized after route registration, destroyed on `onClose`.
-   - `package.json`: `@plexica/sdk: workspace:*` added as dependency.
-
-3. **Architectural note — what was NOT migrated and why**:
-   - `crm/ui/api.ts` (`request<T>` helper): this is **browser-side** code (Module Federation remote). The SDK is Node-only (`import('pg')`, `process.env`). The review's claim that it reimplements `callApi()` was architecturally inaccurate — `callApi()` is plugin→core, `request()` is UI→backend. Different runtimes, different purposes.
-   - `crm/src/routes/context.ts` (8 lines): reads per-request HTTP headers for the UI. The SDK's `getContext()` reads from instance config (for plugin→core calls). Different use cases — the route is a header passthrough, not an SDK reimplementation.
-
-**ADR-019 amendment**: the CRM is now the first real consumer of `@plexica/sdk`. The divergence between the ADR's documented contract and the code is closed — the code now matches the ADR. No ADR text change needed; the amendment is recorded here.
-
-**Side effect**: unblocks finding [04#4](../../docs/review/04-packages-condivisi.md#4) (dev registration triplication) — the CLI template can now call `unregisterBackend()` instead of re-implementing the POST. Deferred to a separate PR.
-
-**E2E verification**: the CRM is the fixture for 5 E2E specs in `apps/web/e2e/plugin-system/`. Typecheck passes across all 10 workspace projects. E2E tests require the full Docker stack and are deferred to CI verification.
-
----
-
-### Decision 4 — RESOLVED: unify API pagination on `pageSize`
-
-**Resolution date**: 2026-08-18 — **Status**: Implemented.
-
-**Question**: the API exposes three divergent paginated envelopes:
-- Shape #1 (canonical `lib/pagination.ts`): `{ data, total, page, limit, totalPages }` — used by `workspace`, `audit-log`, `user-management` (tenant API).
-- Shape #2 (admin/plugin hand-built): `{ data, total, page, pageSize, totalPages? }` — used by `tenant-list`, `admin/audit-log`, `registry`, `marketplace`, `admin-catalog`, `dlq` (the last via a `limit`→`pageSize` rename workaround at `dlq.routes.ts:46-55`).
-- Shape #3 (no page info): `{ data, total }` — used by `workspace-member`, `invitation` (frontend cannot render `<Pagination>` — latent bug).
-
-**Resolution**: unify on **Shape target `{ data, total, page, pageSize, totalPages }`** (Opzione A — `pageSize` canonical). Big-bang migration in one coordinated release. No backward-compat alias.
-
-**Rationale**:
-1. Majority already aligned — 6+ admin/plugin modules + marketplace already use `pageSize`. Only 3 tenant modules use `limit`.
-2. `pageSize` is more expressive than `limit` (the latter is ambiguous with rate limit / SQL LIMIT).
-3. A temporary alias (Opzione C) would reintroduce the exact Rule 3 violation we are closing. Removing the alias later requires the same coordination as doing it now — it defers cost without reducing it.
-4. The backend is a single Fastify deployable — one coordinated release is feasible.
-5. Unification eliminates the `dlq.routes.ts:46-55` workaround (calls `buildPaginatedResult` then renames `limit`→`pageSize` via spread — contorted code to work around the divergence).
-6. Shape #3 (`workspace-member`, `invitation`) is a latent bug: the frontend cannot paginate without `totalPages`. This fix closes it regardless of which field name is chosen.
-
-**Non-goals**: changing the pagination semantics (still 1-indexed page, still `skip/take` under the hood), changing the per-module max limits (DLQ caps at 100, logs at 500 — preserved via `.extend()` on the base schema).
-
-**Execution order** (single PR, all steps coordinated):
-
-1. **`lib/pagination.ts`** — rename `limit`→`pageSize` in `PaginationParams`, `PaginatedResult<T>`, `buildPaginatedResult`, `paginationSchema`. Keep `buildPaginationClause` param name aligned.
-2. **Tenant modules** (Shape #1 → target): `workspace/service.ts`, `audit-log/repository.ts`, `user-management/service.ts` — they call `buildPaginatedResult`, so the change is automatic once the helper is updated. Verify no other `limit` references remain in their schemas/routes.
-3. **Admin/plugin modules** (Shape #2 → target): replace hand-built envelopes with `buildPaginatedResult` in `tenant-list.service.ts` (also adds missing `totalPages`), `admin/services/audit-log.service.ts`, `plugin/services/registry.service.ts`, `plugin/routes/marketplace.routes.ts`, `plugin/routes/admin-catalog.routes.ts`. Delete the `limit`→`pageSize` rename workaround in `plugin/routes/dlq.routes.ts`.
-4. **Shape #3 modules**: add `page`/`pageSize`/`totalPages` to the return of `workspace-member/repository.ts` and `invitation/repository.ts` via `buildPaginatedResult`. Update their route handlers to pass through pagination params.
-5. **Frontend `apps/web`**: migrate clients that read `limit` to read `pageSize` — `services/audit-api.ts`, workspace/user types and hooks. Marketplace already uses `pageSize`.
-6. **Frontend `apps/admin`**: already aligned on `pageSize`. Verify no `limit` reads remain.
-7. **Tests**: update integration tests (`__tests__/user-management.test.ts`, `admin/audit-log.routes.int.test.ts`, `admin/tenant-list.routes.int.test.ts`, `admin/dlq.routes.int.test.ts`) to assert the unified envelope. Update E2E specs if any assert pagination shape.
-8. **Typecheck + integration tests green** before merge.
-
-**Risk guardrails**:
-- This is a **breaking change of the public API**. Both apps (`web` and `admin`) must be deployed in the same release as the backend.
-- Integration tests currently assert `pageSize` for admin endpoints and `limit` for tenant endpoints — both must be updated in the same commit.
-- E2E specs in `apps/web/e2e/` that paginate (workspaces, users, audit, marketplace, DLQ) must pass against the unified envelope.
-
----
 
 ## Deferred Decisions
 

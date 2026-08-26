@@ -3,6 +3,7 @@
 // Verifies the right page is shown for no-subdomain and unknown org.
 
 import { expect, test } from './helpers/base-fixture.js';
+import { tenantWebUrl } from './helpers/tenant-hosts.js';
 
 test.describe.configure({ mode: 'parallel' });
 
@@ -10,7 +11,7 @@ test.describe('Organization error pages', () => {
   test('unknown tenant slug shows org not found page', async ({ page }) => {
     // In production mode, tenant is resolved from the host subdomain.
     // Use a non-existent subdomain to trigger the unknown-tenant org-error.
-    await page.goto('http://nonexistent-org-xyz.localhost:3000/');
+    await page.goto(tenantWebUrl('nonexistent-org-xyz'));
 
     // Should redirect to /org-error with reason=unknown
     await page.waitForURL('**/org-error?reason=*', { timeout: 10_000 });

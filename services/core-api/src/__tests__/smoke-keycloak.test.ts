@@ -6,9 +6,14 @@ import { describe, expect, it } from 'vitest';
 
 import { config } from '../lib/config.js';
 
+import { keycloakTestOrigin } from './keycloak-test-helpers.js';
+
 const BASE_URL = config.KEYCLOAK_URL;
 const ADMIN_USERNAME = config.KEYCLOAK_ADMIN_USER;
 const ADMIN_PASSWORD = config.KEYCLOAK_ADMIN_PASSWORD;
+// Matches the reconciler contract (see keycloak-test-helpers.keycloakTestOrigin):
+// the admin client origin is manifest-derived under CI, static in development.
+const ADMIN_ORIGIN = keycloakTestOrigin('ADMIN_E2E_PUBLIC_BASE', 'http://localhost:3002');
 
 async function getAdminToken(): Promise<string> {
   const response = await fetch(`${BASE_URL}/realms/master/protocol/openid-connect/token`, {
@@ -114,8 +119,8 @@ describe('Keycloak smoke test', () => {
       standardFlowEnabled: true,
       implicitFlowEnabled: false,
       directAccessGrantsEnabled: false,
-      redirectUris: ['http://localhost:3002/callback'],
-      webOrigins: ['http://localhost:3002'],
+      redirectUris: [`${ADMIN_ORIGIN}/callback`],
+      webOrigins: [ADMIN_ORIGIN],
     });
     expect(client['attributes']).toMatchObject({ 'pkce.code.challenge.method': 'S256' });
   });

@@ -23,26 +23,46 @@ import {
   browserChannelUse,
   coreApiEnv,
   keycloakUrl,
+  ciRuntimeManifest,
+  isCiRuntimeContract,
   MONOREPO_ROOT_ENV_PATH,
+  requiredRunValue,
+  setFromManifest,
   setDefault,
 } from '../../e2e/playwright-base.js';
 
 // Load .env from the monorepo root for local dev. No-ops in CI (file absent).
 dotenv.config({ path: MONOREPO_ROOT_ENV_PATH });
+const CI_RUNTIME = isCiRuntimeContract();
+const RUNTIME_MANIFEST = CI_RUNTIME ? ciRuntimeManifest() : undefined;
+const ciValue = (value: string | undefined): string => {
+  if (!value) throw new Error('CI runtime manifest is incomplete');
+  return value;
+};
 
 // ── Hardcoded E2E defaults ────────────────────────────────────────────────────
 // These match what global-setup.ts expects. Setting them here (not in
 // globalSetup) ensures test workers read them from process.env.
 
-setDefault('PLAYWRIGHT_KEYCLOAK_URL', 'http://localhost:8080');
+if (CI_RUNTIME) {
+  setFromManifest('PLAYWRIGHT_KEYCLOAK_URL', ciValue(RUNTIME_MANIFEST?.KEYCLOAK_HOST_ADMIN_BASE));
+  setFromManifest('PLAYWRIGHT_ADMIN_BASE_URL', ciValue(RUNTIME_MANIFEST?.ADMIN_E2E_PUBLIC_BASE));
+  setFromManifest('PLAYWRIGHT_CORE_API_URL', ciValue(RUNTIME_MANIFEST?.CORE_API_PUBLIC_BASE));
+  setFromManifest('PLAYWRIGHT_LOKI_URL', ciValue(RUNTIME_MANIFEST?.LOKI_HOST_URL));
+  setFromManifest('PLAYWRIGHT_MAILPIT_URL', ciValue(RUNTIME_MANIFEST?.MAILPIT_UI_BASE));
+} else {
+  setDefault('PLAYWRIGHT_KEYCLOAK_URL', 'http://localhost:8080');
+  setDefault('PLAYWRIGHT_LOKI_URL', 'http://localhost:3100');
+}
 setDefault('PLAYWRIGHT_E2E', 'true');
 setDefault('PLAYWRIGHT_ADMIN_E2E_TENANT_SLUG', 'e2e-admin');
 setDefault('PLAYWRIGHT_ADMIN_E2E_TENANT_NAME', 'E2E Admin');
 setDefault('PLAYWRIGHT_ADMIN_E2E_TENANT_EMAIL', 'admin@e2e-admin.local');
-setDefault('PLAYWRIGHT_LOKI_URL', 'http://localhost:3100');
 
-const credentialPepper =
-  process.env['PLUGIN_CREDENTIAL_PEPPER'] ?? randomBytes(32).toString('base64url');
+const CREDENTIAL_PEPPER =
+  CI_RUNTIME
+    ? requiredRunValue('PLUGIN_CREDENTIAL_PEPPER', 'CI runtime requires generated credentials.')
+    : process.env['PLUGIN_CREDENTIAL_PEPPER'] ?? randomBytes(32).toString('base64url');
 
 // ── webServer commands ────────────────────────────────────────────────────────
 // CI: after `pnpm build`, start the compiled output directly (no tsx / dotenv wrapper).
@@ -54,7 +74,9 @@ export default defineConfig({
   ...baseE2eConfig,
   use: {
     ...baseE2eConfig.use,
-    baseURL: process.env['PLAYWRIGHT_ADMIN_BASE_URL'] ?? 'http://localhost:3002',
+    baseURL: CI_RUNTIME
+      ? ciValue(RUNTIME_MANIFEST?.ADMIN_E2E_PUBLIC_BASE)
+      : process.env['PLAYWRIGHT_ADMIN_BASE_URL'] ?? 'http://localhost:3002',
   },
   projects: [
     {
@@ -69,7 +91,7 @@ export default defineConfig({
   // Playwright starts them in array order and waits for each URL to respond.
   // globalSetup runs BEFORE webServers start, so token fetching (which hits
   // Keycloak directly) does not need the HTTP servers to be up.
-  webServer: [
+  webServer: CI_RUNTIME ? [] : [
     {
       // Core-api backend — serves the /api/v1/admin/* endpoints.
       command: coreApiCommand,
@@ -80,7 +102,7 @@ export default defineConfig({
         NODE_ENV: process.env['NODE_ENV'] ?? 'test',
         NODE_OPTIONS: '--trace-warnings',
         PLUGIN_DB_SSL_MODE: 'disable',
-        PLUGIN_CREDENTIAL_PEPPER: credentialPepper,
+        PLUGIN_CREDENTIAL_PEPPER: CREDENTIAL_PEPPER,
         LOKI_URL: process.env['PLAYWRIGHT_LOKI_URL'] ?? 'http://localhost:3100',
         RATE_LIMIT_MAX: process.env['RATE_LIMIT_MAX'] ?? '100',
         ADMIN_RATE_LIMIT_MAX: process.env['ADMIN_RATE_LIMIT_MAX'] ?? '200',

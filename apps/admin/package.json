@@ -9,7 +9,8 @@
     "typecheck": "tsc --noEmit",
     "preview": "vite preview",
     "test:e2e": "playwright test",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "test": "vitest run --config vitest-config.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "catalog:",
@@ -37,6 +38,7 @@
     "postcss": "catalog:",
     "tailwindcss": "catalog:",
     "typescript": "catalog:",
-    "vite": "catalog:"
+    "vite": "catalog:",
+    "vitest": "catalog:"
   }
 }

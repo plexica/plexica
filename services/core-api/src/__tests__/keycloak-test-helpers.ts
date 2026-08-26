@@ -7,6 +7,25 @@ export interface KeycloakClient extends Record<string, unknown> {
   attributes?: unknown;
 }
 
+// Under the CI runtime contract (spec 010 / ADR-031) the reconcile scripts
+// derive browser-client origins from the runner manifest instead of the
+// static development defaults, so expectations must read the sourced host
+// manifest too ("the manifest is the single source of truth" — ci.yml). This
+// only changes WHERE the apps are served from: every ADR-023 security
+// property (publicClient + PKCE S256, no implicit flow, no direct grants)
+// stays identical.
+export function keycloakTestOrigin(
+  manifestKey: 'WEB_E2E_PUBLIC_BASE' | 'ADMIN_E2E_PUBLIC_BASE',
+  devDefault: string
+): string {
+  const value = process.env[manifestKey];
+  if (value === undefined || value === '') return devDefault;
+  if (!/^http:\/\/127\.0\.0\.1:[1-9][0-9]*$/.test(value)) {
+    throw new Error(`Host manifest ${manifestKey} must be a loopback origin, got ${value}`);
+  }
+  return value;
+}
+
 export async function getKeycloakAdminToken(): Promise<string> {
   const response = await fetch(
     `${config.KEYCLOAK_URL}/realms/master/protocol/openid-connect/token`,

@@ -5,6 +5,7 @@
 import { randomUUID } from 'node:crypto';
 
 import { setWorkspaceMembershipFixture } from '../../../../e2e/fixtures/crm-database-fixture.js';
+import { coreApiUrl } from '../../../../e2e/playwright-base.js';
 import { expect, test } from '../helpers/base-fixture.js';
 import {
   ADMIN_TENANT_SLUG,
@@ -14,13 +15,10 @@ import {
   requireKeycloakInCI,
   uniqueName,
 } from '../helpers/admin-login.js';
-import {
-  createWorkspaceFixture,
-  ensureCrmInstalled,
-  getBrowserToken,
-} from '../helpers/plugin-fixtures.js';
+import { ensureCrmInstalled } from '../helpers/crm-plugin-fixture.js';
+import { createWorkspaceFixture, getBrowserToken } from '../helpers/plugin-fixtures.js';
 
-const API_BASE = process.env['PLAYWRIGHT_API_URL'] ?? 'http://localhost:3001';
+const API_BASE = coreApiUrl();
 
 interface VisibilityEntry {
   workspaceId: string;

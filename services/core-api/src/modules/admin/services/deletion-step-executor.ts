@@ -110,13 +110,21 @@ export async function executeStepWithRetry(
         if (completed.count === 0) return false;
         logger.info({ stepId: step.id, step: stepName, attempt }, 'Deletion step done');
         return true;
-      } catch {
+      } catch (err) {
         const updated = await prisma.tenantDeletionStep.updateMany({
           where: { id: step.id, status: 'in_progress', leaseToken },
           data: { lastError: errorCode(stepName) },
         });
         if (updated.count === 0) return false;
-        logger.warn({ stepId: step.id, step: stepName, attempt }, 'Deletion step attempt failed');
+        logger.warn(
+          {
+            stepId: step.id,
+            step: stepName,
+            attempt,
+            err: err instanceof Error ? { message: err.message, code: (err as { code?: string }).code } : String(err),
+          },
+          'Deletion step attempt failed'
+        );
         if (attempt < MAX_ATTEMPTS) await sleep(BACKOFF_BASE_MS * 2 ** (attempt - 1));
       }
     }

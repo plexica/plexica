@@ -50,15 +50,27 @@ export async function getProfile(
 
   if (profile === null) {
     // Auto-provision a minimal profile for the first authenticated visit.
-    profile = await upsertProfile(tenantDb, {
-      userId: crypto.randomUUID(),
-      keycloakUserId,
-      email: '', // Caller should pass user email; tolerated as empty on auto-provision
-      status: 'active',
-      timezone: 'UTC',
-      language: 'en',
-      notificationPrefs: {},
-    });
+    // Concurrent first visits race the upsert (Prisma emulates it as
+    // insert-or-update and the loser surfaces P2002); re-read instead of
+    // failing the request.
+    try {
+      profile = await upsertProfile(tenantDb, {
+        userId: crypto.randomUUID(),
+        keycloakUserId,
+        email: '', // Caller should pass user email; tolerated as empty on auto-provision
+        status: 'active',
+        timezone: 'UTC',
+        language: 'en',
+        notificationPrefs: {},
+      });
+    } catch (error) {
+      const isUniqueViolation =
+        typeof error === 'object' && error !== null && 'code' in error && error.code === 'P2002';
+      if (!isUniqueViolation) throw error;
+      const winner = await findProfileByKeycloakId(tenantDb, keycloakUserId);
+      if (winner === null) throw error;
+      profile = winner;
+    }
     logger.info({ keycloakUserId, userId: profile.userId }, 'Auto-provisioned user profile');
   }
 

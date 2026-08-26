@@ -1,6 +1,9 @@
+import { ciRuntimeManifest, isCiRuntimeContract } from '../ci-runtime-manifest.js';
+
 const DEFAULT_KEYCLOAK_URL = 'http://localhost:8080';
 
 export function getKeycloakUrl(): string {
+  if (isCiRuntimeContract()) return ciRuntimeManifest().KEYCLOAK_HOST_ADMIN_BASE;
   return (
     process.env['KEYCLOAK_URL'] ?? process.env['PLAYWRIGHT_KEYCLOAK_URL'] ?? DEFAULT_KEYCLOAK_URL
   );
@@ -11,12 +14,18 @@ export function assertExplicitLoopbackE2eTarget(): void {
     throw new Error('Refusing E2E Keycloak provisioning without PLAYWRIGHT_E2E=true');
   }
 
-  const target = new URL(getKeycloakUrl());
+  // Resolve the target once: every admin call runs this guard and each
+  // getKeycloakUrl() re-entry would re-read and re-validate host.env.
+  const url = getKeycloakUrl();
+  const target = new URL(url);
   const loopbackHosts = new Set(['localhost', '127.0.0.1', '::1']);
   if (!loopbackHosts.has(target.hostname)) {
     throw new Error(
       `Refusing E2E Keycloak provisioning against non-loopback host ${target.hostname}`
     );
+  }
+  if (isCiRuntimeContract() && process.env['KEYCLOAK_URL'] && process.env['KEYCLOAK_URL'] !== url) {
+    throw new Error('CI host provisioning may use only KEYCLOAK_HOST_ADMIN_BASE from the manifest');
   }
 }
 
@@ -47,8 +56,12 @@ export async function getAdminToken(): Promise<string> {
     body: new URLSearchParams({
       grant_type: 'password',
       client_id: 'admin-cli',
-      username: process.env['KEYCLOAK_ADMIN_USER'] ?? 'admin',
-      password: process.env['KEYCLOAK_ADMIN_PASSWORD'] ?? 'changeme',
+      username: isCiRuntimeContract()
+        ? ciRuntimeManifest().KEYCLOAK_ADMIN_USER
+        : (process.env['KEYCLOAK_ADMIN_USER'] ?? 'admin'),
+      password: isCiRuntimeContract()
+        ? ciRuntimeManifest().KEYCLOAK_ADMIN_PASSWORD
+        : (process.env['KEYCLOAK_ADMIN_PASSWORD'] ?? 'changeme'),
     }),
     signal: AbortSignal.timeout(10_000),
   });

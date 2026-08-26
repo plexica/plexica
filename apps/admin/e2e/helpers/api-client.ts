@@ -8,6 +8,7 @@
 // Read assertions return `unknown`; setup and cleanup methods are typed.
 
 import { getE2eApiToken } from '../../../../e2e/keycloak/ephemeral-client.js';
+import { coreApiUrl } from '../../../../e2e/playwright-base.js';
 
 import type {
   DeletionStatusResponse,
@@ -27,7 +28,7 @@ export type {
   TenantRow,
 } from './api-client-types.js';
 
-const CORE_API_BASE = process.env['PLAYWRIGHT_CORE_API_URL'] ?? 'http://localhost:3001';
+const CORE_API_BASE = coreApiUrl();
 const ADMIN_API_BASE = `${CORE_API_BASE}/api/v1/admin`;
 
 async function req(

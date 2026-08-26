@@ -27,16 +27,43 @@
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { ciRuntimeManifest, isCiRuntimeContract } from './ci-runtime-manifest.js';
+
+export { ciRuntimeManifest, isCiRuntimeContract } from './ci-runtime-manifest.js';
+
 const e2eDir = path.dirname(fileURLToPath(import.meta.url));
 
 /** Absolute path of the monorepo-root .env (loaded by each app config via dotenv). */
 export const MONOREPO_ROOT_ENV_PATH = path.resolve(e2eDir, '../.env');
+
+/**
+ * Explicit timeout for direct API calls made through `page.request.*` in E2E
+ * helpers. Playwright's implicit window is too tight for server-side install
+ * flows (migrations + role grants + sidecar start) under CI load — see live
+ * run 32934334508 where the CRM install POST timed out at 10s.
+ */
+export const API_TIMEOUT_MS = 30_000;
 
 /** Set an env var only when it is unset or empty. */
 export function setDefault(key: string, value: string): void {
   if (process.env[key] === undefined || process.env[key] === '') {
     process.env[key] = value;
   }
+}
+
+/**
+ * Assign a value discovered from the CI runtime manifest. The manifest is
+ * authoritative under the contract: an inherited runner-env value that
+ * disagrees with it fails fast instead of being silently overridden.
+ */
+export function setFromManifest(key: string, value: string): void {
+  const inherited = process.env[key];
+  if (inherited !== undefined && inherited !== '' && inherited !== value) {
+    throw new Error(
+      `${key}=${inherited} conflicts with the CI runtime manifest; unset it or correct host.env`
+    );
+  }
+  process.env[key] = value;
 }
 
 /** Read a mandatory run-scoped env var, failing fast with an actionable hint. */
@@ -50,7 +77,22 @@ export function requiredRunValue(key: string, hint?: string): string {
 
 /** Keycloak URL shared by both suites. Call after the setDefault() block. */
 export function keycloakUrl(): string {
+  if (isCiRuntimeContract()) return ciRuntimeManifest().KEYCLOAK_HOST_ADMIN_BASE;
   return process.env['PLAYWRIGHT_KEYCLOAK_URL'] ?? 'http://localhost:8080';
+}
+
+/**
+ * Core API base for direct test-side HTTP calls. PLAYWRIGHT_API_URL wins
+ * because both suites shape it as a tenant host (`<slug>.<domain>:<port>`):
+ * Core resolves the request tenant from the Host header's first label, and a
+ * raw loopback Host (127.0.0.1 / localhost) resolves no tenant at all —
+ * production code has no other routing signal for these calls.
+ */
+export function coreApiUrl(): string {
+  if (isCiRuntimeContract()) {
+    return process.env['PLAYWRIGHT_API_URL'] ?? ciRuntimeManifest().CORE_API_PUBLIC_BASE;
+  }
+  return process.env['PLAYWRIGHT_API_URL'] ?? 'http://localhost:3001';
 }
 
 /**
@@ -59,6 +101,8 @@ export function keycloakUrl(): string {
  * rate limits, TLS mode) that must stay divergent between web and admin.
  */
 export function coreApiEnv(overrides: Record<string, string>): Record<string, string> {
+  if (isCiRuntimeContract())
+    throw new Error('CI Playwright must use Compose Core, not a host webServer');
   return {
     DATABASE_URL:
       process.env['DATABASE_URL'] ?? 'postgresql://plexica:changeme@localhost:5432/plexica',
@@ -85,6 +129,17 @@ type ReporterEntry = [string] | [string, Record<string, unknown>];
 
 const isCi = process.env['CI'] !== undefined;
 
+// Concurrent CI verifier decision: ci-runtime-contract.spec.ts must execute
+// exactly once per app pre-teardown, so full-suite invocations opt out of the
+// contract spec via this flag; explicit single-spec invocations leave it unset.
+const ignoreContractSpec = process.env['CI_RUNTIME_SKIP_CONTRACT_SPEC'] === '1';
+// Canonical-seeding decision: the CI verifier bootstrap invokes each app's
+// globalSetup directly under the sourced host.env manifest and persists the
+// run-scoped credentials into per-app manifests. Playwright invocations then
+// skip in-process setup/teardown entirely (CI_RUNTIME_EXTERNAL_SETUP=1) — the
+// project teardown destroys all run-scoped Keycloak identities with the stack.
+const externalSetup = process.env['CI_RUNTIME_EXTERNAL_SETUP'] === '1';
+
 /**
  * Shared defineConfig() head. Each app spreads this and adds its own
  * use.baseURL, projects (with `devices` from @playwright/test) and webServer
@@ -92,9 +147,13 @@ const isCi = process.env['CI'] !== undefined;
  */
 export const baseE2eConfig = {
   testDir: './e2e',
+  // Vitest unit tests may live next to E2E helpers (*.test.ts); Playwright
+  // only collects behavioral specs.
+  testMatch: /.*\.spec\.ts$/,
+  ...(ignoreContractSpec ? { testIgnore: /ci-runtime-contract\.spec\.ts$/ } : {}),
   fullyParallel: false,
   forbidOnly: isCi,
-  retries: isCi ? 1 : 0,
+  retries: isCiRuntimeContract() ? 0 : isCi ? 1 : 0,
   // Decision 10 (2026-08-19): read-only spec files opt into parallel mode via
   // test.describe.configure({ mode: 'parallel' }) — intra-file parallelism only.
   // workers default to 1: files would race on the shared tenant/DB/realm state.
@@ -110,8 +169,12 @@ export const baseE2eConfig = {
     ['list'],
     ['html', { open: 'never', outputFolder: 'playwright-report' }],
   ] as ReporterEntry[],
-  globalSetup: './e2e/global-setup.ts',
-  globalTeardown: './e2e/global-teardown.ts',
+  ...(externalSetup
+    ? {}
+    : {
+        globalSetup: './e2e/global-setup.ts',
+        globalTeardown: './e2e/global-teardown.ts',
+      }),
   use: {
     trace: 'on-first-retry' as const,
     screenshot: 'only-on-failure' as const,

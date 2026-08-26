@@ -1,44 +1,61 @@
-# docker-compose.ci.yml
-# CI resource overrides for GitHub Actions runner (7GB total).
-# Most services get tighter limits than local dev to conserve runner memory.
-# Keycloak uses the same 1024M as the base compose — no CI override needed.
-# Port bindings are inherited from docker-compose.yml — tests connect via localhost.
+# CI-only overlay. `!override` prevents fixed local bindings from leaking into CI.
+# Every runtime service carries the per-project Plexica scope label so scoped
+# diagnostics/teardown selection can require BOTH the Compose project label and
+# this label — a forged project label alone never selects a container.
+include:
+  - path: ./infra/compose/docker-compose.ci-runtime-services.yml
+    project_directory: .
 
-name: plexica-ci
+x-ci-scope-labels: &ci-scope-labels
+  labels:
+    io.plexica.runtime-scope: ${CI_RUNTIME_SCOPE:?CI runtime scope is required}
 
 services:
   postgres:
-    deploy:
-      resources:
-        limits:
-          memory: 384M
-
+    <<: *ci-scope-labels
+    ports: !override ['127.0.0.1::5432']
+  keycloak:
+    <<: *ci-scope-labels
+    environment:
+      KC_HTTP_ENABLED: 'true'
+      KC_HOSTNAME_STRICT: 'false'
+    ports: !override ['127.0.0.1::8080']
+  keycloak-init:
+    <<: *ci-scope-labels
+    env_file:
+      # Origins are discovered late in the lifecycle; init pre-creates this file
+      # empty and the write-infra/write-browser stages populate it before any
+      # consumer is created. keycloak-init fails closed on missing origins.
+      - ${CI_RUNTIME_DIR:?CI runtime directory is required}/browser-endpoints.env
+    environment:
+      # Origins arrive via browser-endpoints.env under their manifest keys
+      # (WEB_E2E_PUBLIC_BASE / ADMIN_E2E_PUBLIC_BASE); the reconcile scripts read
+      # those directly under the CI runtime contract and fail closed when absent.
+      CI_RUNTIME_CONTRACT: '1'
+  keycloak-db-init:
+    <<: *ci-scope-labels
+  redpanda-init:
+    <<: *ci-scope-labels
   redis:
-    deploy:
-      resources:
-        limits:
-          memory: 96M
-
+    <<: *ci-scope-labels
+    ports: !override ['127.0.0.1::6379']
   minio:
-    deploy:
-      resources:
-        limits:
-          memory: 192M
-
+    <<: *ci-scope-labels
+    ports: !override ['127.0.0.1::9000', '127.0.0.1::9001']
   redpanda:
-    deploy:
-      resources:
-        limits:
-          memory: 320M
-
+    <<: *ci-scope-labels
+    command: !override []
+    entrypoint: ['/bin/sh', '/ci-entrypoint.sh']
+    volumes:
+      - ./infra/redpanda/ci-entrypoint.sh:/ci-entrypoint.sh:ro
+      - ${CI_RUNTIME_DIR:?CI runtime directory is required}/redpanda-listener.env:/run/plexica-ci/redpanda-listener.env:ro
+    ports: !override ['127.0.0.1::19092', '127.0.0.1::9644']
   mailpit:
-    deploy:
-      resources:
-        limits:
-          memory: 48M
-
+    <<: *ci-scope-labels
+    ports: !override ['127.0.0.1::1025', '127.0.0.1::8025']
   loki:
-    deploy:
-      resources:
-        limits:
-          memory: 192M
+    <<: *ci-scope-labels
+    ports: !override ['127.0.0.1::3100']
+  grafana:
+    <<: *ci-scope-labels
+    ports: !override ['127.0.0.1::3000']

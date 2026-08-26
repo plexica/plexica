@@ -12,6 +12,7 @@ import { isLocalThemeFallbackAllowed } from '../theme-fallback-policy.js';
 
 import { tenantWebUrl } from './tenant-hosts.js';
 
+import type { EndpointKeyOptions } from './tenant-hosts.js';
 import type { Page } from '@playwright/test';
 
 export const KEYCLOAK_URL = process.env['PLAYWRIGHT_KEYCLOAK_URL'] ?? '';
@@ -47,9 +48,19 @@ export function requireKeycloakInCI(): void {
  */
 export async function loginViaKeycloak(
   page: Page,
-  { tenantSlug, username, password }: { tenantSlug: string; username: string; password: string }
+  {
+    tenantSlug,
+    username,
+    password,
+    hostKeys = {},
+  }: {
+    tenantSlug: string;
+    username: string;
+    password: string;
+    hostKeys?: EndpointKeyOptions | undefined;
+  }
 ): Promise<void> {
-  await page.goto(tenantWebUrl(tenantSlug));
+  await page.goto(tenantWebUrl(tenantSlug, '/', { baseKey: hostKeys.baseKey }));
   await page.waitForURL(/\/realms\//);
   await page.fill('input[name="username"]', username);
   await page.fill('input[name="password"]', password);

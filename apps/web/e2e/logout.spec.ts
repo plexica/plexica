@@ -13,13 +13,16 @@
 //   - This is the "short TTL" mitigation strategy chosen for spec AC-3 compliance.
 //     See .forge/knowledge/decision-log.md entry ID-005.
 
+import { coreApiUrl } from '../../../e2e/playwright-base.js';
+
 import { expect, test, type Page } from './helpers/base-fixture.js';
+import { e2eWebBase } from './helpers/tenant-hosts.js';
 
 const KEYCLOAK_URL = process.env['PLAYWRIGHT_KEYCLOAK_URL'] ?? '';
 const KEYCLOAK_USERNAME = process.env['PLAYWRIGHT_KEYCLOAK_USER'] ?? '';
 const KEYCLOAK_PASSWORD = process.env['PLAYWRIGHT_KEYCLOAK_PASS'] ?? '';
 const TENANT_SLUG = process.env['PLAYWRIGHT_TENANT_SLUG'] ?? 'test-tenant';
-const API_BASE = process.env['PLAYWRIGHT_API_URL'] ?? 'http://localhost:3001';
+const API_BASE = coreApiUrl();
 
 const hasKeycloak = KEYCLOAK_URL.length > 0 && KEYCLOAK_USERNAME.length > 0;
 
@@ -111,7 +114,7 @@ test.describe('RP-initiated logout flow', () => {
     });
 
     // Block the post-logout navigation so the test doesn't end early
-    await page.route('http://localhost:3000/?tenant=*', (route) => route.abort());
+    await page.route(`${new URL('/', e2eWebBase()).origin}/?tenant=*`, (route) => route.abort());
 
     await clickSignOut(page);
 

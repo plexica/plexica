@@ -1,8 +1,24 @@
 import { randomUUID } from 'node:crypto';
 
 import { adminFetch, getAdminToken } from '../../../../e2e/keycloak/admin-api.js';
+import { ciRuntimeManifest, isCiRuntimeContract } from '../../../../e2e/playwright-base.js';
+
+function setCiValue(key: string, value: string): void {
+  if (process.env[key] && process.env[key] !== value)
+    throw new Error(`CI runtime ${key} must come from the host manifest`);
+  process.env[key] = value;
+}
 
 export function setCoreServiceDefaults(): void {
+  if (isCiRuntimeContract()) {
+    const runtime = ciRuntimeManifest();
+    setCiValue('DATABASE_URL', runtime.POSTGRES_HOST_URL);
+    setCiValue('KEYCLOAK_URL', runtime.KEYCLOAK_HOST_ADMIN_BASE);
+    setCiValue('REDIS_URL', runtime.REDIS_HOST_URL);
+    setCiValue('MINIO_ENDPOINT', runtime.MINIO_HOST_URL);
+    setCiValue('KAFKA_BROKERS', runtime.KAFKA_BROKERS);
+    return;
+  }
   process.env['NODE_ENV'] ??= 'test';
   process.env['DATABASE_URL'] ??= 'postgresql://plexica:changeme@localhost:5432/plexica';
   process.env['KEYCLOAK_URL'] ??= process.env['PLAYWRIGHT_KEYCLOAK_URL'] ?? 'http://localhost:8080';

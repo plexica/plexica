@@ -15,3 +15,24 @@ export function parseCpu(cpu?: string): number | undefined {
   const val = parseFloat(cpu);
   return isNaN(val) ? undefined : val * 1_000_000_000; // 1 CPU = 10^9 nanocores
 }
+
+// Port resolution order: a published host binding wins so local proxy URLs
+// point at the daemon-assigned host port (local containers are created with
+// HostPort '0', and the first ExposedPorts entry is the container-side port,
+// which is unreachable from localhost). Containers without bindings — the CI
+// runtime contract forbids publishing — resolve to the exposed port, which is
+// exactly the manifest hosting port that in-network consumers must use.
+export function containerPort(
+  inspect: {
+    Config: { ExposedPorts?: Record<string, unknown> };
+    NetworkSettings: { Ports?: Record<string, Array<{ HostPort?: string } | null> | null> };
+  }
+): number | undefined {
+  for (const bindings of Object.values(inspect.NetworkSettings.Ports ?? {})) {
+    const hostPort = bindings?.[0]?.HostPort;
+    if (hostPort && hostPort !== '0') return Number(hostPort);
+  }
+  const exposed = Object.keys(inspect.Config.ExposedPorts ?? {})[0]?.split('/')[0];
+  if (exposed) return Number(exposed);
+  return undefined;
+}

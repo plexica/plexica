@@ -1,0 +1,108 @@
+# Tasks: 010 — Orchestration and Final Verification
+
+> Continuation of [tasks.md](./tasks.md). Complete its Phases 1–4 before the
+> dependency-ordered orchestration and verification work below.
+
+| Field | Value |
+| --- | --- |
+| Status | Complete — verified on admitted self-hosted runner (run 32941464394) |
+| Spec | [tech-spec.md](./tech-spec.md) |
+| Plan | [plan.md](./plan.md) |
+| ADR | [ADR-031](../../knowledge/adr/adr-031-ci-runtime-contract-gated-orchestration.md) |
+
+## Phase 5 — Orchestration, cleanup, and independent concurrent proof
+
+- [x] **5.1** `[L]` `[CI-PORT-01]` `[CI-PORT-02]` `[CI-PORT-04]` `[CI-PORT-05]` `[CI-PORT-08]` Stage create/inspect/start/wait using only the appropriate contract.
+  - **Files**: Modify `.github/actions/docker-infra/action.yml`, `.github/actions/docker-infra/scripts/start-services.sh`, `.github/actions/docker-infra/scripts/wait-services.sh`, `.github/actions/docker-infra/scripts/verify-health.sh`, `.github/actions/docker-infra/scripts/ensure-topics.sh`; create `.github/actions/docker-infra/scripts/ci-runtime-lifecycle.test.sh`.
+  - **Implementation**: Accept project/runtime directory inputs on every action/helper command. Implement the required sequence: render; create/inspect infra; publish host contract; health/discover Keycloak; create/inspect/write/release Redpanda; host-contract migrations/status/fixtures/provisioning; create Core with container contract; inspect Core; create web/admin with private proxy and generated runtime config; reconcile; and request each discovered web/admin loopback URL before Playwright. Remove hard-coded container names and source the correct contract explicitly per stage.
+  - **Acceptance mapping**: CI-PORT-01–06, CI-PORT-08, CI-PORT-12; staged lifecycle and readiness acceptance.
+  - **Dependencies**: Tasks 1.1–1.3, 2.1–2.3, 3.1, and 4.1–4.3 in [tasks.md](./tasks.md).
+  - **Verification**: `bash .github/actions/docker-infra/scripts/ci-runtime-lifecycle.test.sh`; run a single disposable project through create/inspect/start/wait and prove the host readiness gate fails for an altered mapping.
+  - **200-line guard**: Split lifecycle phases into dedicated scripts; do not turn `action.yml`, `start-services.sh`, or `wait-services.sh` into monoliths; run the line gate.
+
+- [x] **5.2** `[L]` `[CI-PORT-01]` `[CI-PORT-08]` `[CI-PORT-11]` Replace broad cleanup with label-scoped project diagnostics and teardown.
+  - **Files**: Create `.github/actions/docker-infra/scripts/collect-ci-runtime-diagnostics.sh`, `.github/actions/docker-infra/scripts/down-ci-runtime-project.sh`, `.github/actions/docker-infra/scripts/ci-runtime-cleanup.test.sh`; modify `.github/actions/docker-infra/action.yml`; delete `.github/actions/docker-infra/scripts/cleanup-conflicts.sh`, `.github/actions/docker-infra/scripts/cleanup-ports.sh`.
+  - **Implementation**: Select only resources whose project and Plexica scope labels exactly match the validated project. Retain sanitized `ps`, endpoint allowlist, admission facts, Docker events, bounded logs, sentinel result, and exits on success/failure; redaction failure must fail. Reject selectors that could reach unlabelled/foreign resources. Use project-specific `down -v`; never `pkill`, port-owner cleanup, or process-wide `down --remove-orphans`.
+  - **Acceptance mapping**: CI-PORT-01, CI-PORT-08, CI-PORT-11; scoped diagnostic and teardown acceptance.
+  - **Dependencies**: Tasks 1.1–1.2 and 2.1 in [tasks.md](./tasks.md).
+  - **Verification**: `bash .github/actions/docker-infra/scripts/ci-runtime-cleanup.test.sh`; create foreign labelled/unlabelled fixtures and prove collection/teardown refuses them while project cleanup succeeds.
+  - **200-line guard**: Isolate redaction, resource selection, and teardown into separate scripts; run the line gate.
+
+- [x] **5.3** `[L]` `[CI-PORT-09]` `[CI-PORT-10]` `[CI-PORT-11]` Rebuild the workflow as independently bootstrapped contract and CI jobs.
+  - **Files**: Modify `.github/workflows/ci.yml`; create `.github/actions/ci-runner-admission/action.yml` (composite admission wrapper invoked by every job); modify `.github/actions/docker-infra/action.yml` only for declared workflow inputs/outputs.
+  - **Implementation**: Add `ci-runtime-contract` and `ci`, both on the default `self-hosted` runner (revised 2026-08-24 from the dedicated labelled runner); make `ci` require the contract job but bootstrap its own project and Docker state. Immediately after checkout invoke Task 1.1 admission in both jobs, before setup/install/build/pull/start. Generate independent project/runtime values, pass them to every action/script/E2E command, remove fixed job environment endpoints and all broad cleanup/retry/skip/downscale/bypass patterns, and upload non-secret admission/scoped diagnostic artifacts with `if: always()` and `if-no-files-found: error`. The pre-existing `quality` job is brought under the same contract: it runs on the same runner class, invokes `.github/actions/ci-runner-admission` immediately after checkout, and uploads its own scoped admission artifact.
+  - **Acceptance mapping**: CI-PORT-01, CI-PORT-09–11; both-job admission and independent-state acceptance.
+  - **Dependencies**: Task 1.1 in [tasks.md](./tasks.md), plus Tasks 5.1 and 5.2 above.
+  - **Verification**: `docker compose -f docker-compose.yml -f docker-compose.ci.yml config >/dev/null`; workflow lint/parse available in the repository; inspect the workflow to confirm admission is the first post-checkout executable step in both jobs and no broad cleanup remains.
+  - **200-line guard**: `ci.yml` is already 192 lines—move reusable behavior to the composite action/scripts and keep the workflow at or below 200 lines; run the line gate.
+
+- [x] **5.4** `[L]` `[CI-PORT-01]` `[CI-PORT-05]` `[CI-PORT-07]` `[CI-PORT-09]` `[CI-PORT-11]` Implement the two-project full concurrent runtime verifier.
+  > Executed successfully on the real self-hosted runner: GitHub Actions run
+  > 32941464394 — Concurrent runtime contract job SUCCESS: two concurrent projects,
+  > full web suites 151 passed each, admin 24 passed each, contract specs, prior-port
+  > sentinels, scoped teardown with zero residuals.
+  - **Files**: Create `.github/actions/docker-infra/scripts/verify-concurrent-ci-runtime.sh`, `.github/actions/docker-infra/scripts/verify-concurrent-ci-runtime.test.sh`; modify `.github/actions/docker-infra/scripts/collect-ci-runtime-diagnostics.sh`, `.github/workflows/ci.yml`.
+  - **Implementation**: `--full-e2e` must independently bootstrap projects A and B, run web and admin browser E2E against both, snapshot B tuples, then tear down A and prove B’s browser, Core health, Keycloak validation, plugin proxy, Kafka round trip, network/volume/topic/issuer/alias identities, and inspected tuples are unchanged. Record prior-port sentinels and fail on legacy ports, A-port reuse, resource cross-selection, wrong issuer/JWKS direction, browser Core request, unsafe plugin target, unsanitized diagnostics, or invalid `down -v` selection.
+  - **Acceptance mapping**: CI-PORT-01–12; all final acceptance criteria, especially A-down/B-survives.
+  - **Dependencies**: Tasks 2.1–2.3, 3.1–3.3, and 4.1–4.3 in [tasks.md](./tasks.md), plus Tasks 5.1–5.3 above.
+  - **Verification**: `bash .github/actions/docker-infra/scripts/verify-concurrent-ci-runtime.test.sh`; `bash .github/actions/docker-infra/scripts/verify-concurrent-ci-runtime.sh --full-e2e` on an admitted runner.
+  - **200-line guard**: Keep project bootstrap, sentinel comparison, endpoint checks, Kafka verification, and cleanup in focused helpers; run the line gate.
+
+## Phase 6 — Final feature verification
+
+- [x] **6.1** `[M]` `[CI-PORT-01–12]` Run the blocking implementation verification matrix.
+  > Completed — verified by GitHub Actions run 32941464394 plus local gates: shell
+  > suites, core-api unit 454+, integration 304/304 on live stack, lint/typecheck/line-gate.
+  - **Files**: No production file change; update only failing test targets named by prior tasks.
+  - **Implementation**: Run contract/unit/integration checks before the concurrent full E2E verifier. Resolve failures without weakening assertions, adding skips, `continue-on-error`, retries, capacity bypasses, or fallback endpoints.
+  - **Acceptance mapping**: CI-PORT-01–12; Constitution Rules 1, 2, and 4.
+  - **Dependencies**: Tasks 1.1–5.4 in [tasks.md](./tasks.md) and this document.
+  - **Verification**: `pnpm test:line-gate && pnpm check:lines`; `pnpm lint`; `pnpm typecheck`; `pnpm --filter core-api test`; `pnpm --filter web test`; `pnpm --filter @plexica/admin test`; `bash .github/actions/docker-infra/scripts/verify-concurrent-ci-runtime.sh --full-e2e`.
+  - **200-line guard**: Treat a line-gate failure as blocking; split files rather than granting exceptions.
+
+- [x] **6.2** `[S]` `[CI-PORT-01–12]` Conduct the required adversarial review and attach CI evidence.
+  > Completed — dual-model adversarial review rounds 1–10 under `.forge/reviews/`;
+  > final verdict APPROVED code-level (round-10 consolidated report), with CI evidence
+  > from GitHub Actions run 32941464394.
+  - **Files**: Update implementation/test files only to address review findings; do not add runtime secrets or unredacted artifacts.
+  - **Implementation**: Review boundary direction, project selection, request-host issuer, Redpanda metadata, sidecar target validation, browser same-origin behavior, admission sequencing, diagnostics redaction, and A-down/B-survives evidence.
+  - **Acceptance mapping**: CI-PORT-01–12; Constitution Rules 1, 2, 4, and 5.
+  - **Dependencies**: Task 6.1.
+  - **Verification**: `/forge-review .forge/specs/010-ci-dynamic-ports/`; confirm the completed workflow uploads non-secret admission and scoped diagnostic artifacts for both jobs.
+  - **200-line guard**: Re-run `pnpm test:line-gate && pnpm check:lines` after any review fix.
+
+## Phase 7 — Scoped triggering follow-up (2026-08-26)
+
+- [x] **7.1** `[M]` `[CI-PORT-13]` Gate `ci-runtime-contract` on `workflow_dispatch`/detected
+  CI-infrastructure changes; run the single-project full E2E suite in `ci` when skipped.
+  - **Files**: Create `detect-ci-infra-changes.sh(+.test.sh)`, `run-single-project-e2e-suite.sh(+.test.sh)`,
+    `run-ci-contract-tests.sh`; modify `.github/workflows/ci.yml`, `ci-workflow-contract.test.mjs`.
+  - **Implementation**: See CI-PORT-13. Session decision SD-05; ADR-031 revised 2026-08-26.
+  - **Acceptance mapping**: CI-PORT-13; Constitution Rules 1, 2, 4.
+  - **Dependencies**: Task 6.2.
+  - **Verification**: `bash .github/actions/docker-infra/scripts/{detect-ci-infra-changes,run-single-project-e2e-suite}.test.sh`;
+    `node ci-workflow-contract.test.mjs`; `pnpm check:lines`.
+  - **200-line guard**: `ci.yml` at 200/200 — any further job addition needs a prior extraction.
+
+---
+
+## Summary
+
+| Metric | Value |
+| --- | --- |
+| Total tasks | 19 |
+| Total phases | 7 |
+| Parallelizable tasks | 7; 1.1/1.2, 2.2/2.3, 3.1/3.2, and 4.1 may proceed in their indicated phases |
+| Requirements covered | CI-PORT-01 through CI-PORT-13 |
+| Estimated effort | 40–56 hours (+4–6h for Phase 7) |
+| Scope assessment | Feature-scale, but near the upper boundary; do not escalate if one team can complete the staged lanes under ADR-031. Escalate to an epic if CI runner remediation, new infrastructure, or local/production contract changes are discovered. |
+
+## Cross-references
+
+| Document | Path |
+| --- | --- |
+| Task phases 1–4 | [tasks.md](./tasks.md) |
+| Tech spec | [tech-spec.md](./tech-spec.md) |
+| Plan | [plan.md](./plan.md) |
+| ADR-031 | [ADR-031](../../knowledge/adr/adr-031-ci-runtime-contract-gated-orchestration.md) |
+| Constitution | [constitution.md](../../constitution.md) |

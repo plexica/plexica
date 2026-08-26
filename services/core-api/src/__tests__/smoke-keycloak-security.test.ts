@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   getKeycloakAdminToken,
+  keycloakTestOrigin,
   readKeycloakClient,
   readRealmRoleScopes,
   readProtocolMappers,
@@ -10,24 +11,30 @@ import {
   requestPasswordGrant,
 } from './keycloak-test-helpers.js';
 
+// Origins follow the reconcilers (infra/keycloak/reconcile-*.sh): static
+// development defaults locally, manifest-derived loopback origins under the
+// CI runtime contract. ADR-023 client security flags are origin-independent.
+const ADMIN_ORIGIN = keycloakTestOrigin('ADMIN_E2E_PUBLIC_BASE', 'http://localhost:3002');
+const WEB_ORIGIN = keycloakTestOrigin('WEB_E2E_PUBLIC_BASE', 'http://localhost:3000');
+
 const CLIENTS = [
   {
     realm: 'master',
     clientId: 'plexica-admin',
-    callback: 'http://localhost:3002/callback',
-    logout: 'http://localhost:3002/login',
-    origin: 'http://localhost:3002',
+    callback: `${ADMIN_ORIGIN}/callback`,
+    logout: `${ADMIN_ORIGIN}/login`,
+    origin: ADMIN_ORIGIN,
     scopes: ['super_admin'],
   },
   {
     realm: 'plexica-test',
     clientId: 'plexica-web',
-    callback: 'http://localhost:3000/callback',
-    logout: 'http://localhost:3000/?tenant=test',
-    origin: 'http://localhost:3000',
+    callback: `${WEB_ORIGIN}/callback`,
+    logout: `${WEB_ORIGIN}/?tenant=test`,
+    origin: WEB_ORIGIN,
     scopes: ['member', 'tenant_admin'],
   },
-] as const;
+];
 
 describe('Keycloak browser-client security', () => {
   it('caps all privileged master-realm sessions without changing tenant realms', async () => {

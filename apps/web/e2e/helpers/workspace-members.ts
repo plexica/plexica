@@ -4,6 +4,8 @@
 // an actual member immediately, use `addMemberViaApi()` which calls the backend
 // API directly.
 
+import { API_TIMEOUT_MS } from '../../../../e2e/playwright-base.js';
+
 import { API_BASE } from './api-check.js';
 import { ADMIN_TENANT_SLUG } from './admin-login.js';
 import { expectApiStatus } from './api-response.js';
@@ -31,6 +33,7 @@ export async function addMemberViaApi(
   const res = await page.request.post(`${API_BASE}/api/v1/workspaces/${workspaceId}/members`, {
     headers: { ...(await freshBearer(page)), 'X-Tenant-Slug': ADMIN_TENANT_SLUG },
     data: { userId, role },
+    timeout: API_TIMEOUT_MS,
   });
   await expectApiStatus(res, 201);
 }

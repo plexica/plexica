@@ -3,7 +3,11 @@
 // Mailpit is the SMTP mock server used in local dev / CI.
 // API docs: http://localhost:8025 (Mailpit UI)
 
-const MAILPIT_BASE = process.env['PLAYWRIGHT_MAILPIT_URL'] ?? 'http://localhost:8025';
+import { isCiRuntimeContract, requiredRunValue } from '../../../../e2e/playwright-base.js';
+
+const MAILPIT_BASE = isCiRuntimeContract()
+  ? requiredRunValue('PLAYWRIGHT_MAILPIT_URL', 'CI runtime requires the discovered Mailpit UI URL.')
+  : process.env['PLAYWRIGHT_MAILPIT_URL'] ?? 'http://localhost:8025';
 
 interface MailpitMessage {
   ID: string;

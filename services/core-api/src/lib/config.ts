@@ -3,6 +3,9 @@ import path from 'node:path';
 
 import { z } from 'zod';
 
+import { validateCiRuntimeContract } from './ci-runtime-contract.js';
+import { ciRuntimeEnvSchema } from './ci-runtime-env-config.js';
+
 const configSchema = z
   .object({
     NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
@@ -16,23 +19,21 @@ const configSchema = z
     // timeout after which an entry is disconnected and evicted.
     TENANT_DB_CACHE_MAX: z.coerce.number().int().min(1).default(100),
     TENANT_DB_CACHE_TTL_MS: z.coerce.number().int().min(1000).default(600_000),
-    PLUGIN_DB_ENCRYPTION_KEY: z
-      .string()
-      .regex(/^[0-9a-fA-F]{64}$/)
-      .optional(),
+    PLUGIN_DB_ENCRYPTION_KEY: z.string().regex(/^[0-9a-fA-F]{64}$/).optional(),
     PLUGIN_DB_SSL_MODE: z.enum(['disable', 'verify-full']),
     PLUGIN_DB_SSL_ROOT_CERT_PATH: z.string().optional(),
     PLUGIN_DB_HOST: z.string().min(1).optional(),
     PLUGIN_DB_PORT: z.coerce.number().int().min(1).max(65535).optional(),
     PLUGIN_DOCKER_NETWORK: z.string().min(1).optional(),
     PLUGIN_CORE_API_URL: z.string().url().default('http://localhost:3001'),
-    PLUGIN_RUNTIME_SCOPE: z
-      .string()
-      .regex(/^[a-zA-Z0-9_.-]+$/)
-      .optional(),
+    PLUGIN_RUNTIME_SCOPE: z.string().regex(/^[a-zA-Z0-9_.-]+$/).optional(),
+    ...ciRuntimeEnvSchema.shape,
 
     // Keycloak
     KEYCLOAK_URL: z.string().url(),
+    KEYCLOAK_PUBLIC_ISSUER_BASE: z.string().url().optional(),
+    KEYCLOAK_HOST_ADMIN_BASE: z.string().url().optional(),
+    KEYCLOAK_CONTAINER_ADMIN_JWKS_BASE: z.string().url().optional(),
     KEYCLOAK_ADMIN_USER: z.string().min(1),
     KEYCLOAK_ADMIN_PASSWORD: z.string().min(1),
     KEYCLOAK_API_AUDIENCE: z.string().min(1).default('plexica-api'),
@@ -42,6 +43,12 @@ const configSchema = z
 
     // MinIO
     MINIO_ENDPOINT: z.string().min(1),
+    // Browser-facing endpoint for presigned object URLs. Defaults to the
+    // operational endpoint (host-run processes share one origin). Set when
+    // storage ops use a container-internal endpoint but clients (browsers)
+    // must fetch objects through a different, reachable host — e.g. the CI
+    // runtime contract where core runs in the compose network.
+    MINIO_PUBLIC_ENDPOINT: z.string().min(1).optional(),
     MINIO_ACCESS_KEY: z.string().min(1),
     MINIO_SECRET_KEY: z.string().min(1),
 
@@ -184,6 +191,7 @@ export function parseConfig(environment: NodeJS.ProcessEnv): Config {
       .join('\n');
     throw new Error(`Invalid environment configuration:\n${issues}`);
   }
+  validateCiRuntimeContract(result.data);
   return result.data;
 }
 

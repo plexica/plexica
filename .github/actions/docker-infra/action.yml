@@ -1,125 +1,80 @@
-# .github/actions/docker-infra/action.yml
-# Composite action: cache, pull, start and verify all Docker infrastructure
-# services required by CI (Postgres, Keycloak, Redis, MinIO, Redpanda, Mailpit, Loki)
-# and ensure Redpanda topics are created with the correct retention policy.
-#
-# Extracted from ci.yml to keep that file ≤ 200 lines (Constitution Rule 4).
-#
-# phase input controls two-phase execution (OPT-3):
-#   start — cache + pull/load + `docker compose up -d` (returns immediately)
-#   wait  — wait for healthy + Redpanda topics + health verification
-#   full  — start + wait combined (default, backward-compatible)
-
-name: Start Docker infrastructure
-description: >
-  Pull (or restore from cache), start, and health-check all Plexica
-  infrastructure containers. Also creates required Redpanda topics.
-
+name: CI runtime infrastructure
+description: Creates and verifies a project-scoped dynamic-port CI Compose runtime.
 inputs:
+  project:
+    description: Validated per-run Compose project ID
+    required: true
+  runtime-dir:
+    description: Private per-run runtime directory
+    required: true
+  phase:
+    description: admission, start, wait, full (admission + start + wait), diagnostics, or down
+    default: full
   postgres-db:
-    description: PostgreSQL database name
     default: plexica
   postgres-user:
-    description: PostgreSQL user
     default: plexica
   postgres-password:
-    description: PostgreSQL password
-    default: changeme
-  keycloak-admin-user:
-    description: Keycloak admin username
-    default: admin
-  keycloak-admin-password:
-    description: Keycloak admin password
-    default: changeme
-  phase:
-    description: >
-      Execution phase. One of: start | wait | full.
-      Use "start" to launch containers in the background while other steps
-      (lint, typecheck, build) run concurrently. Then call again with "wait"
-      to block until all services are healthy before running tests.
-      "full" (default) runs both phases sequentially for backward compatibility.
-    default: full
-
+    description: Per-run generated PostgreSQL superuser password
+    required: true
+  minio-access-key:
+    description: Per-run generated MinIO root access key
+    required: true
+  minio-secret-key:
+    description: Per-run generated MinIO root secret key
+    required: true
 runs:
   using: composite
   steps:
-    - name: Clean up conflicting containers
-      if: inputs.phase == 'start' || inputs.phase == 'full'
+    - name: Admit concurrent E2E runner
+      # `full` must gate on runner admission too: a caller omitting `phase`
+      # otherwise starts+waits the runtime without the capacity contract.
+      if: inputs.phase == 'admission' || inputs.phase == 'full'
       shell: bash
-      run: bash "${{ github.action_path }}/scripts/cleanup-conflicts.sh"
-
-    # ── Docker image cache (GitHub-hosted runners only) ──────────────────────
-    # Images are pinned to SHA256 digests in docker-compose.yml.
-    # Cache key is the hash of that file — invalidated only when digests change.
-    # restore-keys allows a partial cache hit on a stale tar (avoids full re-pull).
-    # On cache hit: docker load (~5s).  On cache miss: pull + save for next run.
-    #
-    # NOTE: on self-hosted runners, Docker's local layer cache persists between
-    # runs, so the tar cache is unnecessary. Moreover, actions/cache@v5 extracts
-    # tar entries using paths relative to the workspace, which fails when the
-    # cache path is /tmp/… (../../../../../tmp cannot be resolved with the
-    # runner's permissions). We skip caching on self-hosted runners entirely.
-    - name: Cache Docker images
-      id: docker-cache
-      if: (inputs.phase == 'start' || inputs.phase == 'full') && runner.environment != 'self-hosted'
-      uses: actions/cache@v5
-      with:
-        path: /tmp/docker-images
-        key: docker-images-${{ hashFiles('docker-compose.yml', 'infra/compose/*.yml') }}
-        restore-keys: docker-images-
-
-    - name: Restore Docker images from cache
-      if: (inputs.phase == 'start' || inputs.phase == 'full') && steps.docker-cache.outputs.cache-hit == 'true'
-      shell: bash
-      run: docker load -i /tmp/docker-images/images.tar
-
-    - name: Pull Docker images
-      if: (inputs.phase == 'start' || inputs.phase == 'full') && (runner.environment == 'self-hosted' || steps.docker-cache.outputs.cache-hit != 'true')
-      shell: bash
-      run: docker compose -f docker-compose.yml -f docker-compose.ci.yml pull
-
-    - name: Save Docker images to cache
-      if: (inputs.phase == 'start' || inputs.phase == 'full') && runner.environment != 'self-hosted' && steps.docker-cache.outputs.cache-hit != 'true'
-      shell: bash
-      run: |
-        mkdir -p /tmp/docker-images
-        docker compose -f docker-compose.yml config --images \
-          | sort -u \
-          | xargs docker save -o /tmp/docker-images/images.tar
-
-    - name: Start infrastructure services (detached)
+      env:
+        ACTION_PATH: ${{ github.action_path }}
+        CI_COMPOSE_PROJECT: ${{ inputs.project }}
+        CI_RUNTIME_DIR: ${{ inputs.runtime-dir }}
+      run: bash "$ACTION_PATH/scripts/verify-ci-runner-capacity.sh" "$CI_COMPOSE_PROJECT"
+    - name: Start project runtime
       if: inputs.phase == 'start' || inputs.phase == 'full'
       shell: bash
       env:
+        ACTION_PATH: ${{ github.action_path }}
+        CI_COMPOSE_PROJECT: ${{ inputs.project }}
+        CI_RUNTIME_DIR: ${{ inputs.runtime-dir }}
         POSTGRES_DB: ${{ inputs.postgres-db }}
         POSTGRES_USER: ${{ inputs.postgres-user }}
         POSTGRES_PASSWORD: ${{ inputs.postgres-password }}
-        KEYCLOAK_ADMIN_USER: ${{ inputs.keycloak-admin-user }}
-        KEYCLOAK_ADMIN_PASSWORD: ${{ inputs.keycloak-admin-password }}
-      run: bash "${{ github.action_path }}/scripts/start-services.sh"
-
-    - name: Wait for infrastructure services to be healthy
+        MINIO_ACCESS_KEY: ${{ inputs.minio-access-key }}
+        MINIO_SECRET_KEY: ${{ inputs.minio-secret-key }}
+      run: bash "$ACTION_PATH/scripts/start-services.sh"
+    - name: Wait for project runtime
       if: inputs.phase == 'wait' || inputs.phase == 'full'
       shell: bash
       env:
+        ACTION_PATH: ${{ github.action_path }}
+        CI_COMPOSE_PROJECT: ${{ inputs.project }}
+        CI_RUNTIME_DIR: ${{ inputs.runtime-dir }}
         POSTGRES_DB: ${{ inputs.postgres-db }}
         POSTGRES_USER: ${{ inputs.postgres-user }}
         POSTGRES_PASSWORD: ${{ inputs.postgres-password }}
-        KEYCLOAK_ADMIN_USER: ${{ inputs.keycloak-admin-user }}
-        KEYCLOAK_ADMIN_PASSWORD: ${{ inputs.keycloak-admin-password }}
-      run: bash "${{ github.action_path }}/scripts/wait-services.sh"
-
-    - name: Show Keycloak startup logs on failure
-      if: failure()
+        MINIO_ACCESS_KEY: ${{ inputs.minio-access-key }}
+        MINIO_SECRET_KEY: ${{ inputs.minio-secret-key }}
+      run: bash "$ACTION_PATH/scripts/wait-services.sh"
+    - name: Capture scoped diagnostics
+      if: always() && inputs.phase == 'diagnostics'
       shell: bash
-      run: docker logs plexica-ci-keycloak-1 2>&1 | tail -100 || true
-
-    - name: Ensure Redpanda topics exist with correct config
-      if: inputs.phase == 'wait' || inputs.phase == 'full'
+      env:
+        ACTION_PATH: ${{ github.action_path }}
+        CI_COMPOSE_PROJECT: ${{ inputs.project }}
+        CI_RUNTIME_DIR: ${{ inputs.runtime-dir }}
+      run: bash "$ACTION_PATH/scripts/collect-ci-runtime-diagnostics.sh"
+    - name: Remove project runtime
+      if: always() && inputs.phase == 'down'
       shell: bash
-      run: bash "${{ github.action_path }}/scripts/ensure-topics.sh"
-
-    - name: Verify all services are healthy
-      if: inputs.phase == 'wait' || inputs.phase == 'full'
-      shell: bash
-      run: bash "${{ github.action_path }}/scripts/verify-health.sh"
+      env:
+        ACTION_PATH: ${{ github.action_path }}
+        CI_COMPOSE_PROJECT: ${{ inputs.project }}
+        CI_RUNTIME_DIR: ${{ inputs.runtime-dir }}
+      run: bash "$ACTION_PATH/scripts/down-ci-runtime-project.sh"

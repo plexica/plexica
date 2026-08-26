@@ -126,10 +126,39 @@ export async function uploadLogo(
 }
 
 /**
+ * Client bound to the browser-facing endpoint, used for presigned URLs: the
+ * signature covers the Host header, so a URL the browser must fetch has to be
+ * signed against the endpoint the browser can actually reach. Undefined when
+ * no public endpoint override is configured (host-run processes share one
+ * origin between storage ops and browser fetches).
+ */
+const publicMinio = config.MINIO_PUBLIC_ENDPOINT
+  ? (() => {
+      const url = new URL(config.MINIO_PUBLIC_ENDPOINT as string);
+      return new MinioClient({
+        endPoint: url.hostname,
+        port: url.port !== '' ? parseInt(url.port, 10) : url.protocol === 'https:' ? 443 : 80,
+        useSSL: url.protocol === 'https:',
+        accessKey: config.MINIO_ACCESS_KEY,
+        secretKey: config.MINIO_SECRET_KEY,
+        // Pin the region: presignedGetObject resolves the bucket region over
+        // the network BEFORE signing, and this client points at the
+        // browser-facing endpoint, which a containerized API cannot reach
+        // (loopback host port). SigV4 validation derives the region from the
+        // request's credential scope itself, so pinning MinIO's default
+        // region changes nothing about signature validity — it only removes
+        // the impossible pre-sign network round trip.
+        region: 'us-east-1',
+      });
+    })()
+  : undefined;
+
+/**
  * Returns a presigned GET URL valid for 1 hour (3600 seconds).
  */
 export async function getPresignedReadUrl(bucketName: string, objectKey: string): Promise<string> {
-  return minio.presignedGetObject(bucketName, objectKey, 3600);
+  const client = publicMinio ?? minio;
+  return client.presignedGetObject(bucketName, objectKey, 3600);
 }
 
 /**
