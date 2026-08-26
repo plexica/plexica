@@ -4,6 +4,7 @@ import Docker from 'dockerode';
 
 import { DockerContainerManager } from '../dist/modules/plugin/services/container-manager.service.js';
 import { pluginContainerIdentity } from '../dist/modules/plugin/services/plugin-container-identity.js';
+import { probeSidecarEndpoint } from '../dist/modules/plugin/services/sidecar-readiness-probe.js';
 
 const image = process.env.CI_SIDECAR_HARNESS_IMAGE;
 if (!image) throw new Error('CI_SIDECAR_HARNESS_IMAGE is required');
@@ -44,9 +45,16 @@ try {
     Object.values(inspect.NetworkSettings.Ports ?? {}).some((value) => value !== null)
   )
     throw new Error('Real sidecar did not retain the CI network and port contract');
-  const response = await globalThis.fetch(await manager.getContainerUrl(installId));
+  const url = await manager.getContainerUrl(installId);
+  // The container can be running before the Node server inside binds its port
+  // (run 32928703905): retry transport-level refusals for up to ~20s while any
+  // HTTP response stays final.
+  const response = await probeSidecarEndpoint({ url });
   if (response.status !== 200 || (await response.text()) !== 'sidecar-ok')
     throw new Error('Core could not proxy a request to the real sidecar');
+  console.log(
+    `sidecar lifecycle proof: healthy response via ${identity.alias} after core proxy`
+  );
 } finally {
   await manager.removeContainer(installId).catch(() => undefined);
 }

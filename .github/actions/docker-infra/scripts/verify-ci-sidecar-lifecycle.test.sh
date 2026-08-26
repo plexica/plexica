@@ -60,6 +60,8 @@ grep -Fx "image inspect $crmpinned" "$temp/commands" >/dev/null
 if grep -F "CI_SIDECAR_HARNESS_IMAGE=$CI_COMPOSE_PROJECT" "$temp/commands" >/dev/null; then
   echo 'Sidecar proof used the unpinned local harness tag' >&2; exit 1
 fi
+# In-container proof contract: the exec must run the real lifecycle mjs whose probe retries startup refusals.
+grep -F 'core-api-e2e node /workspace/services/core-api/scripts/verify-ci-sidecar-lifecycle.mjs' "$temp/commands" >/dev/null
 # Layer hygiene + digest survival: EXIT cleanup must untag each built tag but
 # NEVER rmi the recorded build image ids: the digest-pinned refs published to
 # sidecar-images.env point at those very image objects and are the only
@@ -88,9 +90,8 @@ PATH="$temp/bin:$PATH" PUBLISH_SIDECAR_IMAGES_CMD="$temp/bin/publish-sidecar-ima
   MOCK_CRM_ABSENT=1 bash "$script_dir/verify-ci-sidecar-lifecycle.sh"
 crm_id='sha256:2222222222222222222222222222222222222222222222222222222222222222'
 crm_build="build -q --tag plexica-crm-plugin:$CI_COMPOSE_PROJECT --file $PWD/examples/plugins/crm/Dockerfile $PWD"
-grep -Fx "$crm_build" "$temp/commands-crm-build" >/dev/null || {
-  echo 'Sidecar proof did not build the missing CRM plugin image before publishing' >&2; exit 1;
-}
+grep -Fx "$crm_build" "$temp/commands-crm-build" >/dev/null ||
+  { echo 'Sidecar proof did not build the missing CRM plugin image before publishing' >&2; exit 1; }
 build_line=$(grep -n '^build -q --tag plexica-crm-plugin' "$temp/commands-crm-build" | cut -d: -f1)
 publish_line=$(grep -n '^publish-sidecar\|/publish-sidecar-images.sh$' "$temp/commands-crm-build" | head -1 | cut -d: -f1)
 [[ -n "$build_line" && -n "$publish_line" && "$build_line" -lt "$publish_line" ]] || {
@@ -115,9 +116,8 @@ EOF
 chmod +x "$temp/bin/publish-sidecar-images.sh"
 PATH="$temp/bin:$PATH" PUBLISH_SIDECAR_IMAGES_CMD="$temp/bin/publish-sidecar-images.sh" COMMAND_LOG="$temp/commands-partial" RUNNER_TEMP="$temp" CI_COMPOSE_PROJECT="$CI_COMPOSE_PROJECT" CI_RUNTIME_DIR="$runtime" \
   bash "$script_dir/verify-ci-sidecar-lifecycle.sh" --publish-only
-grep -Fx 'republish-partial' "$temp/commands-partial" >/dev/null || {
-  echo 'Partial sidecar-images.env evidence was trusted without republishing' >&2; exit 1;
-}
+grep -Fx 'republish-partial' "$temp/commands-partial" >/dev/null ||
+  { echo 'Partial sidecar-images.env evidence was trusted without republishing' >&2; exit 1; }
 rm -f "$runtime/sidecar-images.env"
 cat > "$temp/bin/publish-sidecar-images.sh" <<'EOF'
 #!/usr/bin/env bash
