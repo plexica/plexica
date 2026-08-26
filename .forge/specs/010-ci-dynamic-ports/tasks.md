@@ -5,7 +5,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | Implementation complete — pending admitted-runner verification (see tasks-orchestration.md 5.4/6.1/6.2) |
+| Status | Complete — verified on admitted self-hosted runner (run 32941464394) |
 | Author | forge-scrum |
 | Date | 2026-08-21 |
 | Spec | [tech-spec.md](./tech-spec.md) |

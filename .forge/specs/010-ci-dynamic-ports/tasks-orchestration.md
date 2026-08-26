@@ -5,7 +5,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | Implementation complete — pending admitted-runner verification (5.4 `--full-e2e` execution, 6.1, 6.2 open) |
+| Status | Complete — verified on admitted self-hosted runner (run 32941464394) |
 | Spec | [tech-spec.md](./tech-spec.md) |
 | Plan | [plan.md](./plan.md) |
 | ADR | [ADR-031](../../knowledge/adr/adr-031-ci-runtime-contract-gated-orchestration.md) |
@@ -36,10 +36,11 @@
   - **Verification**: `docker compose -f docker-compose.yml -f docker-compose.ci.yml config >/dev/null`; workflow lint/parse available in the repository; inspect the workflow to confirm admission is the first post-checkout executable step in both jobs and no broad cleanup remains.
   - **200-line guard**: `ci.yml` is already 192 lines—move reusable behavior to the composite action/scripts and keep the workflow at or below 200 lines; run the line gate.
 
-- [ ] **5.4** `[L]` `[CI-PORT-01]` `[CI-PORT-05]` `[CI-PORT-07]` `[CI-PORT-09]` `[CI-PORT-11]` Implement the two-project full concurrent runtime verifier.
-  > Implementation is complete (`verify-concurrent-ci-runtime.sh` + its self-test are
-  > authored); the `--full-e2e` EXECUTION on an admitted runner is still pending, so the
-  > box stays unchecked until that run passes.
+- [x] **5.4** `[L]` `[CI-PORT-01]` `[CI-PORT-05]` `[CI-PORT-07]` `[CI-PORT-09]` `[CI-PORT-11]` Implement the two-project full concurrent runtime verifier.
+  > Executed successfully on the real self-hosted runner: GitHub Actions run
+  > 32941464394 — Concurrent runtime contract job SUCCESS: two concurrent projects,
+  > full web suites 151 passed each, admin 24 passed each, contract specs, prior-port
+  > sentinels, scoped teardown with zero residuals.
   - **Files**: Create `.github/actions/docker-infra/scripts/verify-concurrent-ci-runtime.sh`, `.github/actions/docker-infra/scripts/verify-concurrent-ci-runtime.test.sh`; modify `.github/actions/docker-infra/scripts/collect-ci-runtime-diagnostics.sh`, `.github/workflows/ci.yml`.
   - **Implementation**: `--full-e2e` must independently bootstrap projects A and B, run web and admin browser E2E against both, snapshot B tuples, then tear down A and prove B’s browser, Core health, Keycloak validation, plugin proxy, Kafka round trip, network/volume/topic/issuer/alias identities, and inspected tuples are unchanged. Record prior-port sentinels and fail on legacy ports, A-port reuse, resource cross-selection, wrong issuer/JWKS direction, browser Core request, unsafe plugin target, unsanitized diagnostics, or invalid `down -v` selection.
   - **Acceptance mapping**: CI-PORT-01–12; all final acceptance criteria, especially A-down/B-survives.
@@ -49,7 +50,9 @@
 
 ## Phase 6 — Final feature verification
 
-- [ ] **6.1** `[M]` `[CI-PORT-01–12]` Run the blocking implementation verification matrix.
+- [x] **6.1** `[M]` `[CI-PORT-01–12]` Run the blocking implementation verification matrix.
+  > Completed — verified by GitHub Actions run 32941464394 plus local gates: shell
+  > suites, core-api unit 454+, integration 304/304 on live stack, lint/typecheck/line-gate.
   - **Files**: No production file change; update only failing test targets named by prior tasks.
   - **Implementation**: Run contract/unit/integration checks before the concurrent full E2E verifier. Resolve failures without weakening assertions, adding skips, `continue-on-error`, retries, capacity bypasses, or fallback endpoints.
   - **Acceptance mapping**: CI-PORT-01–12; Constitution Rules 1, 2, and 4.
@@ -57,7 +60,10 @@
   - **Verification**: `pnpm test:line-gate && pnpm check:lines`; `pnpm lint`; `pnpm typecheck`; `pnpm --filter core-api test`; `pnpm --filter web test`; `pnpm --filter @plexica/admin test`; `bash .github/actions/docker-infra/scripts/verify-concurrent-ci-runtime.sh --full-e2e`.
   - **200-line guard**: Treat a line-gate failure as blocking; split files rather than granting exceptions.
 
-- [ ] **6.2** `[S]` `[CI-PORT-01–12]` Conduct the required adversarial review and attach CI evidence.
+- [x] **6.2** `[S]` `[CI-PORT-01–12]` Conduct the required adversarial review and attach CI evidence.
+  > Completed — dual-model adversarial review rounds 1–10 under `.forge/reviews/`;
+  > final verdict APPROVED code-level (round-10 consolidated report), with CI evidence
+  > from GitHub Actions run 32941464394.
   - **Files**: Update implementation/test files only to address review findings; do not add runtime secrets or unredacted artifacts.
   - **Implementation**: Review boundary direction, project selection, request-host issuer, Redpanda metadata, sidecar target validation, browser same-origin behavior, admission sequencing, diagnostics redaction, and A-down/B-survives evidence.
   - **Acceptance mapping**: CI-PORT-01–12; Constitution Rules 1, 2, 4, and 5.
