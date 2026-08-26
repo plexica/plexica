@@ -9,7 +9,7 @@ packages:
 # by >= 2 workspaces belong here.
 #
 # Deliberately excluded:
-#   - jose: pinned exactly (6.2.3) in @plexica/auth vs ^ range in core-api —
+#   - jose: pinned exactly (6.2.10) in @plexica/auth vs ^ range in core-api —
 #     the auth pin is intentional; unifying would change one side's update policy.
 #   - single-workspace deps (storybook stack, @fastify/*, prisma, kafkajs, ...):
 #     a catalog entry adds no dedup value for them.
