@@ -32,6 +32,18 @@ postgres_user="${POSTGRES_USER:-plexica}"
 postgres_password="${POSTGRES_PASSWORD:-changeme}"
 postgres_db="${POSTGRES_DB:-plexica}"
 database_url="${DATABASE_URL:-postgresql://${postgres_user}:${postgres_password}@${postgres_host}:${postgres_port}/${postgres_db}}"
+
+# DATABASE_URL wins: display and probe the actual endpoint it points at,
+# which in CI carries a dynamic port instead of the default 5432.
+if [[ -n "${DATABASE_URL:-}" ]]; then
+  # shellcheck source=parse-postgres-url.sh
+  source "$(dirname "$0")/parse-postgres-url.sh"
+  parse_postgres_url "$database_url"
+  if [[ -n "$PARSED_PG_HOST" ]]; then
+    postgres_host="$PARSED_PG_HOST"
+    postgres_port="$PARSED_PG_PORT"
+  fi
+fi
 keycloak_url="${KEYCLOAK_URL:-http://localhost:8080}"
 minio_endpoint="${MINIO_ENDPOINT:-http://localhost:9000}"
 kafka_brokers="${KAFKA_BROKERS:-localhost:19092}"
