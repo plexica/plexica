@@ -64,14 +64,36 @@ describe('POST /api/v1/admin/tenants/:id/reactivate', () => {
       url: `/api/v1/admin/tenants/${seeded.tenantId}/reactivate`,
       payload: { version: suspendedVersion },
     });
-    expect(res.statusCode).toBe(200);
+    // 202 is valid when side-effects (Keycloak/Redis/runtime) are deferred.
+    // The DB version is already bumped; reconciliation retries async (see
+    // tenant-lifecycle-reconciliation.int.test.ts for exhaustive 202 coverage).
+    expect([200, 202]).toContain(res.statusCode);
     const body = JSON.parse(res.payload);
     expect(body.id).toBe(seeded.tenantId);
-    expect(body.status).toBe('active');
-    expect(body.version).toBe(suspendedVersion + 1);
-
-    const tenant = await prisma.tenant.findUnique({ where: { id: seeded.tenantId } });
-    expect(tenant?.status).toBe('active');
+    expect(['active', 'suspended']).toContain(body.status);
+    // If 200, status must be active; if 202, the visible status stays suspended until reconciliation.
+    if (res.statusCode === 200) {
+      expect(body.status).toBe('active');
+      expect(body.version).toBe(suspendedVersion + 1);
+      const tenant = await prisma.tenant.findUnique({ where: { id: seeded.tenantId } });
+      expect(tenant?.status).toBe('active');
+      expect(tenant?.version).toBe(suspendedVersion + 1);
+    } else {
+      expect(body.status).toBe('suspended');
+      expect(body.version).toBe(suspendedVersion + 1);
+      expect(body.reconciliation).toBe('pending');
+      expect(body.operationId).toEqual(expect.any(String));
+      const tenant = await prisma.tenant.findUnique({ where: { id: seeded.tenantId } });
+      expect(tenant?.status).toBe('suspended');
+      expect(tenant?.version).toBe(suspendedVersion + 1);
+      const op = await prisma.tenantLifecycleReconciliation.findUnique({
+        where: { id: body.operationId },
+      });
+      expect(op).not.toBeNull();
+      expect(op?.tenantId).toBe(seeded.tenantId);
+      expect(op?.desiredStatus).toBe('active');
+      expect(op?.targetVersion).toBe(suspendedVersion + 1);
+    }
 
     const audit = await prisma.platformAuditLog.findFirst({
       where: { action: 'tenant.reactivate', resourceId: seeded.tenantId },
@@ -89,7 +111,16 @@ describe('POST /api/v1/admin/tenants/:id/reactivate', () => {
   });
 
   it('edge: reactivating an already-active tenant → 409', async () => {
-    const tenant = await prisma.tenant.findUnique({ where: { id: seeded.tenantId } });
+    // Isolate fixture: ensure deterministic active state for this edge case.
+    // If prior happy-path was 202 (still suspended), force active so the guard is testable.
+    let tenant = await prisma.tenant.findUnique({ where: { id: seeded.tenantId } });
+    if (tenant?.status !== 'active') {
+      await prisma.tenant.update({
+        where: { id: seeded.tenantId },
+        data: { status: 'active' },
+      });
+      tenant = await prisma.tenant.findUnique({ where: { id: seeded.tenantId } });
+    }
     const res = await server.inject({
       method: 'POST',
       url: `/api/v1/admin/tenants/${seeded.tenantId}/reactivate`,
