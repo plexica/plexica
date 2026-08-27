@@ -19,8 +19,11 @@ const kafka = new KafkaJS.Kafka({
 });
 const admin = kafka.admin();
 const producer = kafka.producer({ kafkaJS: { acks: -1 }, 'linger.ms': 0 });
+// Test-only ephemeral UUID topic with a fresh group: fromBeginning true avoids
+// the offset-anchor race (group_join before fetch offset committed) documented
+// in the spike report; production consumers keep latest-offset semantics.
 const consumer = kafka.consumer({
-  kafkaJS: { groupId: `${clientId}-consumer`, autoCommit: false, fromBeginning: false },
+  kafkaJS: { groupId: `${clientId}-consumer`, autoCommit: false, fromBeginning: true },
 });
 const payload = randomUUID();
 
