@@ -55,7 +55,9 @@ async function startTopicProbe(
   while (Date.now() < deadline) {
     try {
       if (consumer.assignment().length > 0) break;
-    } catch {}
+    } catch {
+      // intentionally ignored — assignment not ready, will retry
+    }
     await new Promise((r) => setTimeout(r, 100));
   }
   return {

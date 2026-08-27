@@ -4,6 +4,7 @@
 import { KafkaJS } from '@confluentinc/kafka-javascript';
 
 import { kafkaClient } from './kafka-client.js';
+import { isRetriableConsumerError } from './kafka-errors.js';
 import { logger } from './logger.js';
 
 import type { KafkaConsumer } from './kafka-client.js';
@@ -91,7 +92,10 @@ export async function waitForConsumerAssignment(
         for (const a of direct) state.assignment.add(keyFor(a.topic, a.partition));
         return;
       }
-    } catch {}
+    } catch (e) {
+      if (!isRetriableConsumerError(e)) throw e;
+      logger.debug({ code: 'KAFKA_ASSIGNMENT_POLL_FAILED' }, 'Consumer assignment poll failed');
+    }
     await new Promise((r) => setTimeout(r, 100));
   }
   throw new Error('KAFKA_CONSUMER_NOT_READY');
@@ -119,11 +123,7 @@ export async function commitOffsetGuarded(
   const gen = state.generation;
   const key = keyFor(topic, partition);
   if (!state.assignment.has(key)) throw new Error('KAFKA_COMMIT_STALE_GENERATION');
-  try {
-    await consumer.commitOffsets([{ topic, partition, offset: nextOffset }]);
-  } catch (error) {
-    throw error;
-  }
+  await consumer.commitOffsets([{ topic, partition, offset: nextOffset }]);
   if (state.generation !== gen || !state.assignment.has(key))
     throw new Error('KAFKA_COMMIT_STALE_GENERATION');
 }

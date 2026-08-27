@@ -58,7 +58,9 @@ async function waitForAssignment(timeoutMs = 15000) {
   while (Date.now() < deadline) {
     try {
       if (consumer.assignment().length > 0) return;
-    } catch {}
+    } catch {
+      // intentionally ignored — assignment not ready, will retry
+    }
     await new Promise((r) => setTimeout(r, 100));
   }
   throw new Error('Consumer assignment timeout');
@@ -90,7 +92,7 @@ try {
     partitionsConsumedConcurrently: 1,
     eachMessage: async ({ message }) => {
       if (message.value?.toString() === payload) {
-        clearTimeout(timer);
+        globalThis.clearTimeout(timer);
         resolveReceived();
       }
     },
@@ -117,5 +119,5 @@ try {
   }
   if (cleanupErrors.length > 0 && !primaryError)
     primaryError = new AggregateError(cleanupErrors, 'Cleanup failed');
-  if (primaryError) throw primaryError;
 }
+if (primaryError) throw primaryError;

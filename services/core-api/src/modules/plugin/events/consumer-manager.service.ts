@@ -7,17 +7,13 @@ import {
   waitForConsumerAssignment,
 } from '../../../lib/kafka-consumer.js';
 import { logger } from '../../../lib/logger.js';
+
+import { buildGroupId } from './consumer-group-registry.js';
 import { resolvePatterns } from './consumer-topic-patterns.js';
-import {
-  buildGroupId,
-  CONSUMER_GROUP_PREFIX,
-  extractInstallIds,
-  parseConsumerGroupName,
-} from './consumer-group-registry.js';
 import { processInstallationMessage } from './installation-message-processor.js';
+
 import type { DomainEventEnvelope } from '../../../events/event-envelope.js';
 import type { SourceCoordinates } from '../../../events/dlq-contract.js';
-
 export { processInstallationMessage } from './installation-message-processor.js';
 export {
   CONSUMER_GROUP_PREFIX,
@@ -116,7 +112,12 @@ async function createConsumerGroupInner(
   } catch (error) {
     try {
       await consumer.disconnect();
-    } catch {}
+    } catch {
+      logger.debug(
+        { code: 'KAFKA_CONSUMER_DISCONNECT_FAILED', groupId },
+        'Consumer disconnect failed'
+      );
+    }
     throw error;
   }
   consumers.set(groupId, { consumer, topics, isRunning: true, installId, tenantSlug, pluginId });

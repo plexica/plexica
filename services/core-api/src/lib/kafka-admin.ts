@@ -1,8 +1,6 @@
 // lib/kafka-admin.ts
 // Transient admin ownership, leader polling, lag normalization.
 
-import { KafkaJS } from '@confluentinc/kafka-javascript';
-
 import { kafkaClient } from './kafka-client.js';
 import { logger } from './logger.js';
 
@@ -52,22 +50,39 @@ export async function getConsumerGroupLag(
   topics: string[]
 ): Promise<number> {
   const groupOffsets = await admin.fetchOffsets({ groupId, topics });
-  let totalLag = 0;
-  for (const topicEntry of groupOffsets) {
-    const highOffsets = await admin.fetchTopicOffsets(topicEntry.topic);
-    const highMap = new Map<number, bigint>();
-    for (const h of highOffsets) highMap.set(h.partition, BigInt(h.high));
+  const committedByTopic = new Map<string, Map<number, bigint>>();
+  for (const entry of groupOffsets) {
+    const partitionMap = new Map<number, bigint>();
+    for (const p of entry.partitions as Array<{ partition: number; offset: string }>) {
+      if (p.offset === '-1' || p.offset === '') continue;
+      try {
+        const committed = BigInt(p.offset);
+        if (committed >= 0n) partitionMap.set(p.partition, committed);
+      } catch {
+        // malformed offset — treat as missing, will use low watermark
+      }
+    }
+    committedByTopic.set(entry.topic, partitionMap);
+  }
 
-    for (const partition of topicEntry.partitions as Array<{ partition: number; offset: string }>) {
-      const high = highMap.get(partition.partition);
-      if (high === undefined) continue;
-      const committedRaw = partition.offset;
-      const committed = committedRaw === '-1' || committedRaw === '' ? null : BigInt(committedRaw);
-      const lag = committed === null || committed < 0 ? high : high - committed;
-      totalLag += Number(lag > 0 ? lag : 0n);
+  let totalLag = 0n;
+  const maxSafe = BigInt(Number.MAX_SAFE_INTEGER);
+  for (const topic of topics) {
+    const highOffsets = await admin.fetchTopicOffsets(topic);
+    const highMap = new Map<number, { high: bigint; low: bigint }>();
+    for (const h of highOffsets) {
+      highMap.set(h.partition, { high: BigInt(h.high), low: BigInt(h.low) });
+    }
+    const committedMap = committedByTopic.get(topic);
+    for (const [partition, { high, low }] of highMap) {
+      const committed = committedMap?.get(partition);
+      const effective = committed === undefined ? low : committed;
+      const lag = high > effective ? high - effective : 0n;
+      totalLag += lag;
+      if (totalLag > maxSafe) return Number.MAX_SAFE_INTEGER;
     }
   }
-  return totalLag;
+  return Number(totalLag);
 }
 
 export async function probeKafkaAdmin(
