@@ -1,6 +1,4 @@
 // SDK unit tests — match the actual PluginSDK API.
-// The SDK no longer imports kafkajs (core manages Kafka); the dead mock is gone.
-// callApi / emitEvent are HTTP-backed, so we stub global fetch per test.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 

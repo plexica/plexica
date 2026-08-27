@@ -32,6 +32,7 @@ import {
   startTenantLifecycleWorker,
   stopTenantLifecycleWorker,
 } from './modules/admin/services/tenant-lifecycle-worker.js';
+import { awaitKafkaHealthCleanup } from './modules/admin/services/health-check-kafka.js';
 import { disconnectAllConsumerGroups } from './modules/plugin/events/consumer-manager.service.js';
 import { startPluginHealthPolling, stopPluginHealthPolling } from './modules/plugin/index.js';
 import { reconcilePluginRuntimes } from './modules/plugin/services/runtime-recovery.service.js';
@@ -96,8 +97,8 @@ export async function startBackgroundServices(): Promise<void> {
 async function stopStep(name: string, stop: () => Promise<void>): Promise<void> {
   try {
     await stop();
-  } catch (err) {
-    logger.error({ err, step: name, code: 'SHUTDOWN_STEP_FAILED' }, 'Shutdown step failed');
+  } catch {
+    logger.error({ step: name, code: 'SHUTDOWN_STEP_FAILED' }, 'Shutdown step failed');
   }
 }
 
@@ -126,6 +127,7 @@ export async function stopBackgroundServices(): Promise<void> {
   await stopStep('plugin-consumer-groups', disconnectAllConsumerGroups);
   await stopStep('tenant-lifecycle-worker', stopTenantLifecycleWorker);
   await stopStep('event-workers', stopEventWorkers);
+  await stopStep('kafka-health-cleanup', awaitKafkaHealthCleanup);
   await stopStep('kafka-producer', disconnectKafka);
   // Tenant client pools (ADR-027) close BEFORE the core pool, so no cached
   // tenant connection can outlive the singleton it was derived from.

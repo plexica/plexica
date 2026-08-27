@@ -117,11 +117,6 @@ overrides:
   ws: 8.21.0
   find-my-way: ^9.7.0
 
-patchedDependencies:
-  kafkajs@2.2.4:
-    hash: 1d5c373554812c4b66f208342d2fd61d59d3a2b625f0c0484ca99ba0fa3aaf1c
-    path: patches/kafkajs@2.2.4.patch
-
 importers:
 
   .:
@@ -642,9 +637,6 @@ importers:
       jose:
         specifier: ^6.2.10
         version: 6.2.10
-      kafkajs:
-        specifier: ^2.2.4
-        version: 2.2.4(patch_hash=1d5c373554812c4b66f208342d2fd61d59d3a2b625f0c0484ca99ba0fa3aaf1c)
       minio:
         specifier: ^8.0.0
         version: 8.0.7
@@ -3813,10 +3805,6 @@ packages:
 
   jsonc-parser@3.3.1:
     resolution: {integrity: sha512-HUgH65KyejrUFPvHFPbqOY0rsFip3Bo5wb4ngvdi1EpCYWUQDC5V+Y7mZws+DLkr4M//zQJoanu1SP+87Dv1oQ==}
-
-  kafkajs@2.2.4:
-    resolution: {integrity: sha512-j/YeapB1vfPT2iOIUn/vxdyKEuhuY2PxMBvf5JWux6iSaukAccrMtXEY/Lb7OvavDhOWME589bpLrEdnVHjfjA==}
-    engines: {node: '>=14.0.0'}
 
   keycloakify@11.15.14:
     resolution: {integrity: sha512-bRL2kIemox0ArvKuMRabww9xa99Xe+npMqS9/tF78oiXKFm4GdEtdp39dsf/U1uUVoiZ7jBF/Na8WHtltMXXkQ==}
@@ -8284,8 +8272,6 @@ snapshots:
   json5@2.2.3: {}
 
   jsonc-parser@3.3.1: {}
-
-  kafkajs@2.2.4(patch_hash=1d5c373554812c4b66f208342d2fd61d59d3a2b625f0c0484ca99ba0fa3aaf1c): {}
 
   keycloakify@11.15.14:
     dependencies:

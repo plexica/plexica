@@ -27,25 +27,32 @@ describe('event pipeline integration', () => {
       await tx.tenant.create({
         data: { id: tenantId, slug: `event-${tenantId.slice(0, 8)}`, name: 'Event Test' },
       });
-      await enqueueEvent(tx, topic, buildDomainEvent({
-        eventId,
-        type: topic,
-        tenantId,
-        producer: { kind: 'core', id: 'core' },
-        correlationId: eventId,
-        payload: { marker: 'readable-domain-marker' },
-      }));
+      await enqueueEvent(
+        tx,
+        topic,
+        buildDomainEvent({
+          eventId,
+          type: topic,
+          tenantId,
+          producer: { kind: 'core', id: 'core' },
+          correlationId: eventId,
+          payload: { marker: 'readable-domain-marker' },
+        })
+      );
     });
     await expect(prisma.eventOutbox.findUnique({ where: { eventId } })).resolves.toBeDefined();
 
     const consumer = createConsumer(`event-pipeline-${crypto.randomUUID()}`);
     await consumer.connect();
-    await consumer.subscribe({ topic, fromBeginning: false });
+    await consumer.subscribe({ topics: [topic] });
     let resolveRecord!: (record: { key: string; value: string; tenantHeader: string }) => void;
-    const received = new Promise<{ key: string; value: string; tenantHeader: string }>((resolve) => {
-      resolveRecord = resolve;
-    });
+    const received = new Promise<{ key: string; value: string; tenantHeader: string }>(
+      (resolve) => {
+        resolveRecord = resolve;
+      }
+    );
     await consumer.run({
+      partitionsConsumedConcurrently: 1,
       eachMessage: async ({ message }) => {
         const value = message.value?.toString() ?? '';
         if (value.includes(eventId)) {
@@ -57,6 +64,16 @@ describe('event pipeline integration', () => {
         }
       },
     });
+    // Assignment is readiness gate, not sleep
+    {
+      const deadline = Date.now() + 15000;
+      while (Date.now() < deadline) {
+        try {
+          if (consumer.assignment().length > 0) break;
+        } catch {}
+        await new Promise((r) => setTimeout(r, 100));
+      }
+    }
 
     try {
       // Harden against transient claim race (SKIP LOCKED / clock skew / parallel
@@ -118,19 +135,25 @@ describe('event pipeline integration', () => {
     const tenantId = crypto.randomUUID();
     const eventId = crypto.randomUUID();
     tenantIds.push(tenantId);
-    await expect(prisma.$transaction(async (tx) => {
-      await tx.tenant.create({
-        data: { id: tenantId, slug: `rollback-${tenantId.slice(0, 8)}`, name: 'Rollback Test' },
-      });
-      await enqueueEvent(tx, 'plexica.workspace.created', buildDomainEvent({
-        eventId,
-        type: 'plexica.workspace.created',
-        tenantId,
-        producer: { kind: 'core', id: 'core' },
-        payload: {},
-      }));
-      throw new Error('ROLLBACK_TEST');
-    })).rejects.toThrow('ROLLBACK_TEST');
+    await expect(
+      prisma.$transaction(async (tx) => {
+        await tx.tenant.create({
+          data: { id: tenantId, slug: `rollback-${tenantId.slice(0, 8)}`, name: 'Rollback Test' },
+        });
+        await enqueueEvent(
+          tx,
+          'plexica.workspace.created',
+          buildDomainEvent({
+            eventId,
+            type: 'plexica.workspace.created',
+            tenantId,
+            producer: { kind: 'core', id: 'core' },
+            payload: {},
+          })
+        );
+        throw new Error('ROLLBACK_TEST');
+      })
+    ).rejects.toThrow('ROLLBACK_TEST');
     await expect(prisma.tenant.findUnique({ where: { id: tenantId } })).resolves.toBeNull();
     await expect(prisma.eventOutbox.findUnique({ where: { eventId } })).resolves.toBeNull();
   });
@@ -147,17 +170,21 @@ describe('event pipeline integration', () => {
         status: 'pending_deletion',
       },
     });
-    await expect(prisma.$transaction((tx) => enqueueEvent(
-      tx,
-      'plexica.workspace.created',
-      buildDomainEvent({
-        eventId,
-        type: 'plexica.workspace.created',
-        tenantId,
-        producer: { kind: 'core', id: 'core' },
-        payload: { marker: 'must-not-persist' },
-      })
-    ))).rejects.toThrow('TENANT_NOT_ACTIVE');
+    await expect(
+      prisma.$transaction((tx) =>
+        enqueueEvent(
+          tx,
+          'plexica.workspace.created',
+          buildDomainEvent({
+            eventId,
+            type: 'plexica.workspace.created',
+            tenantId,
+            producer: { kind: 'core', id: 'core' },
+            payload: { marker: 'must-not-persist' },
+          })
+        )
+      )
+    ).rejects.toThrow('TENANT_NOT_ACTIVE');
     await expect(prisma.eventOutbox.findUnique({ where: { eventId } })).resolves.toBeNull();
   });
 });

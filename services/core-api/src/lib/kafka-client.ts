@@ -1,22 +1,41 @@
 // lib/kafka-client.ts
-// The single kafkajs client instance for the process.
-//
-// Extracted from kafka.ts so the producer lifecycle state machine
-// (kafka-producer.ts) and the transport wrapper (kafka.ts) can both reach the
-// client without a circular import. Importing this module has no network side
-// effects — kafkajs only opens sockets on connect().
+// The single Kafka client instance for the process.
 
-import { Kafka, logLevel } from 'kafkajs';
+import { KafkaJS } from '@confluentinc/kafka-javascript';
 
 import { config } from './config.js';
+import { createKafkaLogger } from './kafka-logger.js';
 
-export const kafkaClient = new Kafka({
-  clientId: 'plexica-core',
-  brokers: config.KAFKA_BROKERS.split(','),
-  logLevel: logLevel.ERROR,
-  retry: {
-    initialRetryTime: 100,
-    retries: 3,
+export function parseKafkaBrokers(value: string): string[] {
+  const raw = value.split(',');
+  const brokers: string[] = [];
+  for (const segment of raw) {
+    const broker = segment.trim();
+    if (!broker) throw new Error('KAFKA_BROKERS_INVALID');
+    if (broker.includes('://')) throw new Error('KAFKA_BROKERS_INVALID');
+    const colon = broker.lastIndexOf(':');
+    if (colon === -1) throw new Error('KAFKA_BROKERS_INVALID');
+    const host = broker.slice(0, colon).trim();
+    const portRaw = broker.slice(colon + 1).trim();
+    if (!host || !portRaw) throw new Error('KAFKA_BROKERS_INVALID');
+    const port = Number(portRaw);
+    if (!Number.isInteger(port) || port < 1 || port > 65535)
+      throw new Error('KAFKA_BROKERS_INVALID');
+    brokers.push(`${host}:${port}`);
+  }
+  if (brokers.length === 0) throw new Error('KAFKA_BROKERS_INVALID');
+  return brokers;
+}
+
+const brokers = parseKafkaBrokers(config.KAFKA_BROKERS);
+
+export const kafkaClient = new KafkaJS.Kafka({
+  kafkaJS: {
+    brokers,
+    clientId: 'plexica-core',
+    logLevel: KafkaJS.logLevel.ERROR,
+    logger: createKafkaLogger(),
+    retry: { retries: 3, initialRetryTime: 100 },
   },
 });
 

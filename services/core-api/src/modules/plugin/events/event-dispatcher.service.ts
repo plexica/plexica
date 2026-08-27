@@ -2,10 +2,7 @@ import { domainEventEnvelopeSchema } from '../../../events/event-envelope.js';
 
 import type { DomainEventEnvelope } from '../../../events/event-envelope.js';
 
-export async function dispatchEvent(
-  backendUrl: string,
-  input: DomainEventEnvelope
-): Promise<void> {
+export async function dispatchEvent(backendUrl: string, input: DomainEventEnvelope): Promise<void> {
   const event = domainEventEnvelopeSchema.parse(input);
   const response = await fetch(`${backendUrl.replace(/\/+$/, '')}/_plexica/event`, {
     method: 'POST',

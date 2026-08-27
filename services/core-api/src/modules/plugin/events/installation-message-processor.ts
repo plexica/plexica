@@ -1,3 +1,5 @@
+import { Prisma } from '@prisma/client';
+
 import { dlqPayloadSchema, malformedSourceEvent } from '../../../events/dlq-contract.js';
 import { decryptWireEvent } from '../../../events/event-crypto.js';
 import { getTenantEventKey } from '../../../events/event-key-service.js';
@@ -6,6 +8,14 @@ import { prisma } from '../../../lib/database.js';
 import { logger } from '../../../lib/logger.js';
 
 import { moveToDlq } from './dlq.service.js';
+
+function isTransientKeyError(error: unknown): boolean {
+  if (error instanceof Prisma.PrismaClientKnownRequestError) return true;
+  if (error instanceof Prisma.PrismaClientInitializationError) return true;
+  const msg = error instanceof Error ? error.message : String(error);
+  if (/Timed out|connection|ECONNREFUSED|ETIMEDOUT|P1001|P1002/i.test(msg)) return true;
+  return false;
+}
 
 import type { DomainEventEnvelope } from '../../../events/event-envelope.js';
 import type { SourceCoordinates } from '../../../events/dlq-contract.js';
@@ -33,10 +43,17 @@ export async function processInstallationMessage(input: {
     wire = wireEventEnvelopeSchema.parse(JSON.parse(input.value));
   } catch {
     const event = malformedSourceEvent(input.tenantId, input.installId, input.source);
-    await moveToDlq(dlqPayloadSchema.parse({
-      tenantId: input.tenantId, installId: input.installId, pluginId: input.pluginId,
-      event, errorCode: 'MALFORMED_ENVELOPE', retryCount: 0, source: input.source,
-    }));
+    await moveToDlq(
+      dlqPayloadSchema.parse({
+        tenantId: input.tenantId,
+        installId: input.installId,
+        pluginId: input.pluginId,
+        event,
+        errorCode: 'MALFORMED_ENVELOPE',
+        retryCount: 0,
+        source: input.source,
+      })
+    );
     return;
   }
   // Early tenant filter: skip cross-tenant events before any expensive
@@ -48,12 +65,30 @@ export async function processInstallationMessage(input: {
   try {
     const key = await getTenantEventKey(prisma, wire.tenantId, wire.encryption.keyVersion);
     event = decryptWireEvent(wire, key);
-  } catch {
+  } catch (error) {
+    if (isTransientKeyError(error)) throw error;
+    const msg = error instanceof Error ? error.message : '';
+    // Destroyed or unreadable key is permanent poison; other unknown errors after
+    // availability check are also treated as permanent to avoid blocking.
+    if (
+      msg !== 'Tenant event key is unavailable' &&
+      msg !== 'Tenant event key material is unavailable'
+    ) {
+      // Decrypt authentication failures (tag mismatch) land here with native crypto
+      // errors — they are permanent poison for active tenants.
+    }
     const malformed = malformedSourceEvent(input.tenantId, input.installId, input.source);
-    await moveToDlq(dlqPayloadSchema.parse({
-      tenantId: input.tenantId, installId: input.installId, pluginId: input.pluginId,
-      event: malformed, errorCode: 'EVENT_DECRYPT_FAILED', retryCount: 0, source: input.source,
-    }));
+    await moveToDlq(
+      dlqPayloadSchema.parse({
+        tenantId: input.tenantId,
+        installId: input.installId,
+        pluginId: input.pluginId,
+        event: malformed,
+        errorCode: 'EVENT_DECRYPT_FAILED',
+        retryCount: 0,
+        source: input.source,
+      })
+    );
     return;
   }
 
@@ -70,8 +105,15 @@ export async function processInstallationMessage(input: {
       );
     }
   }
-  await moveToDlq(dlqPayloadSchema.parse({
-    tenantId: input.tenantId, installId: input.installId, pluginId: input.pluginId,
-    event, errorCode: 'PLUGIN_DELIVERY_FAILED', retryCount: 3, source: input.source,
-  }));
+  await moveToDlq(
+    dlqPayloadSchema.parse({
+      tenantId: input.tenantId,
+      installId: input.installId,
+      pluginId: input.pluginId,
+      event,
+      errorCode: 'PLUGIN_DELIVERY_FAILED',
+      retryCount: 3,
+      source: input.source,
+    })
+  );
 }

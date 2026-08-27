@@ -5,9 +5,6 @@ RUN corepack enable && corepack prepare pnpm@10.33.0 --activate
 WORKDIR /workspace
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
-# pnpm-lock.yaml references patched deps: the patch files must exist at
-# install time or `pnpm install --frozen-lockfile` fails with ENOENT.
-COPY patches/ patches/
 COPY examples/plugins/crm/package.json examples/plugins/crm/package.json
 COPY packages/sdk/package.json packages/sdk/package.json
 COPY packages/ui/package.json packages/ui/package.json
@@ -20,11 +17,6 @@ COPY packages/ui packages/ui
 COPY packages/vite-plugin packages/vite-plugin
 RUN pnpm --filter @plexica/sdk build && \
     pnpm --filter @plexica/plugin-crm build:backend && \
-    # The root workspace declares patchedDependencies (kafkajs, a core-api
-    # dependency) that are outside the CRM deploy subtree; `pnpm deploy`
-    # validates them strictly and aborts with ERR_PNPM_UNUSED_PATCH. Strip the
-    # unused patch declaration for this builder-scoped deploy only.
-    node -e "const fs = require('node:fs'); const f = 'package.json'; const pkg = JSON.parse(fs.readFileSync(f, 'utf8')); delete pkg.pnpm.patchedDependencies; fs.writeFileSync(f, JSON.stringify(pkg, null, 2));" && \
     pnpm --filter @plexica/plugin-crm deploy --legacy --prod /app
 
 FROM node:24.19.0-alpine@sha256:d32cdf619f63fe0471182d08996dd516c6275bb5fd31ae06e55a570bd9e1ad43

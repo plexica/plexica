@@ -38,17 +38,26 @@ async function startTopicProbe(
 ): Promise<TopicProbe> {
   const consumer = createConsumer(`e2e-probe-${crypto.randomUUID()}`);
   await consumer.connect();
-  await consumer.subscribe({ topic, fromBeginning: false });
+  await consumer.subscribe({ topics: [topic] });
   let resolveMessage!: (payload: Record<string, unknown>) => void;
   const message = new Promise<Record<string, unknown>>((resolve) => {
     resolveMessage = resolve;
   });
   await consumer.run({
+    partitionsConsumedConcurrently: 1,
     eachMessage: async ({ message: kafkaMessage }) => {
       const payload = JSON.parse(kafkaMessage.value?.toString() ?? '{}') as Record<string, unknown>;
       if (predicate(payload)) resolveMessage(payload);
     },
   });
+  // Assignment gate instead of fixed sleep
+  const deadline = Date.now() + 15000;
+  while (Date.now() < deadline) {
+    try {
+      if (consumer.assignment().length > 0) break;
+    } catch {}
+    await new Promise((r) => setTimeout(r, 100));
+  }
   return {
     next: Promise.race([
       message,

@@ -1,132 +1,131 @@
 // smoke-redpanda.test.ts
 // Integration smoke test: Redpanda produce/consume and topic verification.
-// Connects to real Docker Redpanda — no mock Kafka client.
-// Gracefully skips if Redpanda is not reachable.
+// Requires real Redpanda — no skip, no mock.
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { Kafka, type Admin, type Producer, type Consumer } from 'kafkajs';
+import { KafkaJS } from '@confluentinc/kafka-javascript';
 
 import { config } from '../lib/config.js';
+import { parseKafkaBrokers } from '../lib/kafka-client.js';
 
-const BROKERS = config.KAFKA_BROKERS.split(',');
+const BROKERS = parseKafkaBrokers(config.KAFKA_BROKERS);
 const CORE_TOPICS = ['plexica.tenant.events', 'plexica.user.events', 'plexica.plugin.events'];
-const TEST_TOPIC = 'plexica.tenant.events';
-const GROUP_ID = `plexica-smoke-test-${Date.now()}`;
-
-/** Returns true when at least one Kafka broker is reachable. */
-async function isRedpandaReachable(): Promise<boolean> {
-  try {
-    const kafka = new Kafka({ brokers: BROKERS, clientId: 'connectivity-check' });
-    const admin = kafka.admin();
-    await admin.connect();
-    await admin.disconnect();
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-const redpandaAvailable = await isRedpandaReachable();
-const skipIfNoRp = it.skipIf(!redpandaAvailable);
 
 describe('Redpanda smoke test', () => {
-  let kafka!: Kafka;
-  let admin!: Admin;
-  let producer!: Producer;
-  let consumer!: Consumer;
+  let kafka: InstanceType<typeof KafkaJS.Kafka>;
+  let admin: KafkaJS.Admin;
 
   beforeAll(async () => {
-    if (!redpandaAvailable) return;
-
-    kafka = new Kafka({ brokers: BROKERS, clientId: 'smoke-test' });
+    kafka = new KafkaJS.Kafka({ kafkaJS: { brokers: BROKERS, clientId: 'smoke-test' } });
     admin = kafka.admin();
-    producer = kafka.producer();
-    consumer = kafka.consumer({ groupId: GROUP_ID });
-
     await admin.connect();
-    await producer.connect();
-    await consumer.connect();
-
-    // Ensure core topics exist — the redpanda-init container may not have run.
-    const existingTopics = await admin.listTopics();
+    const existing = await admin.listTopics();
     for (const topic of CORE_TOPICS) {
-      if (!existingTopics.includes(topic)) {
-        await admin.createTopics({
-          topics: [{ topic, numPartitions: 1, replicationFactor: 1 }],
-          waitForLeaders: true,
-        });
+      if (!existing.includes(topic)) {
+        await admin.createTopics({ topics: [{ topic, numPartitions: 1, replicationFactor: 1 }] });
       }
+    }
+    // Wait for leaders on core topics without waitForLeaders flag.
+    const deadline = Date.now() + 10000;
+    while (Date.now() < deadline) {
+      const meta = await admin.fetchTopicMetadata({ topics: CORE_TOPICS });
+      const ready = CORE_TOPICS.every((t) => {
+        const entry = meta.find((m) => m.name === t);
+        return entry ? entry.partitions.every((p) => p.leader >= 0 && p.leaderNode) : false;
+      });
+      if (ready) break;
+      await new Promise((r) => setTimeout(r, 100));
     }
   });
 
   afterAll(async () => {
-    await consumer?.disconnect();
-    await producer?.disconnect();
-    await admin?.disconnect();
+    await admin?.disconnect().catch(() => undefined);
   });
 
-  skipIfNoRp('all 3 core topics exist', async () => {
+  it('all 3 core topics exist', async () => {
     const metadata = await admin.fetchTopicMetadata({ topics: CORE_TOPICS });
-    const existingTopics = metadata.topics.map((t) => t.name);
-    for (const topic of CORE_TOPICS) {
-      expect(existingTopics).toContain(topic);
-    }
+    const existing = metadata.map((t) => t.name);
+    for (const topic of CORE_TOPICS) expect(existing).toContain(topic);
   });
 
-  skipIfNoRp('produces and consumes a message on plexica.tenant.events', async () => {
-    // Use a unique testId to identify our message among any older messages on the topic.
-    // fromBeginning: true avoids the offset-anchor race (KafkaJS + Redpanda: consumer.group_join
-    // fires before the fetch offset is fully committed, so fromBeginning: false can silently miss
-    // messages produced immediately after group_join).
-    const testId = `smoke-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    const testPayload = { type: 'smoke-test', testId, ts: Date.now() };
-    let resolveConsumed!: () => void;
-    let rejectConsumed!: (err: Error) => void;
+  it('produces and consumes a message with assignment gate and cleanup', async () => {
+    const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const topic = `plexica.smoke.${suffix}`;
+    const groupId = `plexica-smoke-test-${suffix}`;
+    const testId = `smoke-${suffix}`;
+    const payload = { type: 'smoke-test', testId, ts: Date.now() };
 
-    const consumePromise = new Promise<void>((resolve, reject) => {
+    const tKafka = new KafkaJS.Kafka({
+      kafkaJS: { brokers: BROKERS, clientId: `smoke-${suffix}` },
+    });
+    const tAdmin: KafkaJS.Admin = tKafka.admin();
+    const producer: KafkaJS.Producer = tKafka.producer({ kafkaJS: { acks: -1 }, 'linger.ms': 0 });
+    const consumer: KafkaJS.Consumer = tKafka.consumer({
+      kafkaJS: { groupId, autoCommit: false, fromBeginning: false },
+    });
+
+    await tAdmin.connect();
+    await tAdmin.createTopics({ topics: [{ topic, numPartitions: 1, replicationFactor: 1 }] });
+    // Leader gate
+    const leaderDeadline = Date.now() + 10000;
+    while (Date.now() < leaderDeadline) {
+      const meta = await tAdmin.fetchTopicMetadata({ topics: [topic] });
+      const part = meta[0]?.partitions[0];
+      if (part?.leaderNode) break;
+      await new Promise((r) => setTimeout(r, 100));
+    }
+
+    await producer.connect();
+    await consumer.connect();
+    await consumer.subscribe({ topics: [topic] });
+
+    let resolveConsumed!: () => void;
+    let rejectConsumed!: (e: Error) => void;
+    const consumed = new Promise<void>((resolve, reject) => {
       resolveConsumed = resolve;
       rejectConsumed = reject;
     });
 
-    await consumer.subscribe({ topic: TEST_TOPIC, fromBeginning: true });
-
-    void consumer
-      .run({
-        eachMessage: async ({ message }) => {
-          if (message.value === null) return;
-          let parsed: Record<string, unknown>;
-          try {
-            parsed = JSON.parse(message.value.toString()) as Record<string, unknown>;
-          } catch {
-            return; // ignore non-JSON messages from other test runs
-          }
+    await consumer.run({
+      partitionsConsumedConcurrently: 1,
+      eachMessage: async ({ topic: t, partition, message }) => {
+        if (message.value === null) return;
+        try {
+          const parsed = JSON.parse(message.value.toString()) as Record<string, unknown>;
           if (parsed['testId'] === testId) {
+            const nextOffset = (BigInt(message.offset) + 1n).toString();
+            await consumer.commitOffsets([{ topic: t, partition, offset: nextOffset }]);
             resolveConsumed();
           }
-        },
-      })
-      .catch((err: unknown) => {
-        rejectConsumed(err instanceof Error ? err : new Error(String(err)));
-      });
-
-    // Give the consumer a moment to start fetching before we produce
-    await new Promise<void>((resolve) => {
-      setTimeout(resolve, 500);
+        } catch (e) {
+          rejectConsumed(e instanceof Error ? e : new Error(String(e)));
+          throw e;
+        }
+      },
     });
 
-    await producer.send({
-      topic: TEST_TOPIC,
-      messages: [{ value: JSON.stringify(testPayload) }],
-    });
+    // Assignment gate instead of fixed sleep
+    const assignDeadline = Date.now() + 15000;
+    while (Date.now() < assignDeadline) {
+      if ((consumer.assignment() as unknown[]).length > 0) break;
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    if ((consumer.assignment() as unknown[]).length === 0)
+      throw new Error('Consumer assignment timeout');
 
-    // Wait up to 20s for the message
-    await Promise.race([
-      consumePromise,
-      new Promise<void>((_, reject) =>
-        setTimeout(() => {
-          reject(new Error('Consumer timeout after 20s'));
-        }, 20_000)
-      ),
-    ]);
+    try {
+      await producer.send({ topic, messages: [{ value: JSON.stringify(payload) }] });
+      await Promise.race([
+        consumed,
+        new Promise<void>((_, reject) =>
+          setTimeout(() => reject(new Error('Consumer timeout after 20s')), 20000)
+        ),
+      ]);
+    } finally {
+      await consumer.disconnect().catch(() => undefined);
+      await producer.disconnect().catch(() => undefined);
+      await tAdmin.deleteTopics({ topics: [topic] }).catch(() => undefined);
+      await tAdmin.disconnect().catch(() => undefined);
+    }
   });
 });
