@@ -3,7 +3,7 @@ volumes:
 
 services:
   postgres-tls-init:
-    image: postgres:15.17-alpine@sha256:fceb6f86328c36f2438fae3b851b0cc57c4a7e69a58c866d9ce24281f2cf0c9c
+    image: postgres:15.19-alpine@sha256:fe0737ba566a2c5b2a28f34433c0a423261900ec17b9bf7ad115e1aae7e57f1b
     user: root
     entrypoint: /bin/sh
     command: /generate-e2e-tls.sh
@@ -34,7 +34,7 @@ services:
           - wrong-postgres
 
   postgres-tls-verify:
-    image: postgres:15.17-alpine@sha256:fceb6f86328c36f2438fae3b851b0cc57c4a7e69a58c866d9ce24281f2cf0c9c
+    image: postgres:15.19-alpine@sha256:fe0737ba566a2c5b2a28f34433c0a423261900ec17b9bf7ad115e1aae7e57f1b
     depends_on:
       postgres:
         condition: service_healthy
