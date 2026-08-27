@@ -39,7 +39,7 @@ una UX professionale.
 | ORM            | Prisma           | ^6         | Con escape hatch SQL raw                  |
 | Cache          | Redis (ioredis)  | ^5         | Caching, rate limiting, ABAC policy cache |
 | Object Storage | MinIO            | ^8         | S3-compatibile, bucket per tenant         |
-| Event Bus      | Kafka / Redpanda | KafkaJS ^2 | Singolo nodo in dev, 3 nodi in prod       |
+| Event Bus      | Kafka / Redpanda | `@confluentinc/kafka-javascript` 1.10.0 (exact) | Singolo nodo in dev, 3 nodi in prod       |
 | Auth           | Keycloak         | 26+        | Multi-realm (un realm per tenant)         |
 
 ### Frontend

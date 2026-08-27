@@ -1,0 +1,193 @@
+# Spec: 008 - Kafka JavaScript Client Migration
+
+> Feature specification for a backend/infrastructure migration. Created by `forge-pm` via `/forge-specify`.
+
+| Field | Value |
+| --- | --- |
+| Status | Approved conditionally — blocking Phase 1 native deployment spike required |
+| Author | forge-pm |
+| Date | 2026-08-27 |
+| Track | Epic |
+| Spec ID | 008 |
+| Requirement namespace | KJM |
+
+---
+
+## 1. Overview
+
+Conditionally replace the Core API's KafkaJS (`kafkajs`) client with exact `@confluentinc/kafka-javascript` 1.10.0 after a blocking Phase 1 native-deployment gate. The gate precedes all functional migration and must prove the package's mandatory librdkafka dependency on the actual self-hosted CI runner and actual digest-pinned Core Node 24 Bookworm runtime. If it passes, the Epic covers Core API producer, consumer, admin/topic operations, lifecycle management, CI verification, dependencies, and regression tests without changing Plexica's Kafka/Redpanda architecture, public contracts, or event wire behavior. Correcting the existing lag calculation to the already-specified lag contract is included; it changes incorrect values, not the response schema. It does not add UI work, broker services, public APIs, or data-model changes.
+
+## 2. Problem Statement
+
+The Core API, Redpanda smoke test, and CI round-trip verifier are coupled to KafkaJS APIs and a repository patch for KafkaJS 2.2.4. Plexica needs to adopt `@confluentinc/kafka-javascript` while preserving the accepted guarantees in ADR-004 and ADR-016: Kafka protocol compatibility, at-least-once delivery, tenant-key ordering and filtering, transactional outbox durability, encrypted payloads and key erasure, and durable/idempotent DLQ handling. A client swap that changes acknowledgements, offsets, rebalance behavior, shutdown ordering, or error handling could silently lose events or leak tenant data.
+
+**Conditional governance decision (2026-08-27):** The accepted ADR-004 amendment selects exact `@confluentinc/kafka-javascript` 1.10.0 and its promisified KafkaJS compatibility API, and Constitution v1.1 names the same client/version. The same-day ADR clarification makes adoption conditional: both the compatibility and callback APIs require the same native addon and librdkafka, so a Phase 1 deployment spike must pass before any functional migration. The selected package/version remains unchanged unless that gate fails and the user approves a new direction through ADR/constitution amendment.
+
+## 3. User Stories
+
+These four stories define the observable migration outcomes for publishing, consumption, operations, and repository maintenance.
+
+### US-001: Publish events without semantic change
+
+**As a** platform engineer, **I want** Core API event production to use the replacement client, **so that** committed domain mutations continue to produce durable, tenant-isolated events.
+
+**Acceptance Criteria:**
+- **KJM-AC-001:** Given an active tenant mutation and its outbox row commit atomically, when the outbox publisher receives a broker acknowledgement, then it removes the leased row and publishes exactly the canonical encrypted v1 envelope with message key `tenantId`.
+- **KJM-AC-002:** Given connection, send, acknowledgement, or shutdown-race failure, when publication does not complete, then the outbox row remains retryable with the same `eventId`; it is neither acknowledged nor routed to a producer DLQ.
+
+### US-002: Consume and dispatch safely
+
+**As a** plugin operator, **I want** plugin and DLQ consumers to preserve offsets, retries, and tenant filters, **so that** no event is lost, delivered cross-tenant, or stuck behind a poison record.
+
+**Acceptance Criteria:**
+- **KJM-AC-003:** Given a valid event for an installation's tenant, when its handler succeeds, then the consumer commits the next offset only after processing completes.
+- **KJM-AC-004:** Given an event for another tenant, when it is consumed, then it is not decrypted or dispatched and its offset is committed without creating a DLQ entry.
+- **KJM-AC-005:** Given three failed plugin delivery attempts, when encrypted DLQ publication is acknowledged, then the source offset is committed; if DLQ publication fails, the source offset remains uncommitted.
+- **KJM-AC-006:** Given two records in one tenant partition, when the first handler is still in flight, then the second record cannot be finalized or committed ahead of the first.
+
+### US-003: Preserve operations and lifecycle
+
+**As a** platform operator, **I want** health, status, topic helpers, startup, and shutdown to remain reliable, **so that** the client migration creates no operational regression.
+
+**Acceptance Criteria:**
+- **KJM-AC-007:** Given a reachable Redpanda/Kafka broker, when health, metadata, topic, lag, or CI round-trip operations run, then they complete with their existing result contracts and eventually release every transient client, including timed-out health probes.
+- **KJM-AC-008:** Given shutdown begins during connect, send, consume, or rebalance, when teardown completes, then consumers stop before event workers and the producer, no new producer is opened, and no Kafka socket or timer keeps the process alive.
+
+### US-004: Complete the dependency replacement
+
+**As a** maintainer, **I want** KafkaJS and its patch fully removed, **so that** the repository has one Kafka client and reproducible installs.
+
+**Acceptance Criteria:**
+- **KJM-AC-009:** Given the migration commit, when manifests, source, scripts, patches, and the lockfile are searched, then no runtime import, dependency, lock entry, patch reference, or active comment identifies `kafkajs` as the client.
+- **KJM-AC-010:** Given Node.js 24 and pnpm 10, when a clean-store frozen install, typecheck, build, supported-runtime native load, and required tests run, then all complete from a published prebuilt without manual native-library/compiler setup.
+- **KJM-AC-011:** Given the uncommitted Phase 1 spike on the actual self-hosted CI runner and digest-pinned Core Node 24 Bookworm runtime, when every native install, integrity, load/link, real-Redpanda semantic, shutdown, and open-handle check passes independently in both targets, then and only then may functional migration begin; any failed check pauses the Epic with KafkaJS still backing production.
+
+## 4. Functional Requirements
+
+| ID | Requirement | Priority | Story Ref |
+| --- | --- | --- | --- |
+| KJM-001 | After KJM-023 passes, replace all production, test, and script KafkaJS imports with exact `@confluentinc/kafka-javascript` 1.10.0 using its promisified KafkaJS compatibility API. Mixed-client or runtime fallback paths are prohibited. A temporary verification-only import is allowed only in the uncommitted Phase 1 spike while KafkaJS remains the sole production client. | Must | US-001—004 |
+| KJM-002 | Preserve Kafka protocol interoperability with single-node Redpanda in development/CI and three-node Redpanda or operator-provided compatible Kafka in staging/production. Broker topology and topic naming/configuration do not change. | Must | US-003 |
+| KJM-003 | Preserve the canonical v1 wire envelope, immutable `eventId`, `tenantId`, `type`, `schemaVersion`, timestamps, producer/correlation/causation metadata, AES-256-GCM ciphertext fields, and existing Kafka headers. The message key must always equal `tenantId`; an explicit original partition is preserved for DLQ retry. | Must | US-001—002 |
+| KJM-004 | Preserve transactional outbox semantics: domain services never publish directly; only broker-acknowledged sends may acknowledge/delete outbox rows; all failures retain stable identity for at-least-once retry; repeated producer failures remain pending and observable. | Must | US-001 |
+| KJM-005 | Preserve one shared, lazily connected producer with explicit warm-up, concurrent-connect deduplication, cleanup after failed connection, lazy recovery before shutdown, and a terminal closed state once shutdown begins. Send ownership is registered before awaiting connect; sends racing shutdown must fail, not report success or reopen the producer, and drain/disconnect must obey the 30 s lifecycle deadline. | Must | US-001—003 |
+| KJM-006 | Preserve producer auto-topic-creation behavior, client identity `plexica-core`, effective transport retry ceiling of three retries with 100 ms initial retry delay, and acknowledgement semantics. Any client-specific mapping needed for equivalence must be documented in the required ADR. | Must | US-001 |
+| KJM-007 | Preserve plugin consumer group IDs (`plugin-{installId}-{tenantSlug}`), system DLQ group ID, topic-pattern resolution, latest-offset subscription for new groups, 30 s session timeout, 3 s heartbeat intent, pause/resume/delete operations, and in-memory active-group reporting. | Must | US-002—003 |
+| KJM-008 | Preserve manual offset control. Commit the next offset only after successful dispatch, intentional tenant/inactive-tenant skip, permanent sanitized poison-record handling, or acknowledged DLQ publication. Transient processing, DB, key lookup/unwrap availability, or DLQ publication failures must not advance the source offset. Permanent ciphertext authentication/schema failure may advance only after the existing sanitized poison/DLQ decision. Catch-all decrypt classification is prohibited. | Must | US-002 |
+| KJM-009 | Preserve at-least-once behavior across consumer restart and rebalance: completed work may be redelivered but uncompleted work must not be skipped. Rebalance or pause must not commit a record whose required side effects have not completed. | Must | US-002—003 |
+| KJM-010 | Preserve three total plugin delivery attempts before DLQ, stable source coordinates, tenant/install ownership, encrypted DLQ payload, source-coordinate dedupe, bridge insert-before-commit, targeted tenant purge, CAS retry/dismiss flow, and original identity/key/partition on replay per ADR-016. Retry-delay redesign is out of scope. | Must | US-002 |
+| KJM-011 | Preserve pre-decrypt tenant filtering and active-tenant gates. Cross-tenant records are skipped and committed without key access, dispatch, or installation DLQ. Non-active tenants cannot emit, dispatch, persist DLQ records, or recreate erased event keys. | Must | US-001—002 |
+| KJM-012 | Map client-specific errors/events into stable platform outcomes (`KAFKA_SEND_FAILED`, `KAFKA_PRODUCER_CLOSED`, retryable consumer failure, permanent sanitized DLQ error, health degraded/down). Client exception types or messages must not leak through public HTTP responses. | Must | US-001—003 |
+| KJM-013 | Preserve structured Pino observability for connect, disconnect, crash/rebalance, send failure, lag polling, and DLQ bridge failure using stable codes and non-PII coordinates. Logs must exclude payload/ciphertext, headers, keys, credentials, stack traces containing domain data, and raw broker/client objects. | Must | US-003 |
+| KJM-014 | Preserve admin and topic capabilities used by the Core API and verification scripts: connect/disconnect, list topics, create/delete topics, topic/leader metadata (the compatibility replacement for unavailable cluster metadata), group offsets, topic offsets, actual lag, and health probing. Every transient admin/verification client must disconnect on success, timeout, and failure; a 200 ms health response may return before its observed cleanup completes. | Must | US-003 |
+| KJM-015 | Preserve startup/teardown ownership and order: producer warm-up; event workers; plugin consumers; then reverse shutdown with plugin consumers and DLQ/outbox workers stopped before producer/database/Redis. Shutdown is idempotent and awaits in-flight owned work. | Must | US-003 |
+| KJM-016 | Keep `KAFKA_BROKERS` as the sole Kafka client environment contract: comma-separated broker endpoints accepted in host and Compose forms. No new Kafka environment variables, TLS/SASL scope, or manual configuration is introduced. | Must | US-003—004 |
+| KJM-017 | Remove `kafkajs` from `services/core-api/package.json`, root `pnpm.patchedDependencies`, `pnpm-lock.yaml`, and all source/scripts; delete `patches/kafkajs@2.2.4.patch`; add the ADR-approved Confluent dependency only where directly required; refresh stale active-client documentation. | Must | US-004 |
+| KJM-018 | Keep `@plexica/sdk`, CLI-generated plugins, and example plugin backends transport-agnostic: no direct Confluent/Kafka dependency is added, `onEvent`/`dispatchEvent` and HTTP event emission contracts remain unchanged, and deprecated SDK config remains source-compatible. | Must | US-004 |
+| KJM-019 | Add regression coverage for producer lifecycle races and bounded drain, sends/acks, consumer commit/commit-failure/rebalance behavior, transient-versus-permanent key/decrypt handling, admin helpers, multi-broker parsing, real Redpanda round-trip, encrypted outbox flow, cross-tenant filtering, DLQ durability/dedupe/retry, tenant deletion erasure, and graceful shutdown. Blocking integration/E2E tests must not conditionally skip when Redpanda is unavailable. | Must | US-001—004 |
+| KJM-020 | Accept the dependency ADR/ADR-004 amendment and constitution technology-stack amendment before implementation; update architecture/project guidance after acceptance without changing the Kafka/Redpanda decision. | Must | US-004 |
+| KJM-021 | Preserve per-partition processing order: a consumer must not process/finalize a later record in a partition before the current record reaches its required dispatch, skip, or DLQ decision. Concurrency across independent partitions/groups may remain. | Must | US-002 |
+| KJM-022 | Make real-broker verification deterministic by waiting for actual consumer readiness/assignment before producing, applying a bounded timeout, and cleaning up producer, consumer, admin client, and temporary topic on every success/failure path. Fixed sleeps alone are not a readiness proof. | Must | US-003—004 |
+| KJM-023 | Before KJM-001—KJM-022 functional migration tasks, execute the exact Phase 1 native-deployment gate independently on the actual default self-hosted CI runner and the actual Core runtime image `node:24-bookworm@sha256:934240a162082fd8b8a2f90cd5114446443f1eba1c5378f6687167ca405e6584`. PASS permits full migration. FAIL pauses the Epic and requires the user to choose KafkaJS retention or evaluation of pure-JavaScript alternatives, followed by the necessary ADR/constitution amendment. | Must / Blocking | US-004 |
+
+## 5. Non-Functional Requirements
+
+| ID | Category | Requirement | Measurable Target |
+| --- | --- | --- | --- |
+| KJM-NFR-001 | Reliability | No event loss across producer/consumer failures. | 100% of committed test events are eventually observed; failed sends retain outbox rows; 0 premature offset commits in fault tests. |
+| KJM-NFR-002 | Performance | Preserve development event-delivery latency. | P95 from outbox publication start to real Redpanda consumption is < 1,000 ms over at least 100 events on the controlled CI stack. |
+| KJM-NFR-003 | Security | Preserve tenant isolation and encrypted broker storage. | Two-tenant tests show 0 cross-tenant dispatches/key reads; 0 plaintext domain markers in source or DLQ Kafka records. |
+| KJM-NFR-004 | GDPR | Preserve cryptographic and targeted erasure. | Tenant deletion leaves 0 tenant outbox/DLQ rows and 0 retrievable wrapped event keys; retained records cannot be decrypted by the running platform. |
+| KJM-NFR-005 | Lifecycle | Bound clean shutdown and resource release. | One global shutdown deadline of 30 s under healthy, unavailable-broker, and in-flight-send tests; 0 active owned Kafka clients, health-probe cleanup owners, timers, or Kafka open handles afterward. |
+| KJM-NFR-006 | Operations | Preserve health and status responsiveness/contracts. | Kafka health probe respects the existing 200 ms timeout classification; admin Kafka response passes `KafkaStatusResponseSchema` with unchanged fields. |
+| KJM-NFR-007 | Compatibility | Maintain supported runtime/broker matrix. | Before migration, independent clean-store frozen installs and native/real-broker gates pass on the actual self-hosted runner and digest-pinned Node 24 Bookworm glibc Core runtime with exact pnpm 10.33.0/package 1.10.0/librdkafka 2.15.0, expected prebuilt only, verified release-asset SHA-256, no unresolved shared libraries, and no leaked handles; after migration, no KafkaJS package remains in the lock graph. |
+| KJM-NFR-008 | Quality | Preserve project quality gates. | Green lint, typecheck, unit, integration, Playwright E2E, >=80% line coverage overall, and no authored file above 200 lines. |
+
+## 6. Edge Cases
+
+| # | Scenario | Expected Behavior |
+| --- | --- | --- |
+| KJM-EC-01 | Concurrent first sends initialize the producer | One connection attempt is shared; each send receives a valid acknowledgement or failure. |
+| KJM-EC-02 | Connect fails after allocating partial client state | Partial resources close; the next pre-shutdown send may retry with a fresh client. |
+| KJM-EC-03 | Shutdown races producer connect/send | No producer is published/reopened after close; unacknowledged outbox events remain pending. |
+| KJM-EC-04 | Broker acknowledgement is delayed/lost | No false success; stable event may be duplicated after retry, never silently lost. |
+| KJM-EC-05 | Consumer rebalances during handler execution | Incomplete work remains uncommitted and may replay; completed work follows manual commit rules. |
+| KJM-EC-06 | Malformed, plaintext, key-unavailable, or cryptographically invalid record | Distinguish transient key/DB availability (no commit) from permanent validated poison handling; never log raw data or block unrelated tenants indefinitely. |
+| KJM-EC-07 | Cross-tenant or inactive-tenant record | Skip without decrypt/dispatch; commit intentional skip; create no installation DLQ record. |
+| KJM-EC-08 | DLQ publish or DB bridge write fails | Source/DLQ offset stays uncommitted until required acknowledgement/transaction; dedupe prevents duplicate DB rows. |
+| KJM-EC-09 | Admin/health operation times out | Return the existing degraded result at the 200 ms boundary, observe the still-running operation, disconnect best-effort when it settles, and register cleanup for shutdown; no unhandled rejection or client leak. |
+| KJM-EC-10 | Empty, malformed, or empty-segment broker list | Preserve valid existing comma-separated `host:port` values; reject unusable lists during configuration/connection without exposing endpoints or secrets in public errors. |
+| KJM-EC-11 | Consumer pause/delete during in-flight processing | Do not commit incomplete work; teardown settles owned work and does not leave a live group. |
+| KJM-EC-12 | Tenant deletion races outbox/DLQ processing | Re-check status before send/persist; deny new event data, purge rows, destroy keys, and make retained ciphertext unreadable. |
+| KJM-EC-13 | Replacement client invokes handlers concurrently within one partition | Serialize the partition's commit decisions so tenant ordering and manual-offset guarantees remain intact. |
+| KJM-EC-14 | Verification producer sends before group assignment | Wait for observable readiness/assignment rather than sleeping; fail within the test timeout and release all resources. |
+| KJM-EC-15 | Phase 1 uses source compilation, unresolved shared libraries, wrong package/librdkafka, wrong ABI/libc/architecture asset, bad/missing checksum evidence, failed Redpanda semantics, or leaked handles | Gate FAIL; restore the uncommitted spike worktree, keep KafkaJS in production, and pause all functional migration pending the user's governed decision. |
+| KJM-EC-16 | Deployment requires only Alpine/musl or another runtime outside the proven Node 24 Bookworm glibc target | Gate FAIL; do not add compilers/system librdkafka or proceed on an unsupported production runtime. |
+
+## 7. Data Requirements
+
+No database schema, Prisma model, migration, topic name, partition count, retention policy, event schema, header, consumer-group format, or serialized payload change is permitted. Existing `core.event_outbox`, `core.tenant_event_keys`, and `core.dead_letter_queue` behavior remains authoritative.
+
+## 8. API Requirements
+
+There are **no new or changed public HTTP APIs** and no public response/data-schema changes. Existing `/health`, `GET /api/v1/admin/system/kafka`, and DLQ retry/dismiss/list endpoints retain authentication, status codes, and canonical response schemas. `@plexica/sdk` public event types and HTTP contracts remain source- and behavior-compatible.
+
+## 9. UX/UI Notes
+
+Not applicable. This is backend/infrastructure only; no UI, UX, accessibility, routing, or internationalization artifact is required.
+
+## 10. Out of Scope
+
+- Changing Kafka/Redpanda, broker topology, topic names/retention/partition counts, event schemas, or delivery guarantees.
+- Adding TLS/SASL settings, Schema Registry, Kafka Connect, new metrics infrastructure, or new core dependencies beyond the approved replacement.
+- Redesigning retry delays, DLQ retention/UI, lag presentation/schema, plugin SDK transport, or transactional outbox/data models. Correcting committed-offset summation to the already-required high-watermark lag formula is in scope.
+- Dual-client rollout, KafkaJS fallback, public HTTP changes, database migrations, UI changes, or unrelated Kafka-status fixes. The sole exception is a temporary verification-only Confluent import in the uncommitted Phase 1 spike; it may not enter a production path or survive the spike.
+- Changing the conditionally approved package/version/API mode without a Phase 1 FAIL, explicit user decision, and corresponding ADR/constitution amendment.
+
+## 11. Open Questions
+
+No product or architecture question remains before the spike: exact package 1.10.0 and KafkaJS compatibility mode are conditionally accepted in ADR-004. Two **execution blockers** remain: (1) KJM-023 must PASS before any functional migration task; (2) the repository's constitutional combined line-coverage gate is not currently implemented and the recorded unit-only baseline is approximately 23%. A KJM-023 FAIL is a mandatory user decision point, not permission to change versions, install native tooling, use a production fallback, or continue migration.
+
+## 12. Implementation Scope
+
+| Area | Representative paths | Required change |
+| --- | --- | --- |
+| Core transport/lifecycle | `services/core-api/src/lib/kafka-client.ts`, `kafka-producer.ts`, `kafka.ts`, `bootstrap.ts` | Replace client integration while preserving transport and lifecycle contracts. |
+| Consumers/DLQ/operations | `services/core-api/src/modules/plugin/events/`, event key/error classification, admin Kafka health/status services | Adapt consumer, offset, decrypt classification, admin, actual lag, and DLQ integration while preserving public/wire contracts. |
+| Verification/tests | Core Kafka/event tests, `services/core-api/scripts/verify-kafka-roundtrip.mjs`, relevant Playwright E2E | Migrate direct imports and add required real-broker/race regressions. |
+| Phase 1 gate | Uncommitted temporary manifests/lock/import and external evidence bundle | Independently prove exact prebuilt integrity/load/link and real-Redpanda semantics on the actual runner and pinned Core runtime; restore the worktree after capture; no production change. |
+| Dependencies/CI after PASS | Root/Core manifests, `pnpm-lock.yaml`, `patches/`, CI composite actions/workflow, runtime image, workspace guidance | Add approved dependency; retain the proven native gate; remove KafkaJS, patch, lock entries, and stale references. |
+| Transport-agnostic consumers | `packages/sdk`, `packages/cli`, `examples/plugins/crm`, CI/infra topic scripts | Verify compatibility; no direct Kafka client dependency or behavioral redesign. |
+
+## 13. Constitution Compliance
+
+**Overall status: PARTIAL UNTIL EVIDENCED** — the accepted ADR-004 amendment and Constitution v1.1 authorize the exact dependency only conditionally. KJM-023 has not yet evidenced deployability, the working tree still uses KafkaJS by design until PASS, and the repository does not currently enforce the constitutional >=80% combined coverage target. Functional migration may not start until KJM-023 passes; the Epic may not merge until the remaining quality gates are resolved and CI is green.
+
+| Article | Status | Notes |
+| --- | --- | --- |
+| Art. 1 | Compliant by requirement | Rule 1: KJM-019 requires blocking real-stack E2E coverage with no infrastructure skip. |
+| Art. 2 | Partial | Rule 2 is required by KJM-NFR-008, but combined coverage is not currently a CI gate. |
+| Art. 3 | Compliant | Rule 3: KJM-001 prohibits mixed-client/fallback patterns; its narrow uncommitted verification exception cannot ship or back production. |
+| Art. 4 | Compliant by requirement | Rule 4: KJM-NFR-008 retains the line gate and decomposition requirement. |
+| Art. 5 | Compliant | Rule 5: the accepted ADR-004 amendment, same-day conditional-spike clarification, and August 2026 constitution amendment govern KJM-020/KJM-023 before implementation. |
+| Art. 6 | Compliant by process | Rule 6: any implementation commits must be entirely in English. |
+| Art. 7 | Compliant by requirement | Architecture: Kafka/Redpanda, outbox, tenant filtering, encryption, erasure, and DLQ guarantees are unchanged. |
+| Art. 8 | Partial | Required real broker/fault/security/lifecycle/E2E coverage is explicit; the >=80% combined gate remains an unresolved repository blocker. |
+| Art. 9 | Compliant by requirement | Operations/security: KJM-023 blocks unsupported native deployment and KJM-012—016 preserve error, logging, health, configuration, and shutdown contracts. |
+
+---
+
+## Cross-References
+
+| Document | Path |
+| --- | --- |
+| Constitution | `.forge/constitution.md` |
+| Architecture | `.forge/architecture/architecture.md` §5.2, §6.3, §7.1—7.2 |
+| Event bus decision | `.forge/knowledge/adr/adr-004-kafka-redpanda-event-bus.md`, including accepted 2026-07-23/2026-08-27 amendments and the same-day conditional-spike clarification |
+| DLQ decision | `.forge/knowledge/adr/adr-016-two-tier-dead-letter-queue.md` and 2026-07-23 amendment |
+| Tenant lifecycle | `.forge/knowledge/adr/adr-022-super-admin-infra-and-data-model.md` 2026-07-23 amendment |
+| Decision log | `.forge/knowledge/decision-log.md` ADR acceptance records, including the 2026-08-27 ADR-004 amendment and clarification |
+| Upstream plugin requirements | `.forge/specs/004-plugin-system/spec.md` 004-14—004-18, NFR-03 |
+| Plan | `.forge/specs/008-kafka-javascript-migration/plan.md` — Epic analysis revision |
+| Tasks | Not created; only Phase 1 blocker tasks may be generated before PASS |
+| PRD | Not applicable to this internal Epic migration |

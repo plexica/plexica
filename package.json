@@ -32,6 +32,7 @@
   },
   "pnpm": {
     "onlyBuiltDependencies": [
+      "@confluentinc/kafka-javascript",
       "@prisma/client",
       "@prisma/engines",
       "esbuild",

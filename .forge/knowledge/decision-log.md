@@ -6,10 +6,8 @@
 > For lessons learned from the v1 codebase, see
 > [lessons-learned.md](./lessons-learned.md).
 
-**Last Updated**: 2026-08-26 (ADR-031 amended — `ci-runtime-contract` scoped
-to `workflow_dispatch`/CI-infrastructure path changes with fail-open
-detection; `ci` runs the single-project E2E suite when the contract is
-skipped)
+**Last Updated**: 2026-08-27 (ADR-004 clarified — Confluent 1.10.0 adoption is
+conditional on the blocking dual-target native deployment spike)
 
 ---
 
@@ -46,6 +44,8 @@ Foundational and current ADR lifecycle states:
 | ADR-031 | 2026-08-21 | Accepted | Final plan names Keycloak 26 request-host mode (no hostname/proxy headers), manifest-only host provisioning, bounded scoped sidecar identity, and mandatory post-checkout admission in both labelled jobs. |
 | ADR-031 | 2026-08-24 | Amended | CI jobs moved to the default `self-hosted` runner per user decision; measured capacity admission retained without the dedicated class marker. |
 | ADR-031 | 2026-08-26 | Amended | `ci-runtime-contract` gated to `workflow_dispatch` or a fail-open CI-infrastructure path detection; `ci` runs the single-project full web/admin Playwright suite whenever the contract is skipped, so every trigger keeps real E2E coverage without the doubled environment. |
+| ADR-004 | 2026-08-27 | Amended | KafkaJS client replaced by exact `@confluentinc/kafka-javascript` 1.10.0 using only its promisified KafkaJS compatibility API; Kafka/Redpanda, at-least-once, outbox, encryption, and DLQ architecture remain unchanged. |
+| ADR-004 | 2026-08-27 | Clarified | Both Confluent JavaScript APIs require the same mandatory native addon/librdkafka. Exact 1.10.0 compatibility-API adoption is conditional on a blocking uncommitted Phase 1 spike passing on the actual self-hosted runner and digest-pinned Core Node 24 Bookworm runtime. PASS permits full migration; FAIL keeps KafkaJS in production and requires the user to choose KafkaJS retention or pure-JavaScript evaluation under ADR/constitution amendment. No compiler/system librdkafka, production dual client, fallback, automatic version change, Alpine/musl-only justification, or unsupported production runtime is permitted. |
 
 ---
 

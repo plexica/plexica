@@ -22,6 +22,7 @@
     "test:unit:coverage": "vitest run --project unit --coverage"
   },
   "dependencies": {
+    "@confluentinc/kafka-javascript": "1.10.0",
     "@fastify/multipart": "^9.4.0",
     "@fastify/rate-limit": "^10.3.0",
     "@plexica/api-types": "workspace:*",

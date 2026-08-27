@@ -3,8 +3,8 @@
 > Non-negotiable principles, technology constraints, and quality standards.
 > All code, decisions, and reviews must comply with this document.
 
-**Version**: 1.0
-**Date**: March 2026
+**Version**: 1.1
+**Date**: August 2026
 **Status**: Active
 
 ---
@@ -40,7 +40,7 @@ These are absolute. No exceptions, no workarounds.
 | ORM            | Prisma           | ^6         |
 | Cache          | Redis (ioredis)  | ^5         |
 | Object Storage | MinIO            | ^8         |
-| Event Bus      | Kafka / Redpanda | KafkaJS ^2 |
+| Event Bus      | Kafka / Redpanda | `@confluentinc/kafka-javascript` 1.10.0 (exact) |
 | Auth           | Keycloak         | 26+        |
 
 ### Frontend
@@ -146,3 +146,4 @@ Changes to this constitution are recorded below. Do not edit articles directly â
 | ---------- | --------- | ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | March 2026 | All       | Initial constitution                             | Project kickoff                                                                                                                                                                           |
 | March 2026 | The Rules | Added Rule 6: commit messages must be in English | Enforces a single language for all git history, making it unambiguous for all contributors, agents, and automated tools. Non-English commits must be rejected and rewritten before merge. |
+| August 2026 | Technology Stack | Replaced KafkaJS ^2 with exact `@confluentinc/kafka-javascript` 1.10.0 | Uses the approved Confluent client while retaining the Kafka/Redpanda architecture; exact pinning controls native-binary and client-semantic drift. |
