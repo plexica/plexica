@@ -69,13 +69,25 @@ describe('event pipeline integration', () => {
         if (publishResult.published === 0 && publishResult.failed === 0) {
           const pending = await prisma.eventOutbox.findUnique({ where: { eventId } });
           if (pending) {
-            // Ensure the row is claimable even if clock skew pushed availableAt
-            // slightly into the future or a prior lease is still technically
-            // held. Update without touching lease columns if already null.
-            await prisma.eventOutbox.update({
-              where: { eventId },
-              data: { availableAt: new Date(Date.now() - 1_000) },
-            });
+            const leaseActive =
+              pending.leaseToken !== null &&
+              pending.leaseExpiresAt !== null &&
+              new Date(pending.leaseExpiresAt).getTime() > Date.now();
+            if (!leaseActive) {
+              // Only reset claimability when no active lease is held.
+              // If a lease is active we must wait for it to expire instead
+              // of making the row appear claimable by touching only
+              // availableAt, preserving the lease protection in
+              // claimOutboxEvents().
+              await prisma.eventOutbox.update({
+                where: { eventId },
+                data: {
+                  availableAt: new Date(Date.now() - 1_000),
+                  leaseToken: null,
+                  leaseExpiresAt: null,
+                },
+              });
+            }
           }
           await new Promise((r) => setTimeout(r, 200 * (attempt + 1)));
           continue;
