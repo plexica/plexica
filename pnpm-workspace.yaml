@@ -9,7 +9,7 @@ packages:
 # by >= 2 workspaces belong here.
 #
 # Deliberately excluded:
-#   - jose: pinned exactly (6.2.3) in @plexica/auth vs ^ range in core-api —
+#   - jose: pinned exactly (6.2.10) in @plexica/auth vs ^ range in core-api —
 #     the auth pin is intentional; unifying would change one side's update policy.
 #   - single-workspace deps (storybook stack, @fastify/*, prisma, kafkajs, ...):
 #     a catalog entry adds no dedup value for them.
@@ -25,23 +25,23 @@ packages:
 # adopting "catalog:" does not change any installed tree.
 catalog:
   '@fontsource/inter': ^5.3.0
-  '@hookform/resolvers': ^5.4.0
+  '@hookform/resolvers': ^5.9.1
   '@originjs/vite-plugin-federation': ^1.4.1
   '@playwright/test': ^1.62.0
   '@radix-ui/react-dropdown-menu': ^2.1.24
-  '@tanstack/react-query': ^5.101.4
-  '@tanstack/react-router': ^1.170.18
+  '@tanstack/react-query': ^5.102.1
+  '@tanstack/react-router': ^1.170.32
   '@types/node': ^24.0.0
-  '@types/pg': ^8.11.0
+  '@types/pg': ^8.23.1
   '@types/react': ^19.2.17
   '@types/react-dom': ^19.2.4
   '@vitejs/plugin-react': ^4.3.0
   autoprefixer: ^10.4.0
   dotenv: ^17.4.2
-  eslint-plugin-storybook: 10.5.8
+  eslint-plugin-storybook: 10.5.10
   fastify: ^5.12.0
-  lucide-react: ^1.27.0
-  pg: ^8.13.0
+  lucide-react: ^1.33.0
+  pg: ^8.23.0
   pino: ^9.0.0
   postcss: ^8.5.25
   react: ^19.2.8

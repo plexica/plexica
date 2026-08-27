@@ -35,16 +35,16 @@
     "react-intl": "catalog:"
   },
   "devDependencies": {
-    "@storybook/addon-docs": "^10.4.6",
-    "@storybook/addon-themes": "^10.5.5",
-    "@storybook/react": "^10.5.8",
-    "@storybook/react-vite": "^10.4.6",
+    "@storybook/addon-docs": "^10.5.10",
+    "@storybook/addon-themes": "^10.5.10",
+    "@storybook/react": "^10.5.10",
+    "@storybook/react-vite": "^10.5.10",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "eslint-plugin-storybook": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
-    "storybook": "^10.3.5",
+    "storybook": "^10.5.10",
     "tailwindcss": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:"

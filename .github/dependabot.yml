@@ -54,6 +54,10 @@ updates:
       interval: weekly
       day: monday
       time: '08:00'
+    ignore:
+      # Mirrors npm policy: majors need ADR + migration plan. Security majors are tracked manually via GHSA/advisories, not via auto-PR.
+      - dependency-name: '*'
+        update-types: ['version-update:semver-major']
 
   - package-ecosystem: docker
     directory: '/e2e/fixtures/plugin-proxy'
@@ -61,6 +65,10 @@ updates:
       interval: weekly
       day: monday
       time: '08:00'
+    ignore:
+      # Same as above — Node major (e.g., 24→26) requires LTS validation before auto-bump.
+      - dependency-name: '*'
+        update-types: ['version-update:semver-major']
 
   - package-ecosystem: docker
     directory: '/examples/plugins/crm'
@@ -68,3 +76,7 @@ updates:
       interval: weekly
       day: monday
       time: '08:00'
+    ignore:
+      # Same as above.
+      - dependency-name: '*'
+        update-types: ['version-update:semver-major']
