@@ -6,7 +6,7 @@ import { getTenantEventKey } from '../events/event-key-service.js';
 import { enqueueEvent } from '../events/outbox-repository.js';
 import { publishOutboxBatch } from '../events/outbox-publisher.js';
 import { prisma } from '../lib/database.js';
-import { createConsumer } from '../lib/kafka.js';
+import { createConsumer, getKafkaAdmin } from '../lib/kafka.js';
 
 const tenantIds: string[] = [];
 
@@ -21,7 +21,9 @@ describe('event pipeline integration', () => {
   it('commits a mutation with outbox and publishes only tenant-keyed ciphertext', async () => {
     const tenantId = crypto.randomUUID();
     const eventId = crypto.randomUUID();
-    const topic = 'plexica.workspace.created';
+    // Ephemeral unique topic: avoids replaying the persistent core topic's
+    // backlog (fromBeginning true) and keeps this test self-contained.
+    const topic = `plexica.pipeline.${tenantId.slice(0, 8)}`;
     tenantIds.push(tenantId);
     await prisma.$transaction(async (tx) => {
       await tx.tenant.create({
@@ -41,6 +43,10 @@ describe('event pipeline integration', () => {
       );
     });
     await expect(prisma.eventOutbox.findUnique({ where: { eventId } })).resolves.toBeDefined();
+
+    const admin = getKafkaAdmin();
+    await admin.connect();
+    await admin.createTopics({ topics: [{ topic, numPartitions: 1, replicationFactor: 1 }] });
 
     const consumer = createConsumer(`event-pipeline-${crypto.randomUUID()}`, {
       fromBeginning: true,
@@ -80,10 +86,8 @@ describe('event pipeline integration', () => {
     }
 
     try {
-      // Harden against the transient claim race and a concurrent background
-      // publisher (core-api-e2e runs its own outbox publisher on the same DB).
-      // If the row is already acked externally, the Kafka observation below is
-      // the authoritative proof and the strict publish count is skipped.
+      // Harden against the transient claim race and the concurrent background
+      // publisher (core-api-e2e) which claims any active-tenant outbox row.
       let publishResult: { published: number; failed: number } | undefined;
       let externallyPublished = false;
       for (let attempt = 0; attempt < 5; attempt++) {
@@ -100,11 +104,7 @@ describe('event pipeline integration', () => {
             pending.leaseExpiresAt !== null &&
             new Date(pending.leaseExpiresAt).getTime() > Date.now();
           if (!leaseActive) {
-            // Only reset claimability when no active lease is held.
-            // If a lease is active we must wait for it to expire instead
-            // of making the row appear claimable by touching only
-            // availableAt, preserving the lease protection in
-            // claimOutboxEvents().
+            // Reset only when no active lease is held (protects claimOutboxEvents()).
             await prisma.eventOutbox.update({
               where: { eventId },
               data: {
@@ -136,6 +136,8 @@ describe('event pipeline integration', () => {
       await expect(prisma.eventOutbox.findUnique({ where: { eventId } })).resolves.toBeNull();
     } finally {
       await consumer.disconnect();
+      await admin.deleteTopics({ topics: [topic] }).catch(() => undefined);
+      await admin.disconnect().catch(() => undefined);
     }
   });
 
