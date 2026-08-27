@@ -1,0 +1,105 @@
+name: Kafka native dependency spike
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: kafka-native-spike
+  cancel-in-progress: false
+
+jobs:
+  native-spike:
+    runs-on: self-hosted
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Setup exact pnpm
+        run: corepack enable && corepack prepare pnpm@10.33.0 --activate
+      - name: Prepare isolated targets
+        run: |
+          evidence="$RUNNER_TEMP/kafka-native-spike-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          runner_worktree="$RUNNER_TEMP/kjm-runner-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          core_worktree="$RUNNER_TEMP/kjm-core-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          mkdir -p "$evidence/runner" "$evidence/core-runtime"
+          git worktree add --detach "$runner_worktree" "$GITHUB_SHA"
+          git worktree add --detach "$core_worktree" "$GITHUB_SHA"
+          printf 'KJM_EVIDENCE=%s\nKJM_RUNNER_WORKTREE=%s\nKJM_CORE_WORKTREE=%s\n' \
+            "$evidence" "$runner_worktree" "$core_worktree" >> "$GITHUB_ENV"
+      - name: Start only project Redpanda
+        run: |
+          project="plexica-kjm-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          printf 'KJM_COMPOSE_PROJECT=%s\n' "$project" >> "$GITHUB_ENV"
+          docker compose -p "$project" up -d --wait redpanda
+          container=$(docker compose -p "$project" ps -q redpanda)
+          docker inspect --format '{{json .Config.Image}}' "$container" > "$KJM_EVIDENCE/redpanda-image.json"
+          printf 'KJM_REDPANDA_IMAGE=%s\n' "$(docker inspect --format '{{.Config.Image}}' "$container")" >> "$GITHUB_ENV"
+      - name: Capture runner identity
+        run: |
+          node -e 'process.stdout.write(JSON.stringify({runner:process.env.RUNNER_NAME,runId:process.env.GITHUB_RUN_ID,runAttempt:process.env.GITHUB_RUN_ATTEMPT,report:process.report.getReport().header},null,2))' > "$KJM_EVIDENCE/runner/runner.json"
+          uname -a > "$KJM_EVIDENCE/runner/uname.txt"
+      - name: Verify self-hosted runner target
+        id: runner
+        continue-on-error: true
+        working-directory: ${{ env.KJM_RUNNER_WORKTREE }}
+        run: bash services/core-api/scripts/native-spike/run-target.sh "$KJM_EVIDENCE/runner" "$RUNNER_TEMP/kjm-runner-store-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" localhost:19092 runner
+      - name: Capture pinned image identity
+        run: |
+          docker pull node:24-bookworm@sha256:934240a162082fd8b8a2f90cd5114446443f1eba1c5378f6687167ca405e6584
+          docker image inspect node:24-bookworm@sha256:934240a162082fd8b8a2f90cd5114446443f1eba1c5378f6687167ca405e6584 > "$KJM_EVIDENCE/core-runtime/image-inspect.json"
+      - name: Verify pinned Core runtime target
+        id: core
+        continue-on-error: true
+        run: |
+          docker run --rm --network host \
+            -e KJM_REDPANDA_IMAGE="$KJM_REDPANDA_IMAGE" \
+            -v "$KJM_CORE_WORKTREE:/workspace" \
+            -v "$KJM_EVIDENCE/core-runtime:/evidence" \
+            -w /workspace \
+            node:24-bookworm@sha256:934240a162082fd8b8a2f90cd5114446443f1eba1c5378f6687167ca405e6584 \
+            bash -c 'corepack enable && corepack prepare pnpm@10.33.0 --activate && bash services/core-api/scripts/native-spike/run-target.sh /evidence /tmp/kjm-store localhost:19092 core-runtime'
+      - name: Write gate summary
+        id: summary
+        if: always()
+        env:
+          RUNNER_OUTCOME: ${{ steps.runner.outcome }}
+          CORE_OUTCOME: ${{ steps.core.outcome }}
+        run: node services/core-api/scripts/native-spike/write-summary.mjs "$KJM_EVIDENCE" > "$KJM_EVIDENCE/summary.json"
+      - name: Upload immutable spike evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kafka-native-spike-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.KJM_EVIDENCE }}
+          if-no-files-found: error
+          retention-days: 30
+      - name: Enforce Phase 1 gate
+        if: always()
+        run: |
+          summary="$KJM_EVIDENCE/summary.json"
+          if [[ ! -f "$summary" ]]; then
+            echo "::error::Missing $summary — gate cannot be verified"
+            exit 1
+          fi
+          cat "$summary"
+          overall=$(node -p "require('$summary').overall")
+          runner_outcome="${{ steps.runner.outcome }}"
+          core_outcome="${{ steps.core.outcome }}"
+          if [[ "$overall" != "PASS" ]]; then
+            echo "::error::Phase 1 gate $overall — runner=$runner_outcome core=$core_outcome — see artifact kafka-native-spike-${{ github.run_id }}-${{ github.run_attempt }}"
+            exit 1
+          fi
+          if [[ "$runner_outcome" != "success" ]]; then
+            echo "::error::Runner target failed (outcome=$runner_outcome) — gate requires PASS on actual self-hosted runner"
+            exit 1
+          fi
+          if [[ "$core_outcome" != "success" ]]; then
+            echo "::error::Pinned Core runtime failed (outcome=$core_outcome) — gate requires PASS in digest-pinned Bookworm image"
+            exit 1
+          fi
+          echo "Phase 1 gate PASS — both runner and pinned Core runtime verified"
+      - name: Stop project Redpanda
+        if: always() && env.KJM_COMPOSE_PROJECT != ''
+        run: docker compose -p "$KJM_COMPOSE_PROJECT" down --volumes
