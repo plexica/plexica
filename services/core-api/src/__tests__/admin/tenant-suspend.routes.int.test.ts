@@ -56,11 +56,17 @@ describe('POST /api/v1/admin/tenants/:id/suspend', () => {
       url: `/api/v1/admin/tenants/${seeded.tenantId}/suspend`,
       payload: { version: 1 },
     });
-    expect(res.statusCode).toBe(200);
+    // 202 is valid when side-effects (Keycloak/Redis/runtime) are deferred.
+    // The DB transition is already committed; reconciliation retries async.
+    expect([200, 202]).toContain(res.statusCode);
     const body = JSON.parse(res.payload);
     expect(body.id).toBe(seeded.tenantId);
     expect(body.status).toBe('suspended');
     expect(body.version).toBe(2);
+    if (res.statusCode === 202) {
+      expect(body.reconciliation).toBe('pending');
+      expect(body.operationId).toEqual(expect.any(String));
+    }
 
     const tenant = await prisma.tenant.findUnique({ where: { id: seeded.tenantId } });
     expect(tenant?.status).toBe('suspended');
@@ -70,6 +76,15 @@ describe('POST /api/v1/admin/tenants/:id/suspend', () => {
       where: { action: 'tenant.suspend', resourceId: seeded.tenantId },
     });
     expect(audit).not.toBeNull();
+
+    if (res.statusCode === 202) {
+      const op = await prisma.tenantLifecycleReconciliation.findUnique({
+        where: { id: body.operationId },
+      });
+      expect(op).not.toBeNull();
+      expect(op?.desiredStatus).toBe('suspended');
+      expect(op?.targetVersion).toBe(2);
+    }
   });
 
   it('edge: version mismatch → 409', async () => {
