@@ -22,7 +22,7 @@ function inspected(): ContainerFixture {
   return {
     Name: `/${identity.name}`,
     Config: { Labels: { ...identity.labels }, Env: ['CORE_API_URL=http://core-api-e2e:3001'] },
-   HostConfig: { Binds: ['/run/plexica-ci/postgres-ca.crt:/tmp/plexica-postgres-ca.crt:ro'], PortBindings: {}, ExtraHosts: [] },
+   HostConfig: { Binds: ['/run/plexica-ci-plexica-ci-contract-123456/postgres-ca.crt:/tmp/plexica-postgres-ca.crt:ro'], PortBindings: {}, ExtraHosts: [] },
     NetworkSettings: {
       Ports: { '3000/tcp': null },
       Networks: { 'plexica-ci-contract-123456_default': { Aliases: [identity.alias] } },

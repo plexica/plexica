@@ -2,15 +2,18 @@ import { createHash } from 'node:crypto';
 import { URL } from 'node:url';
 
 export const project = process.env.CI_RUNTIME_PROJECT;
+if (!/^plexica-ci-[a-z0-9][a-z0-9-]{5,43}$/.test(project ?? '')) throw new Error('Invalid CI project');
 // The single allowed bind: the project E2E Postgres CA staged on the Docker
-// host under /run/plexica-ci (postgres-host-ca-init), bind-mounted read-only
-// at the sidecars' container path. The host system bundle is never trusted.
-export const caBind = '/run/plexica-ci/postgres-ca.crt:/tmp/plexica-postgres-ca.crt:ro';
+// host under /run/plexica-ci-{project} (postgres-host-ca-init), bind-mounted
+// read-only at the sidecars' container path. The per-project host directory
+// keeps concurrent stacks' CA material isolated — a shared path made one
+// stack's sidecars verify the other stack's CA. The host system bundle is
+// never trusted.
+export const caBind = `/run/plexica-ci-${project}/postgres-ca.crt:/tmp/plexica-postgres-ca.crt:ro`;
 const sidecarImage = process.env.PLUGIN_SIDECAR_IMAGE ?? '';
 const harnessImage = process.env.CI_SIDECAR_HARNESS_IMAGE ?? '';
 const digestPinned = /^(?:[a-z0-9][a-z0-9.-]*(?::[0-9]+)?\/)?[a-z0-9][a-z0-9._/-]*(?::[a-z0-9._-]+)?@sha256:[a-f0-9]{64}$/;
 export const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-if (!/^plexica-ci-[a-z0-9][a-z0-9-]{5,43}$/.test(project ?? '')) throw new Error('Invalid CI project');
 export const trustedImages = [sidecarImage, harnessImage];
 for (const [variable, image] of Object.entries({ PLUGIN_SIDECAR_IMAGE: sidecarImage, CI_SIDECAR_HARNESS_IMAGE: harnessImage }))
   if (!digestPinned.test(image))

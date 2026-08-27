@@ -16,6 +16,8 @@ export const contractSecrets = {
 };
 
 export const contractProject = 'plexica-ci-contract-123456';
+// Per-project runtime CA path (concurrent stacks never share a host bind).
+export const contractCaFile = `/run/plexica-ci-${contractProject}/postgres-ca.crt`;
 
 export const containerBase = {
   ...contractSecrets,
@@ -32,7 +34,7 @@ export const containerBase = {
   PLUGIN_DOCKER_HOST: 'http://plugin-docker-proxy:2375',
   CI_RUNTIME_PROJECT: contractProject,
   CI_RUNTIME_CONTRACT_CONTAINER: '1',
-  CI_RUNTIME_CA_FILE: '/run/plexica-ci/postgres-ca.crt',
+  CI_RUNTIME_CA_FILE: contractCaFile,
 };
 
 export const hostBase = {

@@ -34,8 +34,9 @@ services:
       # Project E2E Postgres CA staged by write-infra into the runner-owned
       # runtime dir. Core validates it at startup (verify-full) and derives
       # the sidecar CA bind from CI_RUNTIME_CA_FILE below — never the host
-      # system bundle, which does not contain this CA.
-      - ${CI_RUNTIME_DIR:?CI runtime directory is required}/postgres-ca.crt:/run/plexica-ci/postgres-ca.crt:ro
+      # system bundle, which does not contain this CA. The container target
+      # is per-project so concurrent stacks never share a CA path.
+      - ${CI_RUNTIME_DIR:?CI runtime directory is required}/postgres-ca.crt:/run/plexica-ci-${CI_COMPOSE_PROJECT:?CI project is required}/postgres-ca.crt:ro
     networks:
       default:
       plugin-docker-control:
