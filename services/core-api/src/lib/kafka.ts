@@ -103,9 +103,14 @@ export const Topics = {
 /**
  * Creates (but does not connect) a Kafka consumer for the given consumer group.
  * Uses the managed consumer factory with rebalance tracking and assignment gate.
+ * `fromBeginning` is a test-only escape hatch (ephemeral groups on ephemeral
+ * topics); production consumers keep the latest-offset default (KJM-007).
  */
-export function createConsumer(groupId: string): KafkaConsumer {
-  return createKafkaConsumer(groupId);
+export function createConsumer(
+  groupId: string,
+  options: { fromBeginning?: boolean } = {}
+): KafkaConsumer {
+  return createKafkaConsumer(groupId, options);
 }
 
 /**

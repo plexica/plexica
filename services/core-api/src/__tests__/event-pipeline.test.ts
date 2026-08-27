@@ -42,7 +42,9 @@ describe('event pipeline integration', () => {
     });
     await expect(prisma.eventOutbox.findUnique({ where: { eventId } })).resolves.toBeDefined();
 
-    const consumer = createConsumer(`event-pipeline-${crypto.randomUUID()}`);
+    const consumer = createConsumer(`event-pipeline-${crypto.randomUUID()}`, {
+      fromBeginning: true,
+    });
     await consumer.connect();
     await consumer.subscribe({ topics: [topic] });
     let resolveRecord!: (record: { key: string; value: string; tenantHeader: string }) => void;
@@ -78,42 +80,46 @@ describe('event pipeline integration', () => {
     }
 
     try {
-      // Harden against transient claim race (SKIP LOCKED / clock skew / parallel
-      // Vitest workers). Poll briefly before asserting publish count, and force
-      // availableAt into the past if the first claim observes nothing.
+      // Harden against the transient claim race and a concurrent background
+      // publisher (core-api-e2e runs its own outbox publisher on the same DB).
+      // If the row is already acked externally, the Kafka observation below is
+      // the authoritative proof and the strict publish count is skipped.
       let publishResult: { published: number; failed: number } | undefined;
+      let externallyPublished = false;
       for (let attempt = 0; attempt < 5; attempt++) {
         publishResult = await publishOutboxBatch();
         if (publishResult.published === 1 && publishResult.failed === 0) break;
         if (publishResult.published === 0 && publishResult.failed === 0) {
           const pending = await prisma.eventOutbox.findUnique({ where: { eventId } });
-          if (pending) {
-            const leaseActive =
-              pending.leaseToken !== null &&
-              pending.leaseExpiresAt !== null &&
-              new Date(pending.leaseExpiresAt).getTime() > Date.now();
-            if (!leaseActive) {
-              // Only reset claimability when no active lease is held.
-              // If a lease is active we must wait for it to expire instead
-              // of making the row appear claimable by touching only
-              // availableAt, preserving the lease protection in
-              // claimOutboxEvents().
-              await prisma.eventOutbox.update({
-                where: { eventId },
-                data: {
-                  availableAt: new Date(Date.now() - 1_000),
-                  leaseToken: null,
-                  leaseExpiresAt: null,
-                },
-              });
-            }
+          if (!pending) {
+            externallyPublished = true;
+            break;
+          }
+          const leaseActive =
+            pending.leaseToken !== null &&
+            pending.leaseExpiresAt !== null &&
+            new Date(pending.leaseExpiresAt).getTime() > Date.now();
+          if (!leaseActive) {
+            // Only reset claimability when no active lease is held.
+            // If a lease is active we must wait for it to expire instead
+            // of making the row appear claimable by touching only
+            // availableAt, preserving the lease protection in
+            // claimOutboxEvents().
+            await prisma.eventOutbox.update({
+              where: { eventId },
+              data: {
+                availableAt: new Date(Date.now() - 1_000),
+                leaseToken: null,
+                leaseExpiresAt: null,
+              },
+            });
           }
           await new Promise((r) => setTimeout(r, 200 * (attempt + 1)));
           continue;
         }
         break;
       }
-      expect(publishResult).toEqual({ published: 1, failed: 0 });
+      if (!externallyPublished) expect(publishResult).toEqual({ published: 1, failed: 0 });
       const record = await Promise.race([
         received,
         new Promise<never>((_, reject) =>
