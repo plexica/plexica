@@ -40,6 +40,13 @@ describe('isRetriablePrismaError', () => {
     expect(isRetriablePrismaError(error)).toBe(false);
   });
 
+  it('never classifies PrismaClientUnknownRequestError by message text', () => {
+    const error = new Prisma.PrismaClientUnknownRequestError('connection timed out P1001', {
+      clientVersion: CLIENT_VERSION,
+    });
+    expect(isRetriablePrismaError(error)).toBe(false);
+  });
+
   it('falls back to the message regex only for non-Prisma errors', () => {
     expect(isRetriablePrismaError(new Error('connect ECONNREFUSED 127.0.0.1:9092'))).toBe(true);
     expect(isRetriablePrismaError(new Error('Timed out awaiting connection'))).toBe(true);

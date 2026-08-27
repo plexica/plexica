@@ -102,8 +102,17 @@ export function isRetriablePrismaError(error: unknown): boolean {
   if (error instanceof Prisma.PrismaClientKnownRequestError) {
     return RETRIABLE_PRISMA_CODES.has(error.code);
   }
-  // Non-Prisma errors only — the allowlist above short-circuits every Prisma
-  // error, so this regex never classifies Prisma by message text.
+  // These classes are never transient by construction; a matching message
+  // must not classify them as retriable.
+  if (
+    error instanceof Prisma.PrismaClientUnknownRequestError ||
+    error instanceof Prisma.PrismaClientRustPanicError ||
+    error instanceof Prisma.PrismaClientValidationError
+  ) {
+    return false;
+  }
+  // Non-Prisma errors only — every known Prisma class is short-circuited
+  // above, so this regex never classifies Prisma by message text.
   const msg = error instanceof Error ? error.message : String(error);
   return /Timed out|connection|ECONNREFUSED|ETIMEDOUT|P1001|P1002/i.test(msg);
 }

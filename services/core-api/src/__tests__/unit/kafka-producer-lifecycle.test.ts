@@ -111,6 +111,47 @@ describe('disconnectKafka', () => {
     );
   });
 
+  it('resolves within the budget when a send is parked on a hung connect', async () => {
+    vi.useFakeTimers();
+    const producer = fakeProducer();
+    const hungConnect = new Promise<void>(() => {});
+    producer.connect.mockReturnValue(hungConnect);
+    mocks.producer.mockReturnValue(producer);
+
+    void getProducer();
+    // A send task parked on the never-settling connect stays in activeSends.
+    const parkedSend = hungConnect.then(() => undefined);
+    registerSend(parkedSend);
+
+    const closing = disconnectKafka();
+
+    await vi.advanceTimersByTimeAsync(30000);
+    await vi.advanceTimersByTimeAsync(1);
+
+    await expect(closing).resolves.toBeUndefined();
+  });
+
+  it('disconnects a producer whose connect succeeds after the budget exhausted', async () => {
+    vi.useFakeTimers();
+    let releaseConnect!: () => void;
+    const hungConnect = new Promise<void>((resolve) => {
+      releaseConnect = resolve;
+    });
+    const producer = fakeProducer();
+    producer.connect.mockReturnValue(hungConnect);
+    mocks.producer.mockReturnValue(producer);
+
+    void getProducer();
+    const closing = disconnectKafka();
+
+    await vi.advanceTimersByTimeAsync(30000);
+    releaseConnect();
+    await vi.advanceTimersByTimeAsync(0);
+
+    await closing;
+    expect(producer.disconnect).toHaveBeenCalledOnce();
+  });
+
   it('resetKafkaProducerForTests re-arms a closed producer', async () => {
     const producer = fakeProducer();
     mocks.producer.mockReturnValue(producer);

@@ -101,7 +101,11 @@ describe('startDlqConsumer poison records', () => {
     ]);
     expect(logger.error).toHaveBeenCalledWith(
       expect.objectContaining({ code: 'DLQ_ENVELOPE_SCHEMA_INVALID' }),
-      'DLQ bridge skipping permanent error record'
+      'DLQ bridge permanent error detected'
+    );
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.objectContaining({ code: 'DLQ_ENVELOPE_SCHEMA_INVALID' }),
+      'DLQ bridge permanent error skipped'
     );
   });
 

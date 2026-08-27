@@ -134,8 +134,7 @@ export async function startDlqConsumer(): Promise<void> {
         const task = (async () => {
           try {
             await handleDlqMessage(prisma, parseDlqPayload(message.value?.toString() ?? ''));
-            // Pre-check before commit: a rebalance that kept the partition
-            // assigned would otherwise re-seek already-committed work (KJM-009).
+            // Pre-check before commit (KJM-009): never commit stale work.
             if (
               getConsumerGeneration(activeConsumer) !== generation ||
               !isAssigned(activeConsumer, topic, partition)
@@ -146,7 +145,7 @@ export async function startDlqConsumer(): Promise<void> {
             if (error instanceof PermanentDlqError) {
               logger.error(
                 { topic, partition, offset, code: error.code },
-                'DLQ bridge skipping permanent error record'
+                'DLQ bridge permanent error detected'
               );
               if (
                 getConsumerGeneration(activeConsumer) !== generation ||
@@ -154,6 +153,10 @@ export async function startDlqConsumer(): Promise<void> {
               )
                 throw new Error('KAFKA_COMMIT_STALE_GENERATION');
               await commitOffsetGuarded(activeConsumer, topic, partition, nextOffset);
+              logger.error(
+                { topic, partition, offset, code: error.code },
+                'DLQ bridge permanent error skipped'
+              );
               return;
             }
             if (String((error as Error).message ?? '').includes('KAFKA_COMMIT_STALE_GENERATION'))

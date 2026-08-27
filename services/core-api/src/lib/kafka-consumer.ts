@@ -144,14 +144,18 @@ export function trackHandler(consumer: KafkaConsumer, promise: Promise<void>): v
   void promise.finally(() => state.handlers.delete(promise)).catch(() => undefined);
 }
 
-function timeoutReject(timeoutMs: number): Promise<never> {
-  return new Promise((_, reject) => {
-    const timer = setTimeout(
-      () => reject(new Error('KAFKA_OWNED_HANDLERS_DRAIN_TIMEOUT')),
-      timeoutMs
-    );
+function timeoutReject(timeoutMs: number): { promise: Promise<never>; cancel: () => void } {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const promise = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error('KAFKA_OWNED_HANDLERS_DRAIN_TIMEOUT')), timeoutMs);
     timer.unref?.();
   });
+  // Clear the timer once the surrounding race settles; the promise then never settles.
+  const cancel = (): void => {
+    if (timer) clearTimeout(timer);
+    timer = undefined;
+  };
+  return { promise, cancel };
 }
 
 export async function awaitOwnedHandlers(consumer: KafkaConsumer, timeoutMs = 5000): Promise<void> {
@@ -161,10 +165,14 @@ export async function awaitOwnedHandlers(consumer: KafkaConsumer, timeoutMs = 50
   while (Date.now() < deadline) {
     const handlers = [...getState(consumer).handlers];
     if (handlers.length === 0) return;
-    await Promise.race([
-      Promise.allSettled(handlers),
-      timeoutReject(Math.max(0, deadline - Date.now())),
-    ]).catch(() => undefined);
+    const timed = timeoutReject(Math.max(0, deadline - Date.now()));
+    try {
+      await Promise.race([Promise.allSettled(handlers), timed.promise]);
+    } catch {
+      // Drain iteration timed out; re-check the deadline on the next pass.
+    } finally {
+      timed.cancel();
+    }
   }
 }
 

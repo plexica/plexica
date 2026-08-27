@@ -50,9 +50,7 @@ export async function getProducer(): Promise<KafkaProducer> {
       throw err;
     }
 
-    // Shutdown ran while we were connecting: do NOT publish this instance as
-    // the live producer. disconnectKafka() awaits this promise and tears the
-    // returned instance down.
+    // Shutdown ran while we were connecting: tear the returned instance down.
     if (generation !== myGeneration || closed) return p;
 
     producer = p;
@@ -67,7 +65,7 @@ export async function getProducer(): Promise<KafkaProducer> {
 export function registerSend(promise: Promise<unknown>): void {
   if (closed) throw new KafkaProducerClosedError();
   activeSends.add(promise);
-  void promise.finally(() => activeSends.delete(promise));
+  void promise.finally(() => activeSends.delete(promise)).catch(() => undefined);
 }
 
 export function initKafka(): void {
@@ -82,8 +80,7 @@ export function initKafka(): void {
 }
 
 export function disconnectKafka(): Promise<void> {
-  // Entered synchronously, before any await: a getProducer() racing this
-  // teardown must be rejected, not served with a brand-new connection.
+  // Entered synchronously: racing getProducer() must be rejected, not served fresh.
   closed = true;
   closing ??= teardownProducer();
   return closing;
@@ -108,6 +105,10 @@ async function withBudget<T>(budgetMs: number, promise: Promise<T>): Promise<Bud
   }
 }
 
+function warnShutdownDeadlineExceeded(message: string): void {
+  logger.warn({ code: 'SHUTDOWN_DEADLINE_EXCEEDED' }, message);
+}
+
 async function disconnectSafely(instance: KafkaProducer): Promise<void> {
   try {
     await instance.disconnect();
@@ -130,43 +131,30 @@ async function teardownProducer(): Promise<void> {
   const deadline = Date.now() + SHUTDOWN_DEADLINE_MS;
   const drainDeadline = deadline - DISCONNECT_BUDGET_MS;
 
-  // Single global drain race for in-flight sends and the pending connect,
-  // bounded by the drain deadline. The unref'd timer must not hold the loop.
-  const pendingSends = [...activeSends];
-  const pendingConnects: Promise<unknown>[] = pending ? [pending.catch(() => null)] : [];
-  const toSettle = [...pendingSends, ...pendingConnects];
+  // Global bounded drain for in-flight sends and the pending connect.
+  const toSettle = [...activeSends, ...(pending ? [pending.catch(() => null)] : [])];
   const drainBudget = Math.max(0, drainDeadline - Date.now());
   if (toSettle.length > 0 && drainBudget > 0) {
-    await Promise.race([
-      Promise.allSettled(toSettle.map((p) => p.catch(() => undefined))),
-      new Promise((resolve) => {
-        const timer = setTimeout(resolve, drainBudget);
-        timer.unref?.();
-      }),
-    ]);
+    await withBudget(
+      drainBudget,
+      Promise.allSettled(toSettle.map((p) => p.catch(() => undefined)))
+    );
   }
 
-  // Bound every remaining step by the hard shutdown deadline, recomputing the
-  // remaining budget after each step. A hung native connect (unavailable
-  // broker, KJM-NFR-005) must not stall shutdown past the deadline.
+  // Bound remaining steps by the hard shutdown deadline; a hung native
+  // connect (KJM-NFR-005) must not stall shutdown.
   const inFlight = await withBudget(
     Math.max(0, deadline - Date.now()),
     pending?.catch(() => null) ?? Promise.resolve(null)
   );
   if (inFlight === SHUTDOWN_BUDGET_EXHAUSTED) {
-    logger.warn(
-      { code: 'SHUTDOWN_DEADLINE_EXCEEDED' },
-      'Kafka producer shutdown exceeded deadline awaiting connect settle'
-    );
+    warnShutdownDeadlineExceeded('awaiting connect settle');
   }
 
   if (active) {
     const outcome = await withBudget(Math.max(0, deadline - Date.now()), disconnectSafely(active));
     if (outcome === SHUTDOWN_BUDGET_EXHAUSTED) {
-      logger.warn(
-        { code: 'SHUTDOWN_DEADLINE_EXCEEDED' },
-        'Kafka producer shutdown exceeded deadline disconnecting producer'
-      );
+      warnShutdownDeadlineExceeded('disconnecting producer');
     }
   }
 
@@ -176,15 +164,26 @@ async function teardownProducer(): Promise<void> {
       disconnectSafely(inFlight)
     );
     if (outcome === SHUTDOWN_BUDGET_EXHAUSTED) {
-      logger.warn(
-        { code: 'SHUTDOWN_DEADLINE_EXCEEDED' },
-        'Kafka producer shutdown exceeded deadline disconnecting in-flight connect'
-      );
+      warnShutdownDeadlineExceeded('disconnecting in-flight connect');
     }
   }
 
-  // Settle any send rejections that resulted from disconnect.
-  await Promise.allSettled([...activeSends].map((p) => p.catch(() => undefined)));
+  // Settle any send rejections from disconnect, bounded by the shutdown deadline.
+  const settled = await withBudget(
+    Math.max(0, deadline - Date.now()),
+    Promise.allSettled([...activeSends].map((p) => p.catch(() => undefined)))
+  );
+  if (settled === SHUTDOWN_BUDGET_EXHAUSTED) {
+    warnShutdownDeadlineExceeded('settling in-flight sends');
+  }
+
+  // A connect settling after the budget exhausted must still be torn down;
+  // late rejections are handled by the IIFE, late success would leak a socket.
+  if (inFlight === SHUTDOWN_BUDGET_EXHAUSTED) {
+    void pending
+      ?.then((p) => (p && p !== active ? p.disconnect().catch(() => undefined) : undefined))
+      .catch(() => undefined);
+  }
 }
 
 export function isKafkaProducerClosed(): boolean {
