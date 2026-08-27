@@ -19,6 +19,7 @@ import { logger } from '../../../lib/logger.js';
 import type { PrismaClient } from '@prisma/client';
 
 const CONSUMER_GROUP_ID = 'plexica-system-dlq-processor';
+const STALE_GEN = 'KAFKA_COMMIT_STALE_GENERATION';
 let consumer: ReturnType<typeof createConsumer> | null = null;
 let isRunning = false;
 
@@ -55,11 +56,7 @@ class PermanentDlqError extends Error {
   }
 }
 
-/**
- * Parses the raw DLQ bridge message. Malformed JSON is permanent poison — it
- * must never be retried (it would block the bridge forever). Throws
- * PermanentDlqError so the caller commits and skips the record.
- */
+// Malformed JSON is permanent poison — never retried, or it blocks the bridge forever.
 export function parseDlqPayload(value: string): unknown {
   try {
     return JSON.parse(value);
@@ -98,10 +95,7 @@ export async function handleDlqMessage(db: PrismaClient, input: unknown): Promis
     ) {
       throw new PermanentDlqError('DLQ_DECRYPT_FAILED');
     }
-    // Unknown decrypt failure for active tenant: treat as transient unless proven permanent.
-    // But if it's an auth tag failure, decryptWireEvent will throw with native crypto error;
-    // that is permanent poison — commit after sanitized handling. We conservatively treat
-    // any non-transient crypto error as permanent to avoid blocking bridge.
+    // Conservative: any non-transient decrypt failure on an active tenant is poison.
     if (error instanceof PermanentDlqError) throw error;
     throw new PermanentDlqError('DLQ_DECRYPT_FAILED');
   }
@@ -131,15 +125,14 @@ export async function startDlqConsumer(): Promise<void> {
         const offset = message.offset;
         const nextOffset = (BigInt(offset) + 1n).toString();
         const generation = getConsumerGeneration(activeConsumer);
+        const stale = (): boolean =>
+          getConsumerGeneration(activeConsumer) !== generation ||
+          !isAssigned(activeConsumer, topic, partition);
         const task = (async () => {
           try {
             await handleDlqMessage(prisma, parseDlqPayload(message.value?.toString() ?? ''));
             // Pre-check before commit (KJM-009): never commit stale work.
-            if (
-              getConsumerGeneration(activeConsumer) !== generation ||
-              !isAssigned(activeConsumer, topic, partition)
-            )
-              throw new Error('KAFKA_COMMIT_STALE_GENERATION');
+            if (stale()) throw new Error(STALE_GEN);
             await commitOffsetGuarded(activeConsumer, topic, partition, nextOffset);
           } catch (error) {
             if (error instanceof PermanentDlqError) {
@@ -147,20 +140,24 @@ export async function startDlqConsumer(): Promise<void> {
                 { topic, partition, offset, code: error.code },
                 'DLQ bridge permanent error detected'
               );
-              if (
-                getConsumerGeneration(activeConsumer) !== generation ||
-                !isAssigned(activeConsumer, topic, partition)
-              )
-                throw new Error('KAFKA_COMMIT_STALE_GENERATION');
-              await commitOffsetGuarded(activeConsumer, topic, partition, nextOffset);
+              if (stale()) throw new Error(STALE_GEN);
+              try {
+                await commitOffsetGuarded(activeConsumer, topic, partition, nextOffset);
+              } catch (commitError) {
+                // Rebalance landed during the commit round-trip; the client already committed.
+                if (String((commitError as Error).message ?? '').includes(STALE_GEN)) {
+                  logger.error({ code: 'DLQ_POISON_COMMIT_STALE' }, 'DLQ poison commit stale');
+                  return;
+                }
+                throw commitError;
+              }
               logger.error(
                 { topic, partition, offset, code: error.code },
                 'DLQ bridge permanent error skipped'
               );
               return;
             }
-            if (String((error as Error).message ?? '').includes('KAFKA_COMMIT_STALE_GENERATION'))
-              throw error;
+            if (String((error as Error).message ?? '').includes(STALE_GEN)) throw error;
             logger.error(
               { topic, partition, offset, code: 'DLQ_BRIDGE_TRANSIENT' },
               'DLQ bridge transient failure'

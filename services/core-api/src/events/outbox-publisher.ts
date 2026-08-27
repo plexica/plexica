@@ -31,17 +31,21 @@ export async function publishOutboxBatch(
       });
       if (tenant?.status !== 'active') throw new Error('TENANT_NOT_ACTIVE');
       const { keyVersion, key } = await ensureTenantEventKey(db, event.tenantId);
-      const wire = encryptDomainEvent({
-        eventId: event.eventId,
-        type: event.type,
-        schemaVersion: event.schemaVersion,
-        tenantId: event.tenantId,
-        occurredAt: event.occurredAt,
-        producer: event.producer,
-        correlationId: event.correlationId,
-        causationId: event.causationId,
-        payload: event.payload,
-      }, keyVersion, key);
+      const wire = encryptDomainEvent(
+        {
+          eventId: event.eventId,
+          type: event.type,
+          schemaVersion: event.schemaVersion,
+          tenantId: event.tenantId,
+          occurredAt: event.occurredAt,
+          producer: event.producer,
+          correlationId: event.correlationId,
+          causationId: event.causationId,
+          payload: event.payload,
+        },
+        keyVersion,
+        key
+      );
       const current = await db.tenant.findUnique({
         where: { id: event.tenantId },
         select: { status: true },
@@ -67,9 +71,11 @@ export async function publishOutboxBatch(
 let interval: NodeJS.Timeout | undefined;
 let running: Promise<void> | undefined;
 
-function scheduleBatch(): void {
+type OutboxBatchResult = { published: number; failed: number };
+
+function scheduleBatch(run: () => Promise<OutboxBatchResult>): void {
   if (running) return;
-  running = publishOutboxBatch()
+  running = run()
     .then(async ({ published, failed }) => {
       if (published > 0 || failed > 0) {
         logger.info({ published, failed }, 'Outbox publisher batch completed');
@@ -83,15 +89,25 @@ function scheduleBatch(): void {
     });
 }
 
-export function startOutboxPublisher(periodMs = 1_000): void {
+export function startOutboxPublisher(
+  periodMs = 1_000,
+  run: () => Promise<OutboxBatchResult> = publishOutboxBatch
+): void {
   if (interval) return;
-  scheduleBatch();
-  interval = setInterval(scheduleBatch, periodMs);
+  scheduleBatch(run);
+  interval = setInterval(() => scheduleBatch(run), periodMs);
   interval.unref();
 }
 
 export async function stopOutboxPublisher(): Promise<void> {
   if (interval) clearInterval(interval);
   interval = undefined;
-  await running;
+  if (!running) return;
+  await Promise.race([
+    running,
+    new Promise((resolve) => {
+      const timer = setTimeout(resolve, 30000);
+      timer.unref?.();
+    }),
+  ]);
 }

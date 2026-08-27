@@ -15,6 +15,7 @@ vi.mock('../../lib/logger.js', () => ({
 }));
 
 import { awaitOwnedHandlers, createKafkaConsumer, trackHandler } from '../../lib/kafka-consumer.js';
+import { logger } from '../../lib/logger.js';
 
 const fakeConsumer = {};
 mocks.consumer.mockReturnValue(fakeConsumer);
@@ -43,6 +44,10 @@ describe('trackHandler / awaitOwnedHandlers', () => {
     const start = Date.now();
     await expect(awaitOwnedHandlers(c, 30)).resolves.toBeUndefined();
     expect(Date.now() - start).toBeLessThan(1000);
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.objectContaining({ code: 'KAFKA_OWNED_HANDLERS_DRAIN_TIMEOUT' }),
+      expect.any(String)
+    );
   });
 
   it('swallows handler rejections', async () => {

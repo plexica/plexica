@@ -140,4 +140,30 @@ describe('startDlqConsumer poison records', () => {
     ).rejects.toThrow('KAFKA_COMMIT_STALE_GENERATION');
     expect(consumer.commitOffsets).not.toHaveBeenCalled();
   });
+
+  it('treats a stale-generation commit during poison handling as skipped', async () => {
+    const { consumer, eachMessageRef, revoke } = fakeConsumer();
+    vi.mocked(consumer.commitOffsets).mockImplementation(async () => {
+      revoke(Topics.dlq, 0);
+    });
+    await startDlqConsumer();
+
+    await expect(
+      eachMessageRef.current!({
+        topic: Topics.dlq,
+        partition: 0,
+        message: { value: Buffer.from('{bad'), offset: '5' },
+      })
+    ).resolves.toBeUndefined();
+
+    expect(consumer.commitOffsets).toHaveBeenCalledTimes(1);
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.objectContaining({ code: 'DLQ_POISON_COMMIT_STALE' }),
+      expect.any(String)
+    );
+    expect(logger.error).not.toHaveBeenCalledWith(
+      expect.objectContaining({ code: 'DLQ_ENVELOPE_SCHEMA_INVALID' }),
+      'DLQ bridge permanent error skipped'
+    );
+  });
 });

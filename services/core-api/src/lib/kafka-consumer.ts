@@ -1,6 +1,4 @@
 // lib/kafka-consumer.ts
-// Consumer construction, rebalance state, readiness, guarded commit.
-
 import { KafkaJS } from '@confluentinc/kafka-javascript';
 
 import { kafkaClient } from './kafka-client.js';
@@ -150,7 +148,6 @@ function timeoutReject(timeoutMs: number): { promise: Promise<never>; cancel: ()
     timer = setTimeout(() => reject(new Error('KAFKA_OWNED_HANDLERS_DRAIN_TIMEOUT')), timeoutMs);
     timer.unref?.();
   });
-  // Clear the timer once the surrounding race settles; the promise then never settles.
   const cancel = (): void => {
     if (timer) clearTimeout(timer);
     timer = undefined;
@@ -174,6 +171,8 @@ export async function awaitOwnedHandlers(consumer: KafkaConsumer, timeoutMs = 50
       timed.cancel();
     }
   }
+  if (getState(consumer).handlers.size > 0)
+    logger.warn({ code: 'KAFKA_OWNED_HANDLERS_DRAIN_TIMEOUT' }, 'Owned handlers drain timed out');
 }
 
 export function processAndCommit(
