@@ -37,8 +37,21 @@ test.describe('005-11 Kafka status', () => {
       const rows = lagTable.getByRole('row');
       expect(await rows.count()).toBeGreaterThan(1);
       const firstRow = rows.nth(1);
-      await expect(firstRow.getByText(/[\d,]+/)).toBeVisible();
-      await expect(firstRow.getByText(/^(OK|Warning)$/)).toBeVisible();
+      // Column layout is fixed: plugin, consumer group/topic, lag, status.
+      // Anchor to the lag and status cells so numeric plugin/topic ids do not
+      // create a strict-mode ambiguity.
+      await expect(
+        firstRow
+          .getByRole('cell')
+          .nth(2)
+          .getByText(/[\d,]+/)
+      ).toBeVisible();
+      await expect(
+        firstRow
+          .getByRole('cell')
+          .nth(3)
+          .getByText(/^(OK|Warning)$/)
+      ).toBeVisible();
     }
   });
 
