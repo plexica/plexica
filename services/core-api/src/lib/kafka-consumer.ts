@@ -146,16 +146,26 @@ export function trackHandler(consumer: KafkaConsumer, promise: Promise<void>): v
 
 function timeoutReject(timeoutMs: number): Promise<never> {
   return new Promise((_, reject) => {
-    setTimeout(() => reject(new Error('KAFKA_OWNED_HANDLERS_DRAIN_TIMEOUT')), timeoutMs);
+    const timer = setTimeout(
+      () => reject(new Error('KAFKA_OWNED_HANDLERS_DRAIN_TIMEOUT')),
+      timeoutMs
+    );
+    timer.unref?.();
   });
 }
 
 export async function awaitOwnedHandlers(consumer: KafkaConsumer, timeoutMs = 5000): Promise<void> {
-  const handlers = [...getState(consumer).handlers];
-  if (handlers.length === 0) return;
-  await Promise.race([Promise.allSettled(handlers), timeoutReject(timeoutMs)]).catch(
-    () => undefined
-  );
+  // Bounded re-check loop: a handler registered after a snapshot is still
+  // awaited on the next iteration (no drain snapshot race).
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const handlers = [...getState(consumer).handlers];
+    if (handlers.length === 0) return;
+    await Promise.race([
+      Promise.allSettled(handlers),
+      timeoutReject(Math.max(0, deadline - Date.now())),
+    ]).catch(() => undefined);
+  }
 }
 
 export function processAndCommit(
@@ -169,9 +179,12 @@ export function processAndCommit(
     const gen = getConsumerGeneration(consumer);
     await work();
     const nextOffset = (BigInt(offset) + 1n).toString();
-    await commitOffsetGuarded(consumer, topic, partition, nextOffset);
+    // Pre-check before commit: a rebalance that kept the partition assigned
+    // would otherwise re-seek already-committed work (KJM-009). Never commit
+    // stale work.
     if (getConsumerGeneration(consumer) !== gen || !isAssigned(consumer, topic, partition))
       throw new Error('KAFKA_COMMIT_STALE_GENERATION');
+    await commitOffsetGuarded(consumer, topic, partition, nextOffset);
   })();
   trackHandler(consumer, task);
   return task;

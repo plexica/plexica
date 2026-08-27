@@ -10,7 +10,10 @@ const pendingCleanups = new Set<Promise<void>>();
 export async function awaitKafkaHealthCleanup(): Promise<void> {
   await Promise.race([
     Promise.allSettled([...pendingCleanups]),
-    new Promise((resolve) => setTimeout(resolve, 5000)),
+    new Promise((resolve) => {
+      const timer = setTimeout(resolve, 5000);
+      timer.unref?.();
+    }),
   ]);
 }
 

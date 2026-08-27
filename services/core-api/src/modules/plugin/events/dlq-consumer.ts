@@ -9,6 +9,7 @@ import {
   awaitOwnedHandlers,
   commitOffsetGuarded,
   getConsumerGeneration,
+  isAssigned,
   trackHandler,
   waitForConsumerAssignment,
 } from '../../../lib/kafka-consumer.js';
@@ -51,6 +52,19 @@ export async function persistDlqEntry(db: PrismaClient, input: unknown): Promise
 class PermanentDlqError extends Error {
   constructor(readonly code: string) {
     super(code);
+  }
+}
+
+/**
+ * Parses the raw DLQ bridge message. Malformed JSON is permanent poison — it
+ * must never be retried (it would block the bridge forever). Throws
+ * PermanentDlqError so the caller commits and skips the record.
+ */
+export function parseDlqPayload(value: string): unknown {
+  try {
+    return JSON.parse(value);
+  } catch {
+    throw new PermanentDlqError('DLQ_ENVELOPE_SCHEMA_INVALID');
   }
 }
 
@@ -119,7 +133,14 @@ export async function startDlqConsumer(): Promise<void> {
         const generation = getConsumerGeneration(activeConsumer);
         const task = (async () => {
           try {
-            await handleDlqMessage(prisma, JSON.parse(message.value?.toString() ?? ''));
+            await handleDlqMessage(prisma, parseDlqPayload(message.value?.toString() ?? ''));
+            // Pre-check before commit: a rebalance that kept the partition
+            // assigned would otherwise re-seek already-committed work (KJM-009).
+            if (
+              getConsumerGeneration(activeConsumer) !== generation ||
+              !isAssigned(activeConsumer, topic, partition)
+            )
+              throw new Error('KAFKA_COMMIT_STALE_GENERATION');
             await commitOffsetGuarded(activeConsumer, topic, partition, nextOffset);
           } catch (error) {
             if (error instanceof PermanentDlqError) {
@@ -127,6 +148,11 @@ export async function startDlqConsumer(): Promise<void> {
                 { topic, partition, offset, code: error.code },
                 'DLQ bridge skipping permanent error record'
               );
+              if (
+                getConsumerGeneration(activeConsumer) !== generation ||
+                !isAssigned(activeConsumer, topic, partition)
+              )
+                throw new Error('KAFKA_COMMIT_STALE_GENERATION');
               await commitOffsetGuarded(activeConsumer, topic, partition, nextOffset);
               return;
             }
@@ -138,8 +164,6 @@ export async function startDlqConsumer(): Promise<void> {
             );
             throw error;
           }
-          if (getConsumerGeneration(activeConsumer) !== generation)
-            throw new Error('KAFKA_COMMIT_STALE_GENERATION');
         })();
         trackHandler(activeConsumer, task);
         return task;

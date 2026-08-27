@@ -20,12 +20,25 @@ export async function withKafkaAdmin<T>(
 ): Promise<T> {
   const admin = kafkaClient.admin();
   if (options.connectTimeoutMs !== undefined && options.connectTimeoutMs > 0) {
-    await Promise.race([
-      admin.connect(),
-      new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new KafkaAdminConnectTimeoutError()), options.connectTimeoutMs)
-      ),
-    ]);
+    const connectPromise = admin.connect();
+    let connectTimer: ReturnType<typeof setTimeout> | undefined;
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      connectTimer = setTimeout(() => {
+        // The connect timed out but its native promise settles late. Observe it
+        // and tear it down so the library's ready callback cannot throw
+        // uncaught when state != CONNECTING.
+        void connectPromise
+          .catch(() => undefined)
+          .finally(() => admin.disconnect().catch(() => undefined));
+        reject(new KafkaAdminConnectTimeoutError());
+      }, options.connectTimeoutMs);
+      connectTimer.unref?.();
+    });
+    try {
+      await Promise.race([connectPromise, timeoutPromise]);
+    } finally {
+      if (connectTimer) clearTimeout(connectTimer);
+    }
   } else {
     await admin.connect();
   }

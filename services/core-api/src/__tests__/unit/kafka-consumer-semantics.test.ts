@@ -1,5 +1,5 @@
 // unit/kafka-consumer-semantics.test.ts
-// Unit tests for consumer rebalance state, guarded commits and owned-handler drain.
+// Unit tests for consumer rebalance state, guarded commits and commit semantics.
 
 import { KafkaJS } from '@confluentinc/kafka-javascript';
 import { describe, expect, it, vi } from 'vitest';
@@ -16,13 +16,11 @@ vi.mock('../../lib/logger.js', () => ({
 }));
 
 import {
-  awaitOwnedHandlers,
   commitOffsetGuarded,
   createKafkaConsumer,
   isConsumerClosing,
   markConsumerClosing,
   processAndCommit,
-  trackHandler,
   waitForConsumerAssignment,
 } from '../../lib/kafka-consumer.js';
 
@@ -110,39 +108,6 @@ describe('markConsumerClosing / isConsumerClosing', () => {
   });
 });
 
-describe('trackHandler / awaitOwnedHandlers', () => {
-  it('resolves immediately when there are no owned handlers', async () => {
-    const c = createKafkaConsumer('g');
-    await expect(awaitOwnedHandlers(c, 50)).resolves.toBeUndefined();
-  });
-
-  it('waits for owned handlers to settle and clears them', async () => {
-    const c = createKafkaConsumer('g');
-    let release!: () => void;
-    const pending = new Promise<void>((resolve) => {
-      release = resolve;
-    });
-    trackHandler(c, pending);
-    const drain = awaitOwnedHandlers(c, 5000);
-    release();
-    await expect(drain).resolves.toBeUndefined();
-  });
-
-  it('bounded: resolves on timeout even if a handler never settles', async () => {
-    const c = createKafkaConsumer('g');
-    trackHandler(c, new Promise<void>(() => {}));
-    const start = Date.now();
-    await expect(awaitOwnedHandlers(c, 30)).resolves.toBeUndefined();
-    expect(Date.now() - start).toBeLessThan(1000);
-  });
-
-  it('swallows handler rejections', async () => {
-    const c = createKafkaConsumer('g');
-    trackHandler(c, Promise.reject(new Error('boom')));
-    await expect(awaitOwnedHandlers(c, 100)).resolves.toBeUndefined();
-  });
-});
-
 describe('processAndCommit', () => {
   it('commits offset+1 after the work succeeds', async () => {
     const { consumer, assign } = makeConsumer();
@@ -165,6 +130,18 @@ describe('processAndCommit', () => {
         throw new Error('work failed');
       })
     ).rejects.toThrow('work failed');
+    expect(consumer.commitOffsets).not.toHaveBeenCalled();
+  });
+
+  it('throws KAFKA_COMMIT_STALE_GENERATION and never commits when the generation changes during work', async () => {
+    const { consumer, assign, revoke } = makeConsumer();
+    const c = createKafkaConsumer('g');
+    assign('t1', 0);
+    await expect(
+      processAndCommit(c, 't1', 0, '42', async () => {
+        revoke('t1', 0);
+      })
+    ).rejects.toThrow('KAFKA_COMMIT_STALE_GENERATION');
     expect(consumer.commitOffsets).not.toHaveBeenCalled();
   });
 

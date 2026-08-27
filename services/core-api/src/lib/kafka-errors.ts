@@ -1,5 +1,7 @@
 // lib/kafka-errors.ts
-// Numeric client error classification — never by message/name.
+// Error classification by numeric codes and structured error classes — never by
+// message/name. Prisma errors are classified ONLY by the retriable allowlist;
+// the message-regex fallback applies exclusively to non-Prisma errors.
 
 import { KafkaJS } from '@confluentinc/kafka-javascript';
 import { Prisma } from '@prisma/client';
@@ -80,13 +82,28 @@ export function isRetriableConsumerError(error: unknown): boolean {
   return category === 'timeout' || category === 'transport' || category === 'rebalance';
 }
 
-const RETRIABLE_PRISMA_CODES = new Set(['P1001', 'P1002', 'P1017', 'P2024', 'P2034']);
+// Transient Prisma codes — connection establishment (P1001/P1011), connection
+// and operation timeouts (P1002/P1008), server closure (P1017), pool
+// exhaustion (P2024), and transaction API errors (P2028). All are documented
+// transient codes.
+const RETRIABLE_PRISMA_CODES = new Set([
+  'P1001',
+  'P1002',
+  'P1008',
+  'P1011',
+  'P1017',
+  'P2024',
+  'P2028',
+  'P2034',
+]);
 
 export function isRetriablePrismaError(error: unknown): boolean {
   if (error instanceof Prisma.PrismaClientInitializationError) return true;
   if (error instanceof Prisma.PrismaClientKnownRequestError) {
     return RETRIABLE_PRISMA_CODES.has(error.code);
   }
+  // Non-Prisma errors only — the allowlist above short-circuits every Prisma
+  // error, so this regex never classifies Prisma by message text.
   const msg = error instanceof Error ? error.message : String(error);
   return /Timed out|connection|ECONNREFUSED|ETIMEDOUT|P1001|P1002/i.test(msg);
 }

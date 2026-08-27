@@ -132,4 +132,25 @@ describe('withKafkaAdmin', () => {
       withKafkaAdmin(async () => undefined, { connectTimeoutMs: 20 })
     ).rejects.toMatchObject({ name: 'TimeoutError', code: 'KAFKA_ADMIN_CONNECT_TIMEOUT' });
   });
+
+  it('observes and cleans up a late-settling connect after the timeout fires', async () => {
+    let resolveConnect!: () => void;
+    const admin = fakeAdmin({
+      connect: vi.fn(
+        () =>
+          new Promise<void>((resolve) => {
+            resolveConnect = resolve;
+          })
+      ),
+    });
+    mocks.admin.mockReturnValue(admin);
+    const operation = withKafkaAdmin(async () => 1, { connectTimeoutMs: 10 });
+    await expect(operation).rejects.toMatchObject({
+      name: 'TimeoutError',
+      code: 'KAFKA_ADMIN_CONNECT_TIMEOUT',
+    });
+    expect(admin.disconnect).not.toHaveBeenCalled();
+    resolveConnect();
+    await vi.waitFor(() => expect(admin.disconnect).toHaveBeenCalledOnce());
+  });
 });

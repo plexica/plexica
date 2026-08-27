@@ -40,7 +40,9 @@ async function pollLag(
   try {
     const { withKafkaAdmin, getConsumerGroupLag } = await import('../../../lib/kafka-admin.js');
     const groupId = `plugin-${installId}-${tenantSlug}`;
-    const lag = await withKafkaAdmin((admin) => getConsumerGroupLag(admin, groupId, topics));
+    const lag = await withKafkaAdmin((admin) => getConsumerGroupLag(admin, groupId, topics), {
+      connectTimeoutMs: 5000,
+    });
     updateLag(installId, pluginSlug, tenantSlug, lag);
   } catch {
     logger.warn({ code: 'KAFKA_LAG_POLL_FAILED', installId }, 'Lag polling failed');

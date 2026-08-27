@@ -58,16 +58,8 @@ export async function processInstallationMessage(input: {
     event = decryptWireEvent(wire, key);
   } catch (error) {
     if (isRetriablePrismaError(error)) throw error;
-    const msg = error instanceof Error ? error.message : '';
-    // Destroyed or unreadable key is permanent poison; other unknown errors after
-    // availability check are also treated as permanent to avoid blocking.
-    if (
-      msg !== 'Tenant event key is unavailable' &&
-      msg !== 'Tenant event key material is unavailable'
-    ) {
-      // Decrypt authentication failures (tag mismatch) land here with native crypto
-      // errors — they are permanent poison for active tenants.
-    }
+    // Any non-retriable decrypt failure (key unavailable or crypto/auth-tag
+    // mismatch) is permanent poison -> moveToDlq EVENT_DECRYPT_FAILED.
     const malformed = malformedSourceEvent(input.tenantId, input.installId, input.source);
     await moveToDlq(
       dlqPayloadSchema.parse({
