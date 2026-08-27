@@ -864,7 +864,7 @@ I plugin possono emettere eventi custom:
 
 | Servizio       | Sviluppo Locale           | Staging/Produzione    |
 | -------------- | ------------------------- | --------------------- |
-| PostgreSQL 15+ | Docker (singola istanza)  | Managed PostgreSQL    |
+| PostgreSQL 18+ | Docker (singola istanza)  | Managed PostgreSQL    |
 | Keycloak 26+   | Docker (singola istanza)  | Cluster con HA        |
 | Redis          | Docker (singola istanza)  | Managed Redis         |
 | MinIO          | Docker (singola istanza)  | MinIO o S3            |

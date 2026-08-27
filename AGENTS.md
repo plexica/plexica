@@ -35,7 +35,7 @@ una UX professionale.
 | Runtime        | Node.js          | >= 24      |                                           |
 | Linguaggio     | TypeScript       | ^5.9       | Strict mode obbligatorio                  |
 | Framework      | Fastify          | ^5         | Monolite, organizzato per feature module  |
-| Database       | PostgreSQL       | 15+        | Schema-per-tenant per isolamento GDPR     |
+| Database       | PostgreSQL       | 18+        | Schema-per-tenant per isolamento GDPR     |
 | ORM            | Prisma           | ^6         | Con escape hatch SQL raw                  |
 | Cache          | Redis (ioredis)  | ^5         | Caching, rate limiting, ABAC policy cache |
 | Object Storage | MinIO            | ^8         | S3-compatibile, bucket per tenant         |

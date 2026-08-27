@@ -110,7 +110,7 @@ design documents, done correctly this time:
 
 | Layer | Technology |
 |-------|-----------|
-| Backend | Node.js ≥20, TypeScript, Fastify, Prisma, PostgreSQL 15+ |
+| Backend | Node.js ≥20, TypeScript, Fastify, Prisma, PostgreSQL 18+ |
 | Frontend | React 19, Vite, TanStack Router/Query, Zustand, Tailwind CSS, Radix UI |
 | Auth | Keycloak 26+ (realm-per-tenant) |
 | Events | Kafka/Redpanda (single-node dev, cluster prod) |

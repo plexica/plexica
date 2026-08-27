@@ -40,7 +40,7 @@ PATH="$temp/bin:$PATH" bash "$script" write-browser
 scope="ci-$(printf '%s' "$CI_COMPOSE_PROJECT" | sha256sum | cut -c1-28)"
 [[ "$(bash "$(dirname "$0")/ci-runtime-scope.sh" "$CI_COMPOSE_PROJECT")" == "$scope" ]]
 grep -Fxe "PLUGIN_RUNTIME_SCOPE=$scope" -e 'KAFKA_BROKERS=redpanda:9092' -e 'CI_RUNTIME_CONTRACT_CONTAINER=1' \
-  -e 'PLUGIN_DB_SSL_ROOT_CERT_PATH=/run/plexica-ci/postgres-ca.crt' -e 'CI_RUNTIME_CA_FILE=/run/plexica-ci/postgres-ca.crt' \
+  -e 'PLUGIN_DB_SSL_ROOT_CERT_PATH=/run/plexica-ci-plexica-ci-compose-123456/postgres-ca.crt' -e 'CI_RUNTIME_CA_FILE=/run/plexica-ci-plexica-ci-compose-123456/postgres-ca.crt' \
   "$CI_RUNTIME_DIR/container.env" >/dev/null
 grep -Fx 'CORE_API_PUBLIC_BASE=http://127.0.0.1:32006' "$CI_RUNTIME_DIR/host.env" >/dev/null
 grep -Fxe 'MAILPIT_UI_BASE=http://127.0.0.1:32011' -e 'MAILPIT_SMTP_URL=smtp://127.0.0.1:32010' "$CI_RUNTIME_DIR/host.env" >/dev/null

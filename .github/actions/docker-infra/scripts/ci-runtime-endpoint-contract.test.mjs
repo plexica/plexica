@@ -50,10 +50,10 @@ for (const [key, value] of [
   ['CI_RUNTIME_CONTRACT_CONTAINER', '1'],
   ['KAFKA_BROKERS', 'redpanda:9092'],
   ['PLUGIN_DB_SSL_MODE', 'verify-full'],
-  // Only the mounted project CA path is admitted: the host system bundle
-  // lacks the E2E Postgres CA and must never be trusted by containers.
-  ['PLUGIN_DB_SSL_ROOT_CERT_PATH', '/run/plexica-ci/postgres-ca.crt'],
-  ['CI_RUNTIME_CA_FILE', '/run/plexica-ci/postgres-ca.crt'],
+  // Only the mounted per-project CA path is admitted: the host system
+  // bundle lacks the E2E Postgres CA and must never be trusted by containers.
+  ['PLUGIN_DB_SSL_ROOT_CERT_PATH', '/run/plexica-ci-plexica-ci-proxy-123456789012345678901234567/postgres-ca.crt'],
+  ['CI_RUNTIME_CA_FILE', '/run/plexica-ci-plexica-ci-proxy-123456789012345678901234567/postgres-ca.crt'],
   ['PLUGIN_RUNTIME_SCOPE', 'ci-0123456789abcdef0123456789ab'],
   ['KEYCLOAK_ADMIN_PASSWORD', 'not-a-url'],
   ['EVENT_KEY_ENCRYPTION_KEY', 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'],
@@ -68,6 +68,7 @@ for (const key of ['PLUGIN_DB_SSL_ROOT_CERT_PATH', 'CI_RUNTIME_CA_FILE']) {
     '/etc/ssl/certs/evil.pem',
     '/run/plexica-ci/../plexica-ci/postgres-ca.crt',
     '/run/plexica-ci/postgres-ca.pem',
+    '/run/plexica-ci/postgres-ca.crt',
     '',
   ]) {
     if (acceptsContainer(key, value)) {

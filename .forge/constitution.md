@@ -36,7 +36,7 @@ These are absolute. No exceptions, no workarounds.
 | Runtime        | Node.js          | >= 24      |
 | Language       | TypeScript       | ^5.9       |
 | Framework      | Fastify          | ^5         |
-| Database       | PostgreSQL       | 15+        |
+| Database       | PostgreSQL       | 18+        |
 | ORM            | Prisma           | ^6         |
 | Cache          | Redis (ioredis)  | ^5         |
 | Object Storage | MinIO            | ^8         |

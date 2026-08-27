@@ -4,6 +4,9 @@ import { isIP } from 'node:net';
 import { URL } from 'node:url';
 
 const [kind, key, value] = process.argv.slice(2);
+// The per-project E2E Postgres CA path shape: /run/plexica-ci-{project}/postgres-ca.crt
+// where {project} follows the validated immutable CI project ID pattern.
+const projectCaPath = /^\/run\/plexica-ci-plexica-ci-[a-z0-9][a-z0-9-]{5,43}\/postgres-ca\.crt$/;
 const containerHosts = {
   DATABASE_URL: ['postgres', '5432', 'postgresql:'],
   KEYCLOAK_URL: ['keycloak', '8080', 'http:'],
@@ -49,10 +52,14 @@ const containerScalars = {
   SMTP_HOST: (input) => input === 'mailpit',
   SMTP_PORT: (input) => input === '1025',
   NODE_ENV: (input) => input === 'production',
-  // Project CA paths only: the host system bundle does not contain the E2E
-  // Postgres CA and must never be trusted by containerized Core or sidecars.
-  PLUGIN_DB_SSL_ROOT_CERT_PATH: (input) => input === '/run/plexica-ci/postgres-ca.crt',
-  CI_RUNTIME_CA_FILE: (input) => input === '/run/plexica-ci/postgres-ca.crt',
+  // Per-project CA paths only: the host system bundle does not contain the
+  // E2E Postgres CA and must never be trusted by containerized Core or
+  // sidecars. Each CI stack stages its own CA under
+  // /run/plexica-ci-{project}/postgres-ca.crt (concurrent stacks never share
+  // a bind); the exact value is re-validated against CI_RUNTIME_PROJECT by
+  // the core cross-field container contract.
+  PLUGIN_DB_SSL_ROOT_CERT_PATH: (input) => projectCaPath.test(input),
+  CI_RUNTIME_CA_FILE: (input) => projectCaPath.test(input),
   // Canonical E2E rate-limit tuning (parity with the host-run suite's
   // coreApiEnv): raised generic/admin ceilings plus a proxy-hop trust list so
   // per-test X-Forwarded-For isolation stays effective inside the contract
