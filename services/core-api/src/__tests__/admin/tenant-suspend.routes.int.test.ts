@@ -82,6 +82,7 @@ describe('POST /api/v1/admin/tenants/:id/suspend', () => {
         where: { id: body.operationId },
       });
       expect(op).not.toBeNull();
+      expect(op?.tenantId).toBe(seeded.tenantId);
       expect(op?.desiredStatus).toBe('suspended');
       expect(op?.targetVersion).toBe(2);
     }

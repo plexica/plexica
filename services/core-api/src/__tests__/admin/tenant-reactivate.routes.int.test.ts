@@ -90,6 +90,7 @@ describe('POST /api/v1/admin/tenants/:id/reactivate', () => {
         where: { id: body.operationId },
       });
       expect(op).not.toBeNull();
+      expect(op?.tenantId).toBe(seeded.tenantId);
       expect(op?.desiredStatus).toBe('active');
       expect(op?.targetVersion).toBe(suspendedVersion + 1);
     }
