@@ -36,15 +36,7 @@ async function waitForLeadership() {
     try {
       const metadata = await admin.fetchTopicMetadata({ topics: [topic], timeout: 5000 });
       const entry = metadata.find((m) => m.name === topic);
-      if (entry && entry.partitions.every((p) => p.leader >= 0 && p.leaderNode)) {
-        const leadersOk = entry.partitions.every((p) => {
-          const node = p.leaderNode;
-          if (!node) return false;
-          const advertised = `${node.host}:${node.port}`;
-          return brokers.includes(advertised) || true;
-        });
-        if (leadersOk) return;
-      }
+      if (entry && entry.partitions.every((p) => p.leader >= 0 && p.leaderNode)) return;
     } catch {
       // retry
     }

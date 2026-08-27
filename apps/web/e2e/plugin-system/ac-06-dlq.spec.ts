@@ -51,14 +51,22 @@ async function startTopicProbe(
     },
   });
   // Assignment gate instead of fixed sleep
+  let ready = false;
   const deadline = Date.now() + 15000;
   while (Date.now() < deadline) {
     try {
-      if (consumer.assignment().length > 0) break;
+      if (consumer.assignment().length > 0) {
+        ready = true;
+        break;
+      }
     } catch {
       // intentionally ignored — assignment not ready, will retry
     }
     await new Promise((r) => setTimeout(r, 100));
+  }
+  if (!ready) {
+    await consumer.disconnect().catch(() => undefined);
+    throw new Error(`Consumer assignment timeout for ${topic}`);
   }
   return {
     next: Promise.race([

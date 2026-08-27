@@ -29,7 +29,12 @@ export async function waitForTopicLeaders(
   let lastError: unknown;
   while (Date.now() < deadline) {
     try {
-      const metadata = await admin.fetchTopicMetadata({ topics, timeout: 5000 });
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) break;
+      const metadata = await admin.fetchTopicMetadata({
+        topics,
+        timeout: Math.min(5000, remaining),
+      });
       const allReady = topics.every((topic) => {
         const entry = metadata.find((m) => m.name === topic);
         if (!entry) return false;
@@ -39,7 +44,9 @@ export async function waitForTopicLeaders(
     } catch (error) {
       lastError = error;
     }
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) break;
+    await new Promise((resolve) => setTimeout(resolve, Math.min(100, remaining)));
   }
   throw lastError ?? new Error('KAFKA_TOPIC_LEADERS_TIMEOUT');
 }

@@ -97,8 +97,15 @@ export async function startBackgroundServices(): Promise<void> {
 async function stopStep(name: string, stop: () => Promise<void>): Promise<void> {
   try {
     await stop();
-  } catch {
-    logger.error({ step: name, code: 'SHUTDOWN_STEP_FAILED' }, 'Shutdown step failed');
+  } catch (error) {
+    logger.error(
+      {
+        step: name,
+        code: 'SHUTDOWN_STEP_FAILED',
+        reason: error instanceof Error ? error.name : String(error),
+      },
+      'Shutdown step failed'
+    );
   }
 }
 

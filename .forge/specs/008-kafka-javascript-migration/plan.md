@@ -2,13 +2,13 @@
 
 > Technical implementation plan for the Epic track. Created by `forge-architect` via `/forge-plan`, then revised by adversarial analysis.
 
-| Field  | Value                                              |
-| ------ | -------------------------------------------------- |
+| Field  | Value                                                                  |
+| ------ | ---------------------------------------------------------------------- |
 | Status | Conditionally approved — Phase 1 spike blocks all functional migration |
-| Author | forge-architect                                    |
-| Date   | 2026-08-27                                         |
-| Track  | Epic                                               |
-| Spec   | [008 Kafka JavaScript Client Migration](./spec.md) |
+| Author | forge-architect                                                        |
+| Date   | 2026-08-27                                                             |
+| Track  | Epic                                                                   |
+| Spec   | [008 Kafka JavaScript Client Migration](./spec.md)                     |
 
 ---
 
@@ -62,8 +62,8 @@ No direct Kafka client import exists in `packages/sdk`, `packages/cli`, or `exam
 | `apps/web/e2e/plugin-system/ac-06-dlq.spec.ts`                       | wrapper consumer `connect/subscribe/run/disconnect`                                                                                                    | Await assignment before triggering source/DLQ/replay events; bounded cleanup in `finally`                                                                                             |
 | `apps/admin/e2e/helpers/deletion-event-infrastructure.ts`            | wrapper `sendKafkaEnvelope`                                                                                                                            | No call-shape change; verifies the migrated producer through the existing wrapper                                                                                                     |
 | `events/outbox-publisher.ts`, `modules/plugin/events/dlq.service.ts` | wrapper `sendKafkaEnvelope`                                                                                                                            | No domain call-shape change; inherit acknowledged send and closed-producer behavior                                                                                                   |
-| `events/event-key-service.ts`, `installation-message-processor.ts`  | key lookup/unwrap/decrypt failures currently collapse into broad catches                                                                               | Introduce stable internal failure classes so transient key/DB availability never commits while permanent poison follows the acknowledged-DLQ rule                                    |
-| plugin lifecycle route/services                                    | pause/resume/delete and tenant lifecycle call consumer-manager methods                                                                                  | Keep call shapes where possible; make the consumer entry own lag start/stop so every lifecycle path is covered                                                                        |
+| `events/event-key-service.ts`, `installation-message-processor.ts`   | key lookup/unwrap/decrypt failures currently collapse into broad catches                                                                               | Introduce stable internal failure classes so transient key/DB availability never commits while permanent poison follows the acknowledged-DLQ rule                                     |
+| plugin lifecycle route/services                                      | pause/resume/delete and tenant lifecycle call consumer-manager methods                                                                                 | Keep call shapes where possible; make the consumer entry own lag start/stop so every lifecycle path is covered                                                                        |
 
 There is no current `assignment()`, `rebalance_cb`, `fetchTopicOffsets()`, or supported consumer `stop()` use. The only instrumentation API is `consumer.on('consumer.crash')`; it must be removed rather than emulated.
 
@@ -78,17 +78,17 @@ There is no current `assignment()`, `rebalance_cb`, `fetchTopicOffsets()`, or su
 | Current crash listener is client-specific and unsupported                                        | Use the sanitized logger, rebalance callback, assignment state, and stable failure logs                                                                                                                                     |
 | CI verifier uses unavailable `describeCluster()` and implicit leader waiting                     | Poll `fetchTopicMetadata({topics:[temporaryTopic]})`; inspect partition `leaderNode`; never pass `waitForLeaders`                                                                                                           |
 | Health timeout can race a second disconnect; script setup failures can leak clients/topic        | Centralize ownership in `finally`; script cleanup starts immediately after allocation                                                                                                                                       |
-| A 200 ms health result conflicts with waiting for an uncancellable native connect and disconnect | Race the public result at 200 ms, but retain an observed cleanup promise in a probe-owner registry; shutdown awaits that registry. Never claim the client is disconnected before the health response returns              |
-| Compatibility `fetchTopicMetadata()` returns `ITopicMetadata[]`, not KafkaJS `{ topics: [...] }`  | Normalize the array explicitly; tests compile against 1.10.0 types and assert `partitionId`, `leader`, and optional `leaderNode`                                                                                        |
-| The verifier receives the comma-separated `KAFKA_BROKERS` contract but treats it as one broker    | Parse all entries, bootstrap with the array, and accept a leader advertised at any configured endpoint; use a UUID-suffixed topic so cleanup cannot delete another run's topic                                           |
-| Installation and bridge code collapse transient key lookup with permanent decrypt poison          | Add typed internal key/decrypt outcomes and fault tests; transient DB/key availability rethrows without DLQ/commit, while permanent authenticated poison follows existing sanitized DLQ/commit rules                    |
+| A 200 ms health result conflicts with waiting for an uncancellable native connect and disconnect | Race the public result at 200 ms, but retain an observed cleanup promise in a probe-owner registry; shutdown awaits that registry. Never claim the client is disconnected before the health response returns                |
+| Compatibility `fetchTopicMetadata()` returns `ITopicMetadata[]`, not KafkaJS `{ topics: [...] }` | Normalize the array explicitly; tests compile against 1.10.0 types and assert `partitionId`, `leader`, and optional `leaderNode`                                                                                            |
+| The verifier receives the comma-separated `KAFKA_BROKERS` contract but treats it as one broker   | Parse all entries, bootstrap with the array, and accept a leader advertised at any configured endpoint; use a UUID-suffixed topic so cleanup cannot delete another run's topic                                              |
+| Installation and bridge code collapse transient key lookup with permanent decrypt poison         | Add typed internal key/decrypt outcomes and fault tests; transient DB/key availability rethrows without DLQ/commit, while permanent authenticated poison follows existing sanitized DLQ/commit rules                        |
 | Lag helper sums committed offsets rather than lag and is never started                           | Preserve the response schema/timer interval but compute `max(0, high - committed)` and start/stop monitoring with the consumer lifecycle. This is the minimum KJM-014 compatibility correction, not a Kafka-status redesign |
 | Event worker stop order is not the documented reverse of startup                                 | Stop DLQ consumer before outbox publisher; both finish before producer teardown                                                                                                                                             |
 | Real Redpanda smoke test conditionally skips                                                     | Remove reachability skip; unavailable Redpanda is a blocking integration failure                                                                                                                                            |
 | Architecture/docs contain stale envelope/group/client guidance                                   | Update only active Kafka guidance; historical ADR/spec/review records remain historical                                                                                                                                     |
 | `consumer-manager.service.ts` is already 193 lines and SDK test is 199 lines                     | Decompose before adding behavior; every authored code/test file remains at most 200 lines                                                                                                                                   |
-| `.github/workflows/ci.yml` is already 194 lines and the coverage action is not invoked            | Put native/coverage logic in composite actions and add only short `uses:` steps; prove the workflow remains <=200 lines                                                                                                    |
-| New 190-195 line estimates leave no maintenance headroom                                           | Split consumer state/commit and integration fixtures; target <=160 lines for new authored files rather than treating 200 as a design target                                                                               |
+| `.github/workflows/ci.yml` is already 194 lines and the coverage action is not invoked           | Put native/coverage logic in composite actions and add only short `uses:` steps; prove the workflow remains <=200 lines                                                                                                     |
+| New 190-195 line estimates leave no maintenance headroom                                         | Split consumer state/commit and integration fixtures; target <=160 lines for new authored files rather than treating 200 as a design target                                                                                 |
 
 ## 3. Data Model and Public API
 
@@ -168,12 +168,12 @@ Pause/resume first require a live assignment and mutate `isRunning` only after t
 
 `kafka-admin.ts` owns these normalized helpers:
 
-| Helper                                          | Contract                                                                                                                                                                                   |
-| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `withKafkaAdmin(operation)`                     | Create/connect one admin, run operation, disconnect once in `finally`; cleanup failure is sanitized and does not hide the primary failure                                                  |
+| Helper                                          | Contract                                                                                                                                                                                                                    |
+| ----------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `withKafkaAdmin(operation)`                     | Create/connect one admin, run operation, disconnect once in `finally`; cleanup failure is sanitized and does not hide the primary failure                                                                                   |
 | `waitForTopicLeaders(admin, topics, timeoutMs)` | Poll `fetchTopicMetadata({topics, timeout})`, normalize its direct `ITopicMetadata[]` result, and wait until every partition has non-negative `leader` and a `leaderNode`; bounded retry, no fixed sleep as readiness proof |
-| `getConsumerGroupLag(admin, groupId, topics)`   | Read `fetchOffsets({groupId,topics})` plus `fetchTopicOffsets(topic)`; sum `max(0, high - committed)` per partition, treating an unset/negative committed offset as the low/start position |
-| `probeKafkaAdmin(timeoutMs)`                    | Bounded `listTopics({timeout})`; return stable success/timeout/client-failure outcome                                                                                                      |
+| `getConsumerGroupLag(admin, groupId, topics)`   | Read `fetchOffsets({groupId,topics})` plus `fetchTopicOffsets(topic)`; sum `max(0, high - committed)` per partition, treating an unset/negative committed offset as the low/start position                                  |
+| `probeKafkaAdmin(timeoutMs)`                    | Bounded `listTopics({timeout})`; return stable success/timeout/client-failure outcome                                                                                                                                       |
 
 The CI script replaces `describeCluster()` by creating a UUID-suffixed temporary topic, waiting for leaders, and checking each partition's `leaderNode` host/port against any endpoint parsed from the comma-separated manifest broker list. `createTopics()` has no `waitForLeaders`. The script records whether it created the topic and deletes only its unique topic. It allocates resources inside one outer `try/finally`; cleanup order is consumer, producer, topic deletion, admin disconnect, with `Promise.allSettled` only for secondary cleanup after preserving the primary error.
 
@@ -226,25 +226,25 @@ artifact.
 Run the complete gate independently in both targets; host success does not
 substitute for container success:
 
-| Target | Required identity |
-| --- | --- |
-| CI host | The actual default `self-hosted` runner used by `.github/workflows/ci.yml`; capture runner/run identity, `uname`, `process.version`, `process.versions.modules`, `process.arch`, and `process.report` glibc runtime. |
+| Target       | Required identity                                                                                                                                                                                                                                                                        |
+| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| CI host      | The actual default `self-hosted` runner used by `.github/workflows/ci.yml`; capture runner/run identity, `uname`, `process.version`, `process.versions.modules`, `process.arch`, and `process.report` glibc runtime.                                                                     |
 | Core runtime | A fresh container from `node:24-bookworm@sha256:934240a162082fd8b8a2f90cd5114446443f1eba1c5378f6687167ca405e6584`, the `core-api-e2e` image in `infra/compose/docker-compose.ci-runtime-services.yml`; verify the pulled image ID/digest and capture the same Node/ABI/arch/glibc facts. |
 
 For **each** target, all checks below are mandatory:
 
-| Gate ID | Exact PASS condition | Required retained evidence |
-| --- | --- | --- |
-| KJM-G01 | Use Node 24 and exact pnpm 10.33.0. Start with absent `node_modules` and a new empty target-specific pnpm store; after the temporary lock is prepared, `pnpm install --frozen-lockfile --store-dir <empty-store>` succeeds. | Version/runtime facts, empty-store path/proof, command line, exit code, complete append-only install log. |
-| KJM-G02 | The resolved npm package is exactly `@confluentinc/kafka-javascript` 1.10.0 and its npm tarball integrity matches the temporary frozen lock. No other version is accepted automatically. | Manifest/lock excerpts, `pnpm list` result, package metadata, lock integrity verification. |
-| KJM-G03 | `node-pre-gyp` selects and downloads `confluent-kafka-javascript-v1.10.0-node-v${process.versions.modules}-linux-glibc-${process.arch}.tar.gz`; install contains no source compilation, `node-gyp`, `make`, C/C++ compiler, CMake, or source-fallback execution. The package's configured `--fallback-to-build` option may appear in the command line, but any actual fallback/source-build path is FAIL even if install exits zero. | Selected asset URL/name and full install/process log with explicit negative scan for source-build execution. |
-| KJM-G04 | The downloaded asset SHA-256 equals the digest returned for that exact asset by the GitHub v1.10.0 release API. For Node ABI 137, expected published digests are x64 `ccc2a8b2fcf89e01c7dd6895ddfc2ad5599aff32bf090d6b9e02854f64e66358` and arm64 `5f057e2c67eaed9ba31260e5a449d86dadb6fa5823e5d1fc7df2ebed1628efd8`; another ABI must have its exact API-published digest captured and matched. | Release API response, HTTPS download URL, asset name/size, published digest, locally computed SHA-256, equality result. Missing or `null` digest is FAIL. |
-| KJM-G05 | Importing the package loads the native addon without flags or library-path workarounds; package version is 1.10.0 and exported `librdkafkaVersion` is exactly 2.15.0. Loading either JavaScript API surface is recorded as loading the same mandatory native addon; functional smoke remains compatibility-API-only. | Import/load transcript, resolved addon path, versions, process exit code. |
-| KJM-G06 | `file`/ELF inspection matches the target architecture and glibc; `ldd` on the loaded `.node` addon reports no `not found` or unresolved shared library, and the addon loads in the pinned Bookworm runtime without host-only libraries or `LD_LIBRARY_PATH`. | `file`, `readelf`/glibc requirement, and full `ldd` outputs from each target. |
-| KJM-G07 | Against the real project Redpanda, a compatibility-API admin creates a unique temporary topic and observes leader metadata; a ready assigned consumer with `autoCommit:false` receives a keyed record from an acknowledged producer send; processing explicitly commits exactly `offset + 1`; admin reads the resulting group/topic offsets; cleanup deletes the topic. | Sanitized operation/assignment/delivery/offset/admin transcript and Redpanda identity; no fixed sleep as readiness proof. |
-| KJM-G08 | Success and injected failure paths disconnect consumer, producer, and admin in ownership order; the smoke process exits naturally within its bound without `process.exit()`/forced kill and leaves zero Kafka-owned sockets, timers, clients, or unresolved promises/handles. | Shutdown timeline, before/after handle report, natural-exit status/duration, timeout supervisor result. |
-| KJM-G09 | No step installs or links a system librdkafka, compiler, or build toolchain. No `apt`, `apk`, `dnf`, `yum`, Homebrew, source-build flag, or hidden fallback setup is used. | Commands/process log and package-manager negative audit. |
-| KJM-G10 | The required deployment target remains the proven Node 24 Bookworm Linux glibc architecture. Adoption is not justified solely by Alpine/musl assets or a developer-only platform. | Production-runtime declaration/review and explicit supported-target result. |
+| Gate ID | Exact PASS condition                                                                                                                                                                                                                                                                                                                                                                                                                 | Required retained evidence                                                                                                                                |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| KJM-G01 | Use Node 24 and exact pnpm 10.33.0. Start with absent `node_modules` and a new empty target-specific pnpm store; after the temporary lock is prepared, `pnpm install --frozen-lockfile --store-dir <empty-store>` succeeds.                                                                                                                                                                                                          | Version/runtime facts, empty-store path/proof, command line, exit code, complete append-only install log.                                                 |
+| KJM-G02 | The resolved npm package is exactly `@confluentinc/kafka-javascript` 1.10.0 and its npm tarball integrity matches the temporary frozen lock. No other version is accepted automatically.                                                                                                                                                                                                                                             | Manifest/lock excerpts, `pnpm list` result, package metadata, lock integrity verification.                                                                |
+| KJM-G03 | `node-pre-gyp` selects and downloads `confluent-kafka-javascript-v1.10.0-node-v${process.versions.modules}-linux-glibc-${process.arch}.tar.gz`; install contains no source compilation, `node-gyp`, `make`, C/C++ compiler, CMake, or source-fallback execution. The package's configured `--fallback-to-build` option may appear in the command line, but any actual fallback/source-build path is FAIL even if install exits zero. | Selected asset URL/name and full install/process log with explicit negative scan for source-build execution.                                              |
+| KJM-G04 | The downloaded asset SHA-256 equals the digest returned for that exact asset by the GitHub v1.10.0 release API. For Node ABI 137, expected published digests are x64 `ccc2a8b2fcf89e01c7dd6895ddfc2ad5599aff32bf090d6b9e02854f64e66358` and arm64 `5f057e2c67eaed9ba31260e5a449d86dadb6fa5823e5d1fc7df2ebed1628efd8`; another ABI must have its exact API-published digest captured and matched.                                     | Release API response, HTTPS download URL, asset name/size, published digest, locally computed SHA-256, equality result. Missing or `null` digest is FAIL. |
+| KJM-G05 | Importing the package loads the native addon without flags or library-path workarounds; package version is 1.10.0 and exported `librdkafkaVersion` is exactly 2.15.0. Loading either JavaScript API surface is recorded as loading the same mandatory native addon; functional smoke remains compatibility-API-only.                                                                                                                 | Import/load transcript, resolved addon path, versions, process exit code.                                                                                 |
+| KJM-G06 | `file`/ELF inspection matches the target architecture and glibc; `ldd` on the loaded `.node` addon reports no `not found` or unresolved shared library, and the addon loads in the pinned Bookworm runtime without host-only libraries or `LD_LIBRARY_PATH`.                                                                                                                                                                         | `file`, `readelf`/glibc requirement, and full `ldd` outputs from each target.                                                                             |
+| KJM-G07 | Against the real project Redpanda, a compatibility-API admin creates a unique temporary topic and observes leader metadata; a ready assigned consumer with `autoCommit:false` receives a keyed record from an acknowledged producer send; processing explicitly commits exactly `offset + 1`; admin reads the resulting group/topic offsets; cleanup deletes the topic.                                                              | Sanitized operation/assignment/delivery/offset/admin transcript and Redpanda identity; no fixed sleep as readiness proof.                                 |
+| KJM-G08 | Success and injected failure paths disconnect consumer, producer, and admin in ownership order; the smoke process exits naturally within its bound without `process.exit()`/forced kill and leaves zero Kafka-owned sockets, timers, clients, or unresolved promises/handles.                                                                                                                                                        | Shutdown timeline, before/after handle report, natural-exit status/duration, timeout supervisor result.                                                   |
+| KJM-G09 | No step installs or links a system librdkafka, compiler, or build toolchain. No `apt`, `apk`, `dnf`, `yum`, Homebrew, source-build flag, or hidden fallback setup is used.                                                                                                                                                                                                                                                           | Commands/process log and package-manager negative audit.                                                                                                  |
+| KJM-G10 | The required deployment target remains the proven Node 24 Bookworm Linux glibc architecture. Adoption is not justified solely by Alpine/musl assets or a developer-only platform.                                                                                                                                                                                                                                                    | Production-runtime declaration/review and explicit supported-target result.                                                                               |
 
 Evidence is one immutable CI artifact named
 `kafka-native-spike-${run_id}-${run_attempt}` containing separate `runner/` and
@@ -473,70 +473,70 @@ Before migration, Phase 1 FAIL is not rollback: temporary edits are restored and
 
 ## 10. Requirement Traceability
 
-| Requirement | Plan sections   | Concrete implementation/tests                                                         |
-| ----------- | --------------- | ------------------------------------------------------------------------------------- |
-| KJM-001     | 2.1-2.2, 4.1, 5 | `kafka-client.ts`, smoke test, verifier, manifests; final import audit                |
-| KJM-002     | 1, 4.4, 8       | existing Compose/Redpanda; smoke/verifier/rebalance integration                       |
-| KJM-003     | 1.1, 4.2, 8.1   | `kafka.ts`; event pipeline, DLQ durability, AC-06                                     |
-| KJM-004     | 4.2, 8.1        | `outbox-publisher.ts`; outbox integration + event pipeline                            |
-| KJM-005     | 4.2, 8.2        | `kafka-producer.ts`; producer lifecycle tests                                         |
-| KJM-006     | 4.2             | `kafka-client.ts`, `kafka-producer.ts`; config/lifecycle tests                        |
-| KJM-007     | 4.3, 6.2        | consumer manager/pattern/registry; consumer semantics + group-name tests              |
-| KJM-008     | 4.3             | consumer manager, DLQ consumer; consumer semantics, security, DLQ tests               |
-| KJM-009     | 4.3, 8.2        | assignment generation/guarded commit; real rebalance integration                      |
-| KJM-010     | 1.1, 8.1        | unchanged processor/DLQ service; DLQ durability, AC-06, deletion E2E                  |
-| KJM-011     | 4.3, 8.1        | installation processor; two-tenant security and deletion tests                        |
-| KJM-012     | 4.5             | `kafka-errors.ts`, facade, health; client-config/producer/consumer/admin tests        |
-| KJM-013     | 4.5             | `kafka-logger.ts` and Kafka-specific logs; logger test                                |
-| KJM-014     | 4.4             | `kafka-admin.ts`, health, lag, verifier; admin + smoke tests                          |
-| KJM-015     | 4.2-4.3, 6.2    | `event-workers.ts`, `bootstrap.ts`; shutdown-order test                               |
-| KJM-016     | 4.1             | broker parser using only `KAFKA_BROKERS`; config tests                                |
-| KJM-017     | 5, 6            | manifests/lock/patch/Dockerfile/docs; frozen install and audits                       |
-| KJM-018     | 3.2, 5, 8.2     | SDK/CLI/example manifests read-only; SDK event compatibility tests/audit              |
-| KJM-019     | 8               | all listed unit/integration/Playwright tests; no Redpanda skip                        |
-| KJM-020     | 1, 11           | accepted ADR-004 amendment/Constitution v1.1; architecture guidance update            |
-| KJM-021     | 4.3             | concurrency 1 + guarded commit; unit ordering and real rebalance tests                |
-| KJM-022     | 4.3-4.4, 8      | assignment/leader gates and all-path cleanup in verifier/smoke/E2E probes             |
-| KJM-023     | 5.1-5.2, 7, 8.3 | uncommitted dual-target native spike; KJM-G01—G10 evidence and explicit PASS/FAIL      |
-| KJM-NFR-001 | 4.2-4.3, 8      | outbox, manual offset, fault/rebalance tests; zero premature commits                  |
-| KJM-NFR-002 | 8.2             | `kafka-outbox-performance.int.test.ts` controlled 100-event real-outbox P95 assertion |
-| KJM-NFR-003 | 1.1, 4.5, 8.1   | event pipeline, two-tenant security, logger and AC-06 ciphertext tests                |
-| KJM-NFR-004 | 8.1             | existing `005-07-deletion.spec.ts` event-data proof                                   |
-| KJM-NFR-005 | 4.2-4.3, 8.2    | bounded 30 s teardown assertions and no owned handles                                 |
-| KJM-NFR-006 | 3.2, 4.4, 8.1   | 200 ms health classification and unchanged Kafka status schema                        |
+| Requirement | Plan sections   | Concrete implementation/tests                                                                       |
+| ----------- | --------------- | --------------------------------------------------------------------------------------------------- |
+| KJM-001     | 2.1-2.2, 4.1, 5 | `kafka-client.ts`, smoke test, verifier, manifests; final import audit                              |
+| KJM-002     | 1, 4.4, 8       | existing Compose/Redpanda; smoke/verifier/rebalance integration                                     |
+| KJM-003     | 1.1, 4.2, 8.1   | `kafka.ts`; event pipeline, DLQ durability, AC-06                                                   |
+| KJM-004     | 4.2, 8.1        | `outbox-publisher.ts`; outbox integration + event pipeline                                          |
+| KJM-005     | 4.2, 8.2        | `kafka-producer.ts`; producer lifecycle tests                                                       |
+| KJM-006     | 4.2             | `kafka-client.ts`, `kafka-producer.ts`; config/lifecycle tests                                      |
+| KJM-007     | 4.3, 6.2        | consumer manager/pattern/registry; consumer semantics + group-name tests                            |
+| KJM-008     | 4.3             | consumer manager, DLQ consumer; consumer semantics, security, DLQ tests                             |
+| KJM-009     | 4.3, 8.2        | assignment generation/guarded commit; real rebalance integration                                    |
+| KJM-010     | 1.1, 8.1        | unchanged processor/DLQ service; DLQ durability, AC-06, deletion E2E                                |
+| KJM-011     | 4.3, 8.1        | installation processor; two-tenant security and deletion tests                                      |
+| KJM-012     | 4.5             | `kafka-errors.ts`, facade, health; client-config/producer/consumer/admin tests                      |
+| KJM-013     | 4.5             | `kafka-logger.ts` and Kafka-specific logs; logger test                                              |
+| KJM-014     | 4.4             | `kafka-admin.ts`, health, lag, verifier; admin + smoke tests                                        |
+| KJM-015     | 4.2-4.3, 6.2    | `event-workers.ts`, `bootstrap.ts`; shutdown-order test                                             |
+| KJM-016     | 4.1             | broker parser using only `KAFKA_BROKERS`; config tests                                              |
+| KJM-017     | 5, 6            | manifests/lock/patch/Dockerfile/docs; frozen install and audits                                     |
+| KJM-018     | 3.2, 5, 8.2     | SDK/CLI/example manifests read-only; SDK event compatibility tests/audit                            |
+| KJM-019     | 8               | all listed unit/integration/Playwright tests; no Redpanda skip                                      |
+| KJM-020     | 1, 11           | accepted ADR-004 amendment/Constitution v1.1; architecture guidance update                          |
+| KJM-021     | 4.3             | concurrency 1 + guarded commit; unit ordering and real rebalance tests                              |
+| KJM-022     | 4.3-4.4, 8      | assignment/leader gates and all-path cleanup in verifier/smoke/E2E probes                           |
+| KJM-023     | 5.1-5.2, 7, 8.3 | uncommitted dual-target native spike; KJM-G01—G10 evidence and explicit PASS/FAIL                   |
+| KJM-NFR-001 | 4.2-4.3, 8      | outbox, manual offset, fault/rebalance tests; zero premature commits                                |
+| KJM-NFR-002 | 8.2             | `kafka-outbox-performance.int.test.ts` controlled 100-event real-outbox P95 assertion               |
+| KJM-NFR-003 | 1.1, 4.5, 8.1   | event pipeline, two-tenant security, logger and AC-06 ciphertext tests                              |
+| KJM-NFR-004 | 8.1             | existing `005-07-deletion.spec.ts` event-data proof                                                 |
+| KJM-NFR-005 | 4.2-4.3, 8.2    | bounded 30 s teardown assertions and no owned handles                                               |
+| KJM-NFR-006 | 3.2, 4.4, 8.1   | 200 ms health classification and unchanged Kafka status schema                                      |
 | KJM-NFR-007 | 5, 8.3          | dual-target clean-store frozen install, checksum/load/link/smoke proof, no KafkaJS graph after PASS |
-| KJM-NFR-008 | 6, 8.3          | lint/type/build/unit/int/E2E/coverage gates and <=200-line decomposition              |
+| KJM-NFR-008 | 6, 8.3          | lint/type/build/unit/int/E2E/coverage gates and <=200-line decomposition                            |
 
 ## 11. Architectural Decisions and Constitution Compliance
 
 ### 11.1 Decisions
 
-| ADR                            | Applicable decision                                                                    | Status   |
-| ------------------------------ | -------------------------------------------------------------------------------------- | -------- |
-| ADR-004 + 2026-07-23 amendment | Kafka/Redpanda, tenant partition key, encrypted v1 envelope, transactional outbox      | Accepted |
-| ADR-004 + 2026-08-27 amendment and clarification | Exact Confluent 1.10.0 and compatibility API, conditionally adopted only after the mandatory native spike | Accepted / Phase 1 evidence pending |
-| ADR-016 + 2026-07-23 amendment | Encrypted two-tier DLQ, ack-before-commit, stable dedupe/ownership/replay              | Accepted |
-| ADR-022 + 2026-07-23 amendment | Event purge first, active-tenant rechecks, key destruction before deletion             | Accepted |
+| ADR                                              | Applicable decision                                                                                       | Status                                                        |
+| ------------------------------------------------ | --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| ADR-004 + 2026-07-23 amendment                   | Kafka/Redpanda, tenant partition key, encrypted v1 envelope, transactional outbox                         | Accepted                                                      |
+| ADR-004 + 2026-08-27 amendment and clarification | Exact Confluent 1.10.0 and compatibility API, conditionally adopted only after the mandatory native spike | Accepted / Phase 1 PASS (run 33081239038 PASS/PASS, reviewed) |
+| ADR-016 + 2026-07-23 amendment                   | Encrypted two-tier DLQ, ack-before-commit, stable dedupe/ownership/replay                                 | Accepted                                                      |
+| ADR-022 + 2026-07-23 amendment                   | Event purge first, active-tenant rechecks, key destruction before deletion                                | Accepted                                                      |
 
-No new ADR is planned before the spike. Any attempt to add another dependency, use the native callback API in production, change retries/delivery guarantees, or alter data/auth/infrastructure must stop and amend the architecture first. A Phase 1 FAIL itself creates a user decision point: retaining KafkaJS or evaluating a pure-JavaScript alternative requires the corresponding ADR and constitution amendment before further implementation.
+Phase 1 native spike is PASS (run 33081239038 PASS/PASS, reviewed) — functional migration is now authorized under the existing conditional approval (see native-spike-artifact-analysis.md). No new ADR is required for the 1.10.0 migration; any further attempt to add another dependency, use the native callback API in production, change retries/delivery guarantees, or alter data/auth/infrastructure must still stop and amend the architecture first. A FAIL would have created a user decision point: retaining KafkaJS or evaluating a pure-JavaScript alternative would have required the corresponding ADR and constitution amendment before further implementation.
 
 ### 11.2 Constitution compliance report
 
-**Overall status: COMPLIANT BY PLAN, CONDITIONAL ON PHASE 1, WITH A PRE-EXISTING COVERAGE GATE** (deployment and implementation evidence pending).
+**Overall status: COMPLIANT BY PLAN, PHASE 1 PASS (run 33081239038 PASS/PASS, reviewed), WITH A PRE-EXISTING COVERAGE GATE** (coverage >=80% still required).
 
 | Article                      | Status               | Plan evidence                                                                                                                                                    |
 | ---------------------------- | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Art. 1 / Rule 1              | Compliant            | Existing Playwright DLQ/deletion/status flows are blocking and updated for readiness; no infrastructure skip                                                     |
-| Art. 2 / Rule 2              | Compliant by gate    | Dual-target frozen install/native/real-Redpanda Phase 1 proof blocks functional migration; all later CI/test/build gates block release                            |
-| Art. 3 / Rule 3              | Compliant            | One production client and one compatibility API, no fallback/mixed transport; narrow uncommitted spike coexistence cannot ship; SDK remains HTTP-backed         |
+| Art. 2 / Rule 2              | Compliant by gate    | Dual-target frozen install/native/real-Redpanda Phase 1 proof blocks functional migration; all later CI/test/build gates block release                           |
+| Art. 3 / Rule 3              | Compliant            | One production client and one compatibility API, no fallback/mixed transport; narrow uncommitted spike coexistence cannot ship; SDK remains HTTP-backed          |
 | Art. 4 / Rule 4              | Compliant            | Explicit decomposition of 193/199-line files; all new authored files budgeted below 200 lines                                                                    |
-| Art. 5 / Rule 5              | Compliant            | ADR-004 records the exact dependency, mandatory native nature of both APIs, conditional Phase 1 adoption, and governed FAIL decision before implementation      |
+| Art. 5 / Rule 5              | Compliant            | ADR-004 records the exact dependency, mandatory native nature of both APIs, conditional Phase 1 adoption, and governed FAIL decision before implementation       |
 | Art. 6 / Rule 6              | Compliant by process | Implementation commits must use English Conventional Commit messages                                                                                             |
 | Art. 7 / Architecture        | Compliant            | Fastify monolith and Kafka/Redpanda/outbox/DLQ design remain unchanged                                                                                           |
 | Art. 8 / Quality/testing     | Compliant by gate    | Unit, real integration, and Playwright coverage includes faults, races, security, performance, lifecycle; combined line coverage must prove >=80% or block merge |
 | Art. 9 / Security/operations | Compliant by gate    | Native integrity/load/link and no-handle checks block adoption; tenant prefilter/encryption/erasure and stable operations remain mandatory                       |
 
-**Tensions:** (1) Constitution v1.1 names the conditionally approved Confluent client while KafkaJS remains in the working tree. ADR-004's later same-day clarification controls rollout: KafkaJS remains the sole production client until Phase 1 PASS, not an accepted long-term mixed state. A FAIL requires user choice and constitution amendment. (2) ADR-030 documents that current coverage reporting is unit-only, approximately 23%, and not gated. KJM-NFR-008 does not authorize an exception: this plan adds combined evidence and blocks merge below 80%, while avoiding unrelated test expansion. Implementation is not complete until Phase 1 passes, dependency/import/patch audits are clean, coverage is evidenced, and CI is green.
+**Tensions:** (1) Constitution v1.1 names the conditionally approved Confluent client; Phase 1 is now PASS (run 33081239038 PASS/PASS, reviewed, see native-spike-artifact-analysis.md) so migration is authorized and KafkaJS removal is pending implementation (tracked by KJM-017/import audit), not a blocked mixed state. A FAIL would have required user choice and constitution amendment. (2) ADR-030 documents that current coverage reporting is unit-only, approximately 23%, and not gated. KJM-NFR-008 does not authorize an exception: this plan adds combined evidence and blocks merge below 80%, while avoiding unrelated test expansion. Implementation is not complete until dependency/import/patch audits are clean, coverage is evidenced at >=80%, and CI is green.
 
 ## 12. Estimates, Risks, and Readiness
 
@@ -551,9 +551,9 @@ No new ADR is planned before the spike. Any attempt to add another dependency, u
 | Risk                                                              | Mitigation / release signal                                                                                               |
 | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
 | Experimental pnpm/native binary installation                      | Root build allowlist, frozen install, explicit package/librdkafka load; source fallback blocks release                    |
-| Compatibility API mistaken for pure JavaScript                    | ADR and Phase 1 explicitly require the same native addon/librdkafka for both JavaScript API surfaces                     |
-| Prebuilt asset tampering/wrong target selection                    | Match exact asset URL/name and locally computed SHA-256 to GitHub release API digest in both targets                    |
-| Host success masks production runtime failure                      | Independent clean-store install/load/link/Redpanda/no-handle gate in the pinned Core Bookworm image                     |
+| Compatibility API mistaken for pure JavaScript                    | ADR and Phase 1 explicitly require the same native addon/librdkafka for both JavaScript API surfaces                      |
+| Prebuilt asset tampering/wrong target selection                   | Match exact asset URL/name and locally computed SHA-256 to GitHub release API digest in both targets                      |
+| Host success masks production runtime failure                     | Independent clean-store install/load/link/Redpanda/no-handle gate in the pinned Core Bookworm image                       |
 | Silent offset advance during revoke                               | Constructor auto-commit false, generation guard, conservative no-commit revoke, real rebalance test                       |
 | Producer disconnect before delivery report                        | Owned send set; terminal admission; outbox retained on every unacknowledged path                                          |
 | False readiness and missed CI events                              | Assignment/leader polling with bounded timeout; no fixed sleep proof                                                      |

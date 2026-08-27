@@ -26,16 +26,21 @@ describe('Redpanda smoke test', () => {
       }
     }
     // Wait for leaders on core topics without waitForLeaders flag.
+    let ready = false;
     const deadline = Date.now() + 10000;
     while (Date.now() < deadline) {
       const meta = await admin.fetchTopicMetadata({ topics: CORE_TOPICS });
-      const ready = CORE_TOPICS.every((t) => {
+      const readyNow = CORE_TOPICS.every((t) => {
         const entry = meta.find((m) => m.name === t);
         return entry ? entry.partitions.every((p) => p.leader >= 0 && p.leaderNode) : false;
       });
-      if (ready) break;
+      if (readyNow) {
+        ready = true;
+        break;
+      }
       await new Promise((r) => setTimeout(r, 100));
     }
+    if (!ready) throw new Error('Core topic leaders not ready after 10s');
   });
 
   afterAll(async () => {
@@ -67,12 +72,20 @@ describe('Redpanda smoke test', () => {
     await tAdmin.connect();
     await tAdmin.createTopics({ topics: [{ topic, numPartitions: 1, replicationFactor: 1 }] });
     // Leader gate
+    let leaderReady = false;
     const leaderDeadline = Date.now() + 10000;
     while (Date.now() < leaderDeadline) {
       const meta = await tAdmin.fetchTopicMetadata({ topics: [topic] });
       const part = meta[0]?.partitions[0];
-      if (part?.leaderNode) break;
+      if (part?.leaderNode) {
+        leaderReady = true;
+        break;
+      }
       await new Promise((r) => setTimeout(r, 100));
+    }
+    if (!leaderReady) {
+      await tAdmin.disconnect().catch(() => undefined);
+      throw new Error(`Leader not ready for topic ${topic}`);
     }
 
     await producer.connect();
@@ -105,13 +118,22 @@ describe('Redpanda smoke test', () => {
     });
 
     // Assignment gate instead of fixed sleep
+    let assigned = false;
     const assignDeadline = Date.now() + 15000;
     while (Date.now() < assignDeadline) {
-      if ((consumer.assignment() as unknown[]).length > 0) break;
+      if ((consumer.assignment() as unknown[]).length > 0) {
+        assigned = true;
+        break;
+      }
       await new Promise((r) => setTimeout(r, 100));
     }
-    if ((consumer.assignment() as unknown[]).length === 0)
-      throw new Error('Consumer assignment timeout');
+    if (!assigned) {
+      await consumer.disconnect().catch(() => undefined);
+      await producer.disconnect().catch(() => undefined);
+      await tAdmin.deleteTopics({ topics: [topic] }).catch(() => undefined);
+      await tAdmin.disconnect().catch(() => undefined);
+      throw new Error(`Consumer assignment timeout for ${topic}`);
+    }
 
     try {
       await producer.send({ topic, messages: [{ value: JSON.stringify(payload) }] });
