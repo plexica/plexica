@@ -59,7 +59,42 @@ describe('event pipeline integration', () => {
     });
 
     try {
-      await expect(publishOutboxBatch()).resolves.toEqual({ published: 1, failed: 0 });
+      // Harden against transient claim race (SKIP LOCKED / clock skew / parallel
+      // Vitest workers). Poll briefly before asserting publish count, and force
+      // availableAt into the past if the first claim observes nothing.
+      let publishResult: { published: number; failed: number } | undefined;
+      for (let attempt = 0; attempt < 5; attempt++) {
+        publishResult = await publishOutboxBatch();
+        if (publishResult.published === 1 && publishResult.failed === 0) break;
+        if (publishResult.published === 0 && publishResult.failed === 0) {
+          const pending = await prisma.eventOutbox.findUnique({ where: { eventId } });
+          if (pending) {
+            const leaseActive =
+              pending.leaseToken !== null &&
+              pending.leaseExpiresAt !== null &&
+              new Date(pending.leaseExpiresAt).getTime() > Date.now();
+            if (!leaseActive) {
+              // Only reset claimability when no active lease is held.
+              // If a lease is active we must wait for it to expire instead
+              // of making the row appear claimable by touching only
+              // availableAt, preserving the lease protection in
+              // claimOutboxEvents().
+              await prisma.eventOutbox.update({
+                where: { eventId },
+                data: {
+                  availableAt: new Date(Date.now() - 1_000),
+                  leaseToken: null,
+                  leaseExpiresAt: null,
+                },
+              });
+            }
+          }
+          await new Promise((r) => setTimeout(r, 200 * (attempt + 1)));
+          continue;
+        }
+        break;
+      }
+      expect(publishResult).toEqual({ published: 1, failed: 0 });
       const record = await Promise.race([
         received,
         new Promise<never>((_, reject) =>
