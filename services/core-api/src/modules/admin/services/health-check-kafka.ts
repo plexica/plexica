@@ -8,13 +8,19 @@ import { makeProbe, withProbeTimeout } from './health-checker.service.js';
 const pendingCleanups = new Set<Promise<void>>();
 
 export async function awaitKafkaHealthCleanup(): Promise<void> {
-  await Promise.allSettled([...pendingCleanups]);
+  await Promise.race([
+    Promise.allSettled([...pendingCleanups]),
+    new Promise((resolve) => setTimeout(resolve, 5000)),
+  ]);
 }
 
 export const probeKafka = makeProbe('kafka', async () => {
-  const operation = withKafkaAdmin(async (admin) => {
-    await admin.listTopics({ timeout: 200 });
-  });
+  const operation = withKafkaAdmin(
+    async (admin) => {
+      await admin.listTopics({ timeout: 200 });
+    },
+    { connectTimeoutMs: 200 }
+  );
   let observed: Promise<void>;
   observed = operation
     .catch(() => undefined)

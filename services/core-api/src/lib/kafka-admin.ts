@@ -6,9 +6,29 @@ import { logger } from './logger.js';
 
 import type { KafkaAdmin } from './kafka-client.js';
 
-export async function withKafkaAdmin<T>(operation: (admin: KafkaAdmin) => Promise<T>): Promise<T> {
+export class KafkaAdminConnectTimeoutError extends Error {
+  readonly code = 'KAFKA_ADMIN_CONNECT_TIMEOUT';
+  constructor() {
+    super('Kafka admin connect timed out');
+    this.name = 'TimeoutError';
+  }
+}
+
+export async function withKafkaAdmin<T>(
+  operation: (admin: KafkaAdmin) => Promise<T>,
+  options: { connectTimeoutMs?: number } = {}
+): Promise<T> {
   const admin = kafkaClient.admin();
-  await admin.connect();
+  if (options.connectTimeoutMs !== undefined && options.connectTimeoutMs > 0) {
+    await Promise.race([
+      admin.connect(),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new KafkaAdminConnectTimeoutError()), options.connectTimeoutMs)
+      ),
+    ]);
+  } else {
+    await admin.connect();
+  }
   try {
     return await operation(admin);
   } finally {

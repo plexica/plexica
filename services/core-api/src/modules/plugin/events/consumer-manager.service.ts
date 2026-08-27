@@ -1,7 +1,6 @@
 import { createConsumer } from '../../../lib/kafka.js';
 import {
-  commitOffsetGuarded,
-  getConsumerGeneration,
+  awaitOwnedHandlers,
   isConsumerClosing,
   markConsumerClosing,
   waitForConsumerAssignment,
@@ -9,11 +8,11 @@ import {
 import { logger } from '../../../lib/logger.js';
 
 import { buildGroupId } from './consumer-group-registry.js';
+import { createPluginEachMessage } from './consumer-plugin-handler.js';
 import { resolvePatterns } from './consumer-topic-patterns.js';
-import { processInstallationMessage } from './installation-message-processor.js';
 
-import type { DomainEventEnvelope } from '../../../events/event-envelope.js';
 import type { SourceCoordinates } from '../../../events/dlq-contract.js';
+import type { DomainEventEnvelope } from '../../../events/event-envelope.js';
 export { processInstallationMessage } from './installation-message-processor.js';
 export {
   CONSUMER_GROUP_PREFIX,
@@ -78,35 +77,14 @@ async function createConsumerGroupInner(
     await consumer.subscribe({ topics });
     await consumer.run({
       partitionsConsumedConcurrently: 1,
-      eachMessage: async ({ topic, partition, message }) => {
-        const generation = getConsumerGeneration(consumer);
-        const offset = message.offset;
-        const nextOffset = (BigInt(offset) + 1n).toString();
-        try {
-          await processInstallationMessage({
-            installId,
-            tenantId,
-            pluginId,
-            source: { topic, partition, offset },
-            value: message.value?.toString() ?? '',
-            handler,
-          });
-        } catch (error) {
-          logger.warn(
-            { code: 'KAFKA_CONSUMER_HANDLER_FAILED', groupId, topic, partition, offset },
-            'Plugin event handler failed — will retry'
-          );
-          throw error;
-        }
-        try {
-          await commitOffsetGuarded(consumer, topic, partition, nextOffset);
-        } catch (error) {
-          if (String((error as Error).message).includes('KAFKA_COMMIT_STALE_GENERATION')) {
-            if (getConsumerGeneration(consumer) !== generation) throw error;
-          }
-          throw error;
-        }
-      },
+      eachMessage: createPluginEachMessage({
+        consumer,
+        installId,
+        tenantId,
+        pluginId,
+        groupId,
+        handler,
+      }),
     });
     await waitForConsumerAssignment(consumer, 15000);
   } catch (error) {
@@ -161,6 +139,7 @@ export async function deleteConsumerGroup(installId: string, tenantSlug: string)
   const { stopLagMonitoring } = await import('./lag-metrics.service.js');
   stopLagMonitoring(installId);
   try {
+    await awaitOwnedHandlers(entry.consumer);
     await entry.consumer.disconnect();
   } catch {
     logger.warn({ code: 'KAFKA_DISCONNECT_FAILED', groupId }, 'Disconnect failed');
@@ -186,6 +165,7 @@ export async function disconnectAllConsumerGroups(): Promise<void> {
       markConsumerClosing(entry.consumer);
       stopLagMonitoring(entry.installId);
       try {
+        await awaitOwnedHandlers(entry.consumer);
         await entry.consumer.disconnect();
       } catch {
         logger.error(

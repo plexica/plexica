@@ -2,6 +2,7 @@
 // Numeric client error classification — never by message/name.
 
 import { KafkaJS } from '@confluentinc/kafka-javascript';
+import { Prisma } from '@prisma/client';
 
 export class KafkaSendError extends Error {
   readonly code = 'KAFKA_SEND_FAILED';
@@ -77,4 +78,15 @@ export function isRetriableConsumerError(error: unknown): boolean {
   const { category, fatal } = classifyKafkaError(error);
   if (fatal) return false;
   return category === 'timeout' || category === 'transport' || category === 'rebalance';
+}
+
+const RETRIABLE_PRISMA_CODES = new Set(['P1001', 'P1002', 'P1017', 'P2024', 'P2034']);
+
+export function isRetriablePrismaError(error: unknown): boolean {
+  if (error instanceof Prisma.PrismaClientInitializationError) return true;
+  if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    return RETRIABLE_PRISMA_CODES.has(error.code);
+  }
+  const msg = error instanceof Error ? error.message : String(error);
+  return /Timed out|connection|ECONNREFUSED|ETIMEDOUT|P1001|P1002/i.test(msg);
 }

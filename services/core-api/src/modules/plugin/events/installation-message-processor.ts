@@ -1,21 +1,12 @@
-import { Prisma } from '@prisma/client';
-
 import { dlqPayloadSchema, malformedSourceEvent } from '../../../events/dlq-contract.js';
 import { decryptWireEvent } from '../../../events/event-crypto.js';
 import { getTenantEventKey } from '../../../events/event-key-service.js';
 import { wireEventEnvelopeSchema } from '../../../events/event-envelope.js';
 import { prisma } from '../../../lib/database.js';
+import { isRetriablePrismaError } from '../../../lib/kafka-errors.js';
 import { logger } from '../../../lib/logger.js';
 
 import { moveToDlq } from './dlq.service.js';
-
-function isTransientKeyError(error: unknown): boolean {
-  if (error instanceof Prisma.PrismaClientKnownRequestError) return true;
-  if (error instanceof Prisma.PrismaClientInitializationError) return true;
-  const msg = error instanceof Error ? error.message : String(error);
-  if (/Timed out|connection|ECONNREFUSED|ETIMEDOUT|P1001|P1002/i.test(msg)) return true;
-  return false;
-}
 
 import type { DomainEventEnvelope } from '../../../events/event-envelope.js';
 import type { SourceCoordinates } from '../../../events/dlq-contract.js';
@@ -66,7 +57,7 @@ export async function processInstallationMessage(input: {
     const key = await getTenantEventKey(prisma, wire.tenantId, wire.encryption.keyVersion);
     event = decryptWireEvent(wire, key);
   } catch (error) {
-    if (isTransientKeyError(error)) throw error;
+    if (isRetriablePrismaError(error)) throw error;
     const msg = error instanceof Error ? error.message : '';
     // Destroyed or unreadable key is permanent poison; other unknown errors after
     // availability check are also treated as permanent to avoid blocking.

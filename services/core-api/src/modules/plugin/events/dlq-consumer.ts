@@ -6,10 +6,13 @@ import { getTenantEventKey } from '../../../events/event-key-service.js';
 import { wireEventEnvelopeSchema } from '../../../events/event-envelope.js';
 import { createConsumer, Topics } from '../../../lib/kafka.js';
 import {
+  awaitOwnedHandlers,
   commitOffsetGuarded,
   getConsumerGeneration,
+  trackHandler,
   waitForConsumerAssignment,
 } from '../../../lib/kafka-consumer.js';
+import { isRetriablePrismaError } from '../../../lib/kafka-errors.js';
 import { logger } from '../../../lib/logger.js';
 
 import type { PrismaClient } from '@prisma/client';
@@ -51,14 +54,6 @@ class PermanentDlqError extends Error {
   }
 }
 
-function isTransientKeyError(error: unknown): boolean {
-  if (error instanceof Prisma.PrismaClientKnownRequestError) return true;
-  if (error instanceof Prisma.PrismaClientInitializationError) return true;
-  const msg = error instanceof Error ? error.message : String(error);
-  if (/Timed out|connection|ECONNREFUSED|ETIMEDOUT|P1001|P1002/i.test(msg)) return true;
-  return false;
-}
-
 export async function handleDlqMessage(db: PrismaClient, input: unknown): Promise<boolean> {
   let wire;
   try {
@@ -81,7 +76,7 @@ export async function handleDlqMessage(db: PrismaClient, input: unknown): Promis
       select: { status: true },
     });
     if (current?.status !== 'active') return false;
-    if (isTransientKeyError(error)) throw error;
+    if (isRetriablePrismaError(error)) throw error;
     const msg = error instanceof Error ? error.message : '';
     if (
       msg === 'Tenant event key is unavailable' ||
@@ -118,41 +113,42 @@ export async function startDlqConsumer(): Promise<void> {
     const activeConsumer = consumer;
     await activeConsumer.run({
       partitionsConsumedConcurrently: 1,
-      eachMessage: async ({ topic, partition, message }) => {
+      eachMessage: ({ topic, partition, message }) => {
         const offset = message.offset;
         const nextOffset = (BigInt(offset) + 1n).toString();
         const generation = getConsumerGeneration(activeConsumer);
-        try {
-          await handleDlqMessage(prisma, JSON.parse(message.value?.toString() ?? ''));
-          await commitOffsetGuarded(activeConsumer, topic, partition, nextOffset);
-        } catch (error) {
-          if (error instanceof PermanentDlqError) {
-            logger.error(
-              { topic, partition, offset, code: error.code },
-              'DLQ bridge skipping permanent error record'
-            );
-            try {
+        const task = (async () => {
+          try {
+            await handleDlqMessage(prisma, JSON.parse(message.value?.toString() ?? ''));
+            await commitOffsetGuarded(activeConsumer, topic, partition, nextOffset);
+          } catch (error) {
+            if (error instanceof PermanentDlqError) {
+              logger.error(
+                { topic, partition, offset, code: error.code },
+                'DLQ bridge skipping permanent error record'
+              );
               await commitOffsetGuarded(activeConsumer, topic, partition, nextOffset);
-            } catch {
-              throw error;
+              return;
             }
-            return;
-          }
-          if (String((error as Error).message ?? '').includes('KAFKA_COMMIT_STALE_GENERATION'))
+            if (String((error as Error).message ?? '').includes('KAFKA_COMMIT_STALE_GENERATION'))
+              throw error;
+            logger.error(
+              { topic, partition, offset, code: 'DLQ_BRIDGE_TRANSIENT' },
+              'DLQ bridge transient failure'
+            );
             throw error;
-          logger.error(
-            { topic, partition, offset, code: 'DLQ_BRIDGE_TRANSIENT' },
-            'DLQ bridge transient failure'
-          );
-          throw error;
-        }
-        if (getConsumerGeneration(activeConsumer) !== generation)
-          throw new Error('KAFKA_COMMIT_STALE_GENERATION');
+          }
+          if (getConsumerGeneration(activeConsumer) !== generation)
+            throw new Error('KAFKA_COMMIT_STALE_GENERATION');
+        })();
+        trackHandler(activeConsumer, task);
+        return task;
       },
     });
     await waitForConsumerAssignment(activeConsumer, 15000);
   } catch (error) {
     try {
+      await awaitOwnedHandlers(consumer);
       await consumer.disconnect();
     } catch {
       // ignore
@@ -167,6 +163,7 @@ export async function startDlqConsumer(): Promise<void> {
 export async function stopDlqConsumer(): Promise<void> {
   if (!consumer) return;
   try {
+    await awaitOwnedHandlers(consumer);
     await consumer.disconnect();
   } catch {
     logger.error({ code: 'DLQ_DISCONNECT_FAILED' }, 'Failed to disconnect DLQ bridge');

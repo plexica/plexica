@@ -13,6 +13,7 @@ interface ConsumerState {
   generation: number;
   assignment: Set<string>;
   closing: boolean;
+  handlers: Set<Promise<void>>;
 }
 
 const consumerStates = new WeakMap<KafkaConsumer, ConsumerState>();
@@ -24,7 +25,7 @@ function keyFor(topic: string, partition: number): string {
 function getState(consumer: KafkaConsumer): ConsumerState {
   let state = consumerStates.get(consumer);
   if (!state) {
-    state = { generation: 0, assignment: new Set(), closing: false };
+    state = { generation: 0, assignment: new Set(), closing: false, handlers: new Set() };
     consumerStates.set(consumer, state);
   }
   return state;
@@ -34,7 +35,12 @@ export function createKafkaConsumer(
   groupId: string,
   options: { fromBeginning?: boolean } = {}
 ): KafkaConsumer {
-  const state: ConsumerState = { generation: 0, assignment: new Set(), closing: false };
+  const state: ConsumerState = {
+    generation: 0,
+    assignment: new Set(),
+    closing: false,
+    handlers: new Set(),
+  };
   const rebalanceCb = (
     error: unknown,
     assignment: Array<{ topic: string; partition: number }>
@@ -130,4 +136,43 @@ export async function commitOffsetGuarded(
 
 export function isAssigned(consumer: KafkaConsumer, topic: string, partition: number): boolean {
   return getState(consumer).assignment.has(keyFor(topic, partition));
+}
+
+export function trackHandler(consumer: KafkaConsumer, promise: Promise<void>): void {
+  const state = getState(consumer);
+  state.handlers.add(promise);
+  void promise.finally(() => state.handlers.delete(promise)).catch(() => undefined);
+}
+
+function timeoutReject(timeoutMs: number): Promise<never> {
+  return new Promise((_, reject) => {
+    setTimeout(() => reject(new Error('KAFKA_OWNED_HANDLERS_DRAIN_TIMEOUT')), timeoutMs);
+  });
+}
+
+export async function awaitOwnedHandlers(consumer: KafkaConsumer, timeoutMs = 5000): Promise<void> {
+  const handlers = [...getState(consumer).handlers];
+  if (handlers.length === 0) return;
+  await Promise.race([Promise.allSettled(handlers), timeoutReject(timeoutMs)]).catch(
+    () => undefined
+  );
+}
+
+export function processAndCommit(
+  consumer: KafkaConsumer,
+  topic: string,
+  partition: number,
+  offset: string,
+  work: () => Promise<void>
+): Promise<void> {
+  const task = (async () => {
+    const gen = getConsumerGeneration(consumer);
+    await work();
+    const nextOffset = (BigInt(offset) + 1n).toString();
+    await commitOffsetGuarded(consumer, topic, partition, nextOffset);
+    if (getConsumerGeneration(consumer) !== gen || !isAssigned(consumer, topic, partition))
+      throw new Error('KAFKA_COMMIT_STALE_GENERATION');
+  })();
+  trackHandler(consumer, task);
+  return task;
 }

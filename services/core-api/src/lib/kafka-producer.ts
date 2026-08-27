@@ -105,20 +105,12 @@ async function teardownProducer(): Promise<void> {
   const pendingSends = [...activeSends];
   const pendingConnects: Promise<unknown>[] = pending ? [pending.catch(() => null)] : [];
   const toSettle = [...pendingSends, ...pendingConnects];
-  if (toSettle.length > 0) {
-    const remaining = Math.max(0, deadline - Date.now());
-    await Promise.allSettled(
-      toSettle.map((p) =>
-        remaining > 0
-          ? Promise.race([
-              p,
-              new Promise((_, r) =>
-                setTimeout(() => r(new Error('SHUTDOWN_DRAIN_TIMEOUT')), remaining)
-              ),
-            ]).catch(() => undefined)
-          : Promise.resolve()
-      )
-    );
+  const drainBudget = Math.max(0, deadline - Date.now());
+  if (toSettle.length > 0 && drainBudget > 0) {
+    await Promise.race([
+      Promise.allSettled(toSettle.map((p) => p.catch(() => undefined))),
+      new Promise((resolve) => setTimeout(resolve, drainBudget)),
+    ]);
   }
 
   if (active) {
