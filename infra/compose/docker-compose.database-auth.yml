@@ -46,7 +46,7 @@ services:
           memory: 64M
 
   keycloak:
-    image: quay.io/keycloak/keycloak:26.6@sha256:0aae0de7fca85525f727d3354df17896092de8bb26ae4c12d89c77e5df8cbce4
+    image: quay.io/keycloak/keycloak:26.0@sha256:09a381c715ab0b111835b70f2905955274843a219c6f27efb348e4d9f4086858
     command: start-dev --import-realm
     depends_on:
       keycloak-db-init:
@@ -87,7 +87,7 @@ services:
       start_period: 60s
 
   keycloak-init:
-    image: quay.io/keycloak/keycloak:26.6@sha256:0aae0de7fca85525f727d3354df17896092de8bb26ae4c12d89c77e5df8cbce4
+    image: quay.io/keycloak/keycloak:26.0@sha256:09a381c715ab0b111835b70f2905955274843a219c6f27efb348e4d9f4086858
     depends_on:
       keycloak:
         condition: service_healthy
