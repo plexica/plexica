@@ -61,7 +61,7 @@ describe('Redpanda smoke test', () => {
     const tAdmin: KafkaJS.Admin = tKafka.admin();
     const producer: KafkaJS.Producer = tKafka.producer({ kafkaJS: { acks: -1 }, 'linger.ms': 0 });
     const consumer: KafkaJS.Consumer = tKafka.consumer({
-      kafkaJS: { groupId, autoCommit: false, fromBeginning: false },
+      kafkaJS: { groupId, autoCommit: false, fromBeginning: true },
     });
 
     await tAdmin.connect();
