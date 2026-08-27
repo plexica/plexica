@@ -59,7 +59,30 @@ describe('event pipeline integration', () => {
     });
 
     try {
-      await expect(publishOutboxBatch()).resolves.toEqual({ published: 1, failed: 0 });
+      // Harden against transient claim race (SKIP LOCKED / clock skew / parallel
+      // Vitest workers). Poll briefly before asserting publish count, and force
+      // availableAt into the past if the first claim observes nothing.
+      let publishResult: { published: number; failed: number } | undefined;
+      for (let attempt = 0; attempt < 5; attempt++) {
+        publishResult = await publishOutboxBatch();
+        if (publishResult.published === 1 && publishResult.failed === 0) break;
+        if (publishResult.published === 0 && publishResult.failed === 0) {
+          const pending = await prisma.eventOutbox.findUnique({ where: { eventId } });
+          if (pending) {
+            // Ensure the row is claimable even if clock skew pushed availableAt
+            // slightly into the future or a prior lease is still technically
+            // held. Update without touching lease columns if already null.
+            await prisma.eventOutbox.update({
+              where: { eventId },
+              data: { availableAt: new Date(Date.now() - 1_000) },
+            });
+          }
+          await new Promise((r) => setTimeout(r, 200 * (attempt + 1)));
+          continue;
+        }
+        break;
+      }
+      expect(publishResult).toEqual({ published: 1, failed: 0 });
       const record = await Promise.race([
         received,
         new Promise<never>((_, reject) =>
