@@ -166,4 +166,19 @@ describe('startDlqConsumer poison records', () => {
       'DLQ bridge permanent error skipped'
     );
   });
+
+  it('stopDlqConsumer resolves within the budget when disconnect hangs', async () => {
+    const { consumer } = fakeConsumer();
+    await startDlqConsumer();
+    consumer.disconnect.mockReturnValue(new Promise(() => {}));
+    vi.useFakeTimers();
+    const stop = stopDlqConsumer();
+    await vi.advanceTimersByTimeAsync(30000);
+    await expect(stop).resolves.toBeUndefined();
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.objectContaining({ code: 'KAFKA_CONSUMER_DISCONNECT_TIMEOUT' }),
+      expect.any(String)
+    );
+    vi.useRealTimers();
+  });
 });

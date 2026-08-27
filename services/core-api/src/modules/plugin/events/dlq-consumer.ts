@@ -14,6 +14,7 @@ import {
   waitForConsumerAssignment,
 } from '../../../lib/kafka-consumer.js';
 import { isRetriablePrismaError } from '../../../lib/kafka-errors.js';
+import { disconnectConsumerWithBudget } from '../../../lib/kafka-shutdown.js';
 import { logger } from '../../../lib/logger.js';
 
 import type { PrismaClient } from '@prisma/client';
@@ -173,7 +174,7 @@ export async function startDlqConsumer(): Promise<void> {
   } catch (error) {
     try {
       await awaitOwnedHandlers(consumer);
-      await consumer.disconnect();
+      await disconnectConsumerWithBudget(consumer);
     } catch {
       // ignore
     }
@@ -188,7 +189,7 @@ export async function stopDlqConsumer(): Promise<void> {
   if (!consumer) return;
   try {
     await awaitOwnedHandlers(consumer);
-    await consumer.disconnect();
+    await disconnectConsumerWithBudget(consumer);
   } catch {
     logger.error({ code: 'DLQ_DISCONNECT_FAILED' }, 'Failed to disconnect DLQ bridge');
   }
