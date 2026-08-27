@@ -4,7 +4,7 @@
 #
 # The contract stack (and the canonical production E2E stack) run postgres
 # with TLS; plugin sidecars connect with sslmode=verify-full using a CA bind
-# of the PROJECT CA (staged onto the Docker host under /run/plexica-ci by
+# of the PROJECT CA (staged onto the Docker host under /run/plexica-ci-{project} by
 # postgres-host-ca-init and into Core via the runtime-dir bind). Host-side
 # consumers (Node: playwright/global-setup; OpenSSL: prisma) trust the CA via
 # NODE_EXTRA_CA_CERTS / SSL_CERT_FILE pointing INSIDE the runner-owned runtime

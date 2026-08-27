@@ -43,7 +43,7 @@ const daemon = createServer(async (incoming, outgoing) => {
             ),
            Env: malformed ? ['CORE_API_URL=http://host.docker.internal:3001'] : [],
          },
-         HostConfig: { Binds: ['/run/plexica-ci/postgres-ca.crt:/tmp/plexica-postgres-ca.crt:ro'], PortBindings: malformed ? { '3000/tcp': [{ HostPort: '32000' }] } : {} },
+         HostConfig: { Binds: ['/run/plexica-ci-plexica-ci-proxy-123456789012345678901234567/postgres-ca.crt:/tmp/plexica-postgres-ca.crt:ro'], PortBindings: malformed ? { '3000/tcp': [{ HostPort: '32000' }] } : {} },
         NetworkSettings: {
           Ports: { '3000/tcp': malformed ? [{ HostPort: '32000' }] : null },
           Networks: { [`${project}_default`]: { Aliases: [name] } },

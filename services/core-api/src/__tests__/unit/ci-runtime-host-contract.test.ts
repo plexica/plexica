@@ -50,6 +50,7 @@ describe('CI runtime contract — R7 project ID binds scope and network in conta
       parseConfig({
         ...containerBase,
         CI_RUNTIME_PROJECT: long,
+        CI_RUNTIME_CA_FILE: `/run/plexica-ci-${long}/postgres-ca.crt`,
         PLUGIN_RUNTIME_SCOPE: scope,
         PLUGIN_DOCKER_NETWORK: `${long}_default`,
       }).PLUGIN_RUNTIME_SCOPE
@@ -78,14 +79,16 @@ describe('CI runtime contract — R8 plugin Docker control is the private proxy'
 });
 
 describe('CI runtime contract — R11 container mode requires the exact runtime CA path', () => {
-  // A present-but-wrong value fails at the Zod literal; an absent value must
-  // still fail closed in the cross-field container contract.
+  // A present-but-wrong value fails at the per-project path check in the
+  // cross-field container contract; an absent value must also fail closed.
   it.each([
     '/etc/ssl/certs/ca-certificates.crt',
     '/run/plexica-ci/postgres-ca.pem',
+    '/run/plexica-ci/postgres-ca.crt',
+    '/run/plexica-ci-other-123456/postgres-ca.crt',
   ])('rejects CI_RUNTIME_CA_FILE=%s', (caFile) => {
     expect(() => parseConfig({ ...containerBase, CI_RUNTIME_CA_FILE: caFile })).toThrow(
-      /Invalid literal value/
+      /runtime Postgres CA/
     );
   });
   it('rejects a missing CI_RUNTIME_CA_FILE in the container contract', () => {

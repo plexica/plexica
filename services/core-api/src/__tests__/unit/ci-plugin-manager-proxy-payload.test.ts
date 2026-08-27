@@ -20,8 +20,8 @@ vi.mock('../../lib/config.js', () => ({
     CI_SIDECAR_HARNESS_IMAGE:
       'plexica-ci-sidecar-harness@sha256:' + 'b'.repeat(64),
     PLUGIN_DB_SSL_MODE: 'verify-full',
-    PLUGIN_DB_SSL_ROOT_CERT_PATH: '/run/plexica-ci/postgres-ca.crt',
-    CI_RUNTIME_CA_FILE: '/run/plexica-ci/postgres-ca.crt',
+    PLUGIN_DB_SSL_ROOT_CERT_PATH: '/run/plexica-ci-plexica-ci-payload-123456/postgres-ca.crt',
+    CI_RUNTIME_CA_FILE: '/run/plexica-ci-plexica-ci-payload-123456/postgres-ca.crt',
   },
 }));
 vi.mock('dockerode', () => ({
@@ -78,7 +78,7 @@ describe('CI manager-to-proxy create payload', () => {
       },
       HostConfig: {
         NetworkMode: `${project}_default`,
-        Binds: ['/run/plexica-ci/postgres-ca.crt:/tmp/plexica-postgres-ca.crt:ro'],
+        Binds: ['/run/plexica-ci-plexica-ci-payload-123456/postgres-ca.crt:/tmp/plexica-postgres-ca.crt:ro'],
       },
       NetworkingConfig: { EndpointsConfig: { [`${project}_default`]: { Aliases: [name] } } },
     });

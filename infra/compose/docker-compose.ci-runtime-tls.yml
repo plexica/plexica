@@ -4,14 +4,14 @@
 # verify-full, so the contract postgres must serve TLS signed by a CA the
 # runtime trusts. Trust is established exclusively by binding the PROJECT CA
 # (staged inside the runner-owned runtime dir and onto the Docker host under
-# /run/plexica-ci) into Core and every plugin sidecar — never by mutating the
-# host system trust store (see provision-e2e-postgres-ca.sh).
+# /run/plexica-ci-{project}) into Core and every plugin sidecar — never by
+# mutating the host system trust store (see provision-e2e-postgres-ca.sh).
 volumes:
   postgres_ci_tls:
 
 services:
   postgres-tls-init:
-    image: postgres:15.17-alpine@sha256:fceb6f86328c36f2438fae3b851b0cc57c4a7e69a58c866d9ce24281f2cf0c9c
+    image: postgres:18.6-alpine@sha256:d3e1620b530c944afa6e887d22eb899824da68e19c52024bf98f5220c88a65b2
     user: root
     entrypoint: /bin/sh
     command: /generate-e2e-tls.sh
@@ -22,15 +22,16 @@ services:
     restart: 'no'
 
   # Sidecar containers are created through the HOST Docker daemon, so their
-  # single allowed CA bind (CI_RUNTIME_CA_FILE=/run/plexica-ci/postgres-ca.crt)
+  # single allowed CA bind (CI_RUNTIME_CA_FILE=/run/plexica-ci-{project}/postgres-ca.crt)
   # resolves against HOST paths. This one-shot stages the project CA there via
   # a read-write /run mount — no sudo, no system trust store mutation, atomic
   # tmp+mv so concurrent projects on one runner never observe partial content.
+  # The per-project host directory isolates concurrent stacks' CA material.
   postgres-host-ca-init:
-    image: postgres:15.17-alpine@sha256:fceb6f86328c36f2438fae3b851b0cc57c4a7e69a58c866d9ce24281f2cf0c9c
+    image: postgres:18.6-alpine@sha256:d3e1620b530c944afa6e887d22eb899824da68e19c52024bf98f5220c88a65b2
     user: root
     entrypoint: /bin/sh
-    command: /stage-host-ca.sh
+    command: /stage-host-ca.sh ${CI_COMPOSE_PROJECT:?CI project is required}
     volumes:
       - ${E2E_POSTGRES_TLS_SOURCE:?E2E_POSTGRES_TLS_SOURCE is required}:/source:ro
       - ./infra/postgres/stage-host-ca.sh:/stage-host-ca.sh:ro

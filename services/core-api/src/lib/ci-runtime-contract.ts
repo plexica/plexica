@@ -20,7 +20,13 @@ interface RuntimeConfig {
 const KEYCLOAK_CONTAINER_BASE = 'http://keycloak:8080';
 const PROJECT_ID_PATTERN = /^plexica-ci-[a-z0-9][a-z0-9-]{5,43}$/;
 const HOST_LOOPBACK_LISTENER = /^127\.0\.0\.1:[1-9][0-9]*$/;
-const RUNTIME_CA_FILE = '/run/plexica-ci/postgres-ca.crt';
+// Per-project runtime CA path: concurrent CI stacks must never share a host
+// CA bind — a shared path made one stack's sidecars verify the other stack's
+// CA. The path is derived from the immutable project ID, which is validated
+// below before any use.
+function runtimeCaFile(project: string): string {
+  return `/run/plexica-ci-${project}/postgres-ca.crt`;
+}
 
 function isLoopback(url: string): boolean {
   const parsed = new URL(url);
@@ -73,11 +79,14 @@ function validateContainerContract(config: RuntimeConfig): void {
   if (config.PLUGIN_DOCKER_HOST !== 'http://plugin-docker-proxy:2375') {
     throw new Error('CI runtime plugin Docker control must use the private proxy');
   }
-  // Fail closed on the exact runtime CA path: sidecar binds and Core's own
-  // verify-full TLS trust derive from the project CA mounted here — never
-  // from the host system bundle, which lacks the E2E Postgres CA.
-  if (config.CI_RUNTIME_CA_FILE !== RUNTIME_CA_FILE) {
-    throw new Error(`CI runtime requires the mounted runtime Postgres CA at ${RUNTIME_CA_FILE}`);
+  // Fail closed on the exact per-project runtime CA path: sidecar binds and
+  // Core's own verify-full TLS trust derive from the project CA mounted here
+  // — never from the host system bundle, which lacks the E2E Postgres CA.
+  const expectedCaFile = runtimeCaFile(project);
+  if (config.CI_RUNTIME_CA_FILE !== expectedCaFile) {
+    throw new Error(
+      `CI runtime requires the mounted runtime Postgres CA at ${expectedCaFile}`
+    );
   }
 }
 

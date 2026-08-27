@@ -60,7 +60,7 @@ support it.
 | System/Service | Purpose                                          | Protocol       | SLA / Notes                          |
 | -------------- | ------------------------------------------------ | -------------- | ------------------------------------ |
 | Keycloak 26+   | Authentication, identity, realm-per-tenant       | HTTP (OIDC)    | HA required in prod; ADR-002         |
-| PostgreSQL 15+ | Primary data store, schema-per-tenant            | TCP (Prisma)   | Managed in prod; ADR-001             |
+| PostgreSQL 18+ | Primary data store, schema-per-tenant            | TCP (Prisma)   | Managed in prod; ADR-001             |
 | Redpanda       | Event bus for plugin event subscription          | Kafka protocol | 1-node dev, 3-node prod; ADR-004     |
 | Redis          | Cache, rate limiting, ABAC policy cache          | TCP (ioredis)  | Managed in prod                      |
 | MinIO          | S3-compatible object storage, per-tenant buckets | S3 API         | Can substitute with AWS S3           |
@@ -741,7 +741,7 @@ Three categories with consistent handling:
   +-------------------------------------------+
   |  Docker Compose                           |
   |  +--------+  +----------+  +--------+    |
-  |  | PG 15  |  | Keycloak |  | Redis  |    |
+  |  | PG 18  |  | Keycloak |  | Redis  |    |
   |  +--------+  +----------+  +--------+    |
   |  +--------+  +----------+  +--------+    |
   |  | MinIO  |  | Redpanda |  | Mailpit|    |
@@ -757,7 +757,7 @@ Three categories with consistent handling:
   +-------------------------------------------+
   |  Kubernetes / Docker                      |
   |  +--------+  +----------+  +--------+    |
-  |  | PG 15  |  | Keycloak |  | Redis  |    |
+  |  | PG 18  |  | Keycloak |  | Redis  |    |
   |  | Managed |  | (2 HA)   |  | Managed|    |
   |  +--------+  +----------+  +--------+    |
   |  +--------+  +-----------+  +--------+   |

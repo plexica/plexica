@@ -51,9 +51,10 @@ if (core.environment.PLUGIN_DOCKER_HOST !== "http://plugin-docker-proxy:2375") {
   throw new Error("Core lacks the scoped plugin Docker control endpoint");
 }
 // Project CA trust: Core must receive the staged E2E Postgres CA read-only at
-// the contract path — never the host system bundle.
+// the per-project contract path — never the host system bundle.
+const caTarget = `/run/plexica-ci-${process.argv[2]}/postgres-ca.crt`;
 const caMount = (core.volumes ?? []).find(
-  (volume) => volume.target === "/run/plexica-ci/postgres-ca.crt"
+  (volume) => volume.target === caTarget
 );
 if (!caMount || caMount.read_only !== true ||
     caMount.source !== `${process.env.CI_RUNTIME_DIR}/postgres-ca.crt`) {
@@ -73,4 +74,4 @@ if (proxy.ports?.length || proxy.networks?.default || !proxy.networks?.["plugin-
 }
 if ((config.services["keycloak-init"].environment ?? {}).KEYCLOAK_WEB_ORIGIN !== undefined) {
   throw new Error("Keycloak CI render retained a static web origin instead of browser-endpoints.env");
-}' "$rendered"
+}' "$rendered" "$project"
