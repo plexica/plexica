@@ -80,8 +80,13 @@ dependencies are resolvable. The remaining blocker is purely distribution.
    `bin/create-plexica-plugin.ts`, compiled by `tsc -p tsconfig.build.json`
    into `dist/bin/`, with `bin` → `./dist/bin/create-plexica-plugin.js`.
 7. **SDK types for consumers**: `@types/pg` moved to `dependencies` (the
-   compiled `.d.ts` import `pg` types); `types` conditions point at
-   `dist/**/*.d.ts`, so a consumer `tsc` resolves without extra config.
+   `.ts` sources import `pg` types), so a consumer `tsc` resolves them. The
+   `types` conditions stay on the `.ts` sources (`./src/index.ts`,
+   `./dev/index.ts`) rather than compiled `.d.ts`: the monorepo typechecks
+   `@plexica/sdk` via `workspace:*` in CI where `dist/` is not built yet, so
+   `.d.ts` types would break the workspace typecheck. Consumers get
+   `@types/node` from their own devDependencies (the generated template
+   ships it) and `skipLibCheck` covers the rest.
 8. **Build on publish, not on install**: the three built packages use a
    `prepublishOnly` script (`pnpm build`) instead of `prepare`. `prepare`
    also runs on `pnpm install` inside monorepo context builds (e.g. the CRM

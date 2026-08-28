@@ -6,12 +6,12 @@
   "types": "./dist/src/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/src/index.d.ts",
+      "types": "./src/index.ts",
       "development": "./src/index.ts",
       "import": "./dist/src/index.js"
     },
     "./dev": {
-      "types": "./dist/dev/index.d.ts",
+      "types": "./dev/index.ts",
       "development": "./dev/index.ts",
       "import": "./dist/dev/index.js"
     }
