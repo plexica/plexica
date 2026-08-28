@@ -29,10 +29,10 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
-    "prepare": "pnpm build",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:unit:coverage": "vitest run --coverage --coverage.reporter=cobertura --coverage.reportsDirectory=coverage/unit"
+    "test:unit:coverage": "vitest run --coverage --coverage.reporter=cobertura --coverage.reportsDirectory=coverage/unit",
+    "prepublishOnly": "pnpm build"
   },
   "dependencies": {
     "@types/pg": "^8.23.1",

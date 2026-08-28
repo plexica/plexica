@@ -78,11 +78,16 @@ dependencies are resolvable. The remaining blocker is purely distribution.
 6. **Fix the CLI bin for publish**: `create-plexica-plugin`'s bin was
    TypeScript source imported as `.js`. Converted to
    `bin/create-plexica-plugin.ts`, compiled by `tsc -p tsconfig.build.json`
-   into `dist/bin/`, with `bin` → `./dist/bin/create-plexica-plugin.js` and a
-   `prepare` script so the published artifact is always executable.
+   into `dist/bin/`, with `bin` → `./dist/bin/create-plexica-plugin.js`.
 7. **SDK types for consumers**: `@types/pg` moved to `dependencies` (the
    compiled `.d.ts` import `pg` types); `types` conditions point at
    `dist/**/*.d.ts`, so a consumer `tsc` resolves without extra config.
+8. **Build on publish, not on install**: the three built packages use a
+   `prepublishOnly` script (`pnpm build`) instead of `prepare`. `prepare`
+   also runs on `pnpm install` inside monorepo context builds (e.g. the CRM
+   E2E Dockerfile copies only `package.json` files before install), which
+   broke `pnpm install --frozen-lockfile` there. `prepublishOnly` builds only
+   when `pnpm publish` runs — verified it also executes on `--dry-run`.
 
 ## Consumer Setup (GitHub Packages)
 
