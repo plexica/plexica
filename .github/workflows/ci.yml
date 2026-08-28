@@ -43,7 +43,7 @@ jobs:
         with:
           node-version: '24'
       - name: Setup pnpm via Corepack
-        run: corepack enable && corepack prepare pnpm@10.33.0 --activate
+        run: corepack enable && corepack prepare pnpm@10.34.2 --activate
       - name: Generate run-scoped encryption material
         run: bash .github/actions/docker-infra/scripts/generate-ci-runtime-secrets.sh >> "$GITHUB_ENV"
       - run: pnpm install --frozen-lockfile
@@ -87,7 +87,7 @@ jobs:
         with:
           node-version: '24'
       - name: Setup pnpm via Corepack
-        run: corepack enable && corepack prepare pnpm@10.33.0 --activate
+        run: corepack enable && corepack prepare pnpm@10.34.2 --activate
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
       - run: pnpm --filter web test
@@ -118,7 +118,7 @@ jobs:
         with:
           node-version: '24'
       - name: Setup pnpm via Corepack
-        run: corepack enable && corepack prepare pnpm@10.33.0 --activate
+        run: corepack enable && corepack prepare pnpm@10.34.2 --activate
       - name: Generate run-scoped encryption material
         run: bash .github/actions/docker-infra/scripts/generate-ci-runtime-secrets.sh --full >> "$GITHUB_ENV"
       - run: pnpm install --frozen-lockfile

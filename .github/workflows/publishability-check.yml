@@ -1,0 +1,60 @@
+name: Publishability check (ADR-033)
+
+# ADR-033: every publishable package must stay publishable — no `private:
+# true`, no `catalog:` specifiers, publishConfig pinned to GitHub Packages,
+# and `pnpm publish --dry-run` must succeed. Runs on every PR and push to
+# main so a broken manifest cannot reach a release tag.
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  publishability-check:
+    name: Verify manifests are publishable
+    runs-on: self-hosted
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+      - name: Setup pnpm via Corepack
+        run: corepack enable && corepack prepare pnpm@10.34.2 --activate
+      - run: pnpm install --frozen-lockfile
+      - name: Verify manifests are publishable
+        run: |
+          set -euo pipefail
+          for pkg in packages/cli packages/sdk packages/vite-plugin packages/ui; do
+            manifest="$pkg/package.json"
+            node -e "
+              const p = require('./$manifest');
+              if (p.private === true) {
+                console.error('$pkg: must not be private (ADR-033)');
+                process.exit(1);
+              }
+              if (p.name === undefined || !p.name.startsWith('@plexica/')) {
+                console.error('$pkg: name must be scoped @plexica/* for GitHub Packages (ADR-033)');
+                process.exit(1);
+              }
+              for (const [k, v] of Object.entries({ ...p.dependencies, ...p.devDependencies, ...p.peerDependencies })) {
+                if (v === 'catalog:') {
+                  console.error('$pkg: dependency ' + k + ' uses catalog: — not publishable (ADR-033)');
+                  process.exit(1);
+                }
+              }
+              if (!p.publishConfig || p.publishConfig.registry !== 'https://npm.pkg.github.com') {
+                console.error('$pkg: publishConfig.registry must point to GitHub Packages (ADR-033)');
+                process.exit(1);
+              }
+              if (p.publishConfig.access !== 'public') {
+                console.error('$pkg: publishConfig.access must be public (ADR-033)');
+                process.exit(1);
+              }
+              console.log('OK  ' + p.name);
+            "
+          done
+      - name: Dry-run publish
+        run: pnpm -r --filter='@plexica/create-plexica-plugin' --filter='@plexica/sdk' --filter='@plexica/vite-plugin' --filter='@plexica/ui' publish --dry-run --no-git-checks

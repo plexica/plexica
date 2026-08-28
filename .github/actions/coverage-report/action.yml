@@ -17,7 +17,7 @@ runs:
         pnpm --filter core-api test:unit:coverage
         pnpm --filter @plexica/sdk test:unit:coverage
         pnpm --filter @plexica/vite-plugin test:unit:coverage
-        pnpm --filter create-plexica-plugin test:unit:coverage
+        pnpm --filter @plexica/create-plexica-plugin test:unit:coverage
         pnpm --filter @plexica/auth test:unit:coverage
       env:
         NODE_OPTIONS: '--trace-warnings'

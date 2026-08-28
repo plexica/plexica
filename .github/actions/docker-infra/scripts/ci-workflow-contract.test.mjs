@@ -30,7 +30,7 @@ for (const job of jobs) {
   )
     throw new Error(`${name} does not admit capacity before runner work`);
   const setupNode = job.indexOf('uses: actions/setup-node@v7');
-  const corepack = job.indexOf('corepack enable && corepack prepare pnpm@10.33.0 --activate');
+  const corepack = job.indexOf('corepack enable && corepack prepare pnpm@10.34.2 --activate');
   if (setupNode < 0 || corepack < 0 || corepack < setupNode)
     throw new Error(`${name} does not activate the pinned project pnpm via Corepack after setup-node`);
 }

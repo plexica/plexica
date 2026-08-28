@@ -382,7 +382,7 @@ Barriera d'ingresso altissima.
 La semplificazione avviene su 3 livelli:
 
 **Livello 1 — CLI di scaffolding**:
-- `npx create-plexica-plugin my-plugin` genera un progetto completo
+- `npx @plexica/create-plexica-plugin my-plugin` genera un progetto completo
 - Il progetto generato ha gia: vite config con MF pre-configurato,
   manifest pre-compilato, componente React di esempio, test di esempio
 - Lo sviluppatore non vede e non tocca mai la configurazione MF

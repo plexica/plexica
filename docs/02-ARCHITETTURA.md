@@ -502,7 +502,7 @@ Un plugin è composto da:
 
 **Livello 1 — CLI di scaffolding**:
 
-- `npx create-plexica-plugin my-plugin` genera un progetto completo
+- `npx @plexica/create-plexica-plugin my-plugin` genera un progetto completo
 - Il progetto generato ha già: vite config con MF pre-configurato via preset,
   manifest pre-compilato, componente React di esempio, test di esempio
 - Lo sviluppatore non vede e non tocca mai la configurazione MF
@@ -634,7 +634,7 @@ L'obiettivo è: **un plugin funzionante in 4 ore**.
 
 Il flusso per uno sviluppatore plugin:
 
-1. `npx create-plexica-plugin my-plugin` — scaffolding con template
+1. `npx @plexica/create-plexica-plugin my-plugin` — scaffolding con template
 2. Il template include: manifest pre-compilato, frontend React con MF auto-configurato, backend Express minimale, migrazioni di esempio
 3. `cd my-plugin && npm run dev` — avvia dev server locale con hot reload
 4. Il dev server si registra nella shell locale — il plugin appare nella shell

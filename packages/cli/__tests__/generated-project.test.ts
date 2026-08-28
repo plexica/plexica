@@ -1,8 +1,9 @@
 // CLI generator tests
 
+import { execFileSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
@@ -162,6 +163,25 @@ describe('Generated project (smoke)', () => {
 
     for (const entry of ['node_modules', 'dist', 'dist-ui', '.env']) {
       expect(gitignore).toContain(entry);
+    }
+  });
+
+  it('writes an .npmrc pointing @plexica/* at GitHub Packages (ADR-033)', async () => {
+    const dir = makeTempDir();
+    process.chdir(dir);
+    await run({ force: false, name: 'my-plugin' });
+    const npmrc = readFileSync(join(dir, 'my-plugin', '.npmrc'), 'utf8');
+
+    expect(npmrc).toContain('@plexica:registry=https://npm.pkg.github.com/');
+    // H3: never ship an ACTIVE token line or env placeholder in the project
+    // .npmrc — pnpm >=10.34.2 ignores ${VAR} there; the token belongs in
+    // user-level config. Comment lines documenting the setup are fine.
+    const activeLines = npmrc
+      .split('\n')
+      .filter((line) => line.trim() !== '' && !line.trim().startsWith('#'));
+    for (const line of activeLines) {
+      expect(line).not.toContain('_authToken');
+      expect(line).not.toContain('${');
     }
   });
 });

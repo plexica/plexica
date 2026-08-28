@@ -1,6 +1,6 @@
-# ADR-033: Publish Plugin Developer Packages to npm
+# ADR-033: Publish Plugin Developer Packages to GitHub Packages
 
-**Status**: Proposed
+**Status**: Accepted
 **Date**: 2026-08-28
 **Deciders**: Plexica Team and user
 **Related**: ADR-010 (Keycloak theme); docs/01-SPECIFICHE.md §7.2 ("Livello 1 —
@@ -34,29 +34,71 @@ dependencies are resolvable. The remaining blocker is purely distribution.
 
 ## Decision
 
-1. **Publish to the public npm registry** (or, if the team requires private
-   distribution, a private registry accessible to plugin developers):
-   - `create-plexica-plugin` (CLI)
+1. **Publish to GitHub Packages** (`https://npm.pkg.github.com`) under the
+   `plexica` GitHub organization, as **public** packages:
+   - `@plexica/create-plexica-plugin` (CLI — **scoped**: GitHub Packages only
+     supports scoped npm packages, so the CLI is `@plexica/create-plexica-plugin`
+     with bin `create-plexica-plugin`)
    - `@plexica/sdk`
    - `@plexica/vite-plugin`
    - `@plexica/ui`
+   GitHub Packages is chosen over the public npm registry so distribution
+   stays inside the organization's GitHub account (visibility + audit
+   control), while public access lets any GitHub-authenticated developer
+   install the packages for plugin development.
 2. **Remove `catalog:` protocol from the published packages.** Catalog entries
    are a monorepo-internal mechanism; any dependency of a publishable package
-   must use a real semver range. The shared catalog can still drive the
-   version used in the workspace, but the package manifest must not ship
-   `catalog:` specifiers.
-3. **Add a release pipeline** for these packages (e.g. GitHub Actions workflow
-   triggered on tag/version bump) so plugin developers can consume stable
-   versions, and the template's `^0.1.0` / `^0.0.1` ranges resolve.
-4. **Add a publishability check to CI** (e.g. `pnpm publish --dry-run` or a
-   `files`/`exports` validation step) to prevent `private: true` or
-   `catalog:` specifiers from regressing into published manifests.
-5. **Ship TypeScript sources in the published tarballs**: both `@plexica/sdk`
-   exports (`"."` and `"./dev"`) map the `types` and `development` conditions
-   to `.ts` sources (`./src/index.ts`, `./dev/index.ts`), and `@plexica/ui`
-   may do the same. A `files` allowlist must therefore include `src/` and
-   `dev/` (plus `dist/` for the `import` condition), or consumers using
-   `tsx`/the `development` condition will fail to resolve after install.
+   must use a real semver range — in `dependencies`, `peerDependencies` AND
+   `devDependencies` (they all ship in the published manifest). Replaced with
+   the catalog's resolved versions (`pg ^8.23.0`, `@originjs/vite-plugin-federation ^1.4.1`,
+   `@fontsource/inter ^5.3.0`, `@radix-ui/react-dropdown-menu ^2.1.24`,
+   `lucide-react ^1.33.0`, plus every devDependency).
+3. **Add a release pipeline**: GitHub Actions workflow
+   (`.github/workflows/publish-packages.yml`) triggered by semver tags
+   (`v*`) AND manual `workflow_dispatch` with a package selector, publishing
+   each package with `pnpm publish --registry https://npm.pkg.github.com`
+   authenticated via the built-in `GITHUB_TOKEN` (permissions:
+   `packages: write`). `concurrency` group prevents racing publishes; an
+   empty dispatch selection fails loudly. Tags make releases traceable;
+   dispatch covers quick fixes without a tag.
+4. **Add a publishability check to CI** (`.github/workflows/publishability-check.yml`,
+   extracted so `ci.yml` stays under the 200-line gate): every publishable
+   package must have a scoped `@plexica/*` name, no `private: true`, no
+   `catalog:` specifier anywhere, `publishConfig.registry` =
+   `https://npm.pkg.github.com`, `publishConfig.access` = `public`, and
+   `pnpm publish --dry-run` must succeed.
+5. **Ship TypeScript sources in the published tarballs** where exports point
+   at them: `@plexica/sdk` `development` conditions point at `.ts` sources
+   (`./src/index.ts`, `./dev/index.ts`) for tsx consumers, while the `types`
+   conditions point at compiled `dist/**/*.d.ts` so plain `tsc` consumers do
+   not need to type-check raw sources. `@plexica/ui` exports `.ts` sources
+   directly (`./src/index.ts`, `./tailwind-preset.ts`) as a source package —
+   the same pattern `apps/web` and `apps/admin` already use via Vite.
+   `files` allowlists exclude `*.tsbuildinfo`.
+6. **Fix the CLI bin for publish**: `create-plexica-plugin`'s bin was
+   TypeScript source imported as `.js`. Converted to
+   `bin/create-plexica-plugin.ts`, compiled by `tsc -p tsconfig.build.json`
+   into `dist/bin/`, with `bin` → `./dist/bin/create-plexica-plugin.js` and a
+   `prepare` script so the published artifact is always executable.
+7. **SDK types for consumers**: `@types/pg` moved to `dependencies` (the
+   compiled `.d.ts` import `pg` types); `types` conditions point at
+   `dist/**/*.d.ts`, so a consumer `tsc` resolves without extra config.
+
+## Consumer Setup (GitHub Packages)
+
+Consumers configure the token at **user level** (pnpm >= 10.34.2 ignores env
+placeholders in project-level `.npmrc`, GHSA-3qhv-2rgh-x77r):
+
+```ini
+# ~/.npmrc (user level) — token NEVER in the project .npmrc
+@plexica:registry=https://npm.pkg.github.com
+//npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}
+```
+
+The generated plugin template ships a project `.npmrc` with only the
+registry-scope line (safe to commit) and documents the user-level token
+setup in comments. The packages are public, so any GitHub user with a token
+(or a `~/.npmrc` auth) can install them.
 
 ## Consequences
 
@@ -73,13 +115,14 @@ dependencies are resolvable. The remaining blocker is purely distribution.
 - Public npm exposure of the SDK surface is a new trust boundary: API changes
   become breaking changes. Requires a semver policy and public API review
   before first publish.
+- **CLI name change**: `create-plexica-plugin` is published as
+  `@plexica/create-plexica-plugin` (required by GitHub Packages). The docs
+  invocation becomes `npx @plexica/create-plexica-plugin`. The bin name stays
+  `create-plexica-plugin`, so once installed the command is unchanged.
 - `@plexica/ui` is a large surface; publishing it requires a stable
   `files` allowlist and export map, and its React/Tailwind peers must be
-  declared correctly.
-- The CLI currently has no runtime dependencies and its `bin` entry is
-  hand-copied (`bin/create-plexica-plugin.js` imports `../src/index.js`); a
-  publish step must build the CLI first (or the bin must be made
-  self-contained) so the published package actually runs.
+  declared correctly. It is a source package (`.ts` exports) — consumers must
+  use a bundler that resolves TypeScript (Vite does; plain Node does not).
 - Monorepo `pnpm-lock.yaml` and workspace resolution are unaffected: these
   changes are additive (publish config, real version ranges, CI step).
 
@@ -98,10 +141,14 @@ dependencies are resolvable. The remaining blocker is purely distribution.
 
 ## Status Note
 
-This ADR is **Proposed**: the verification branch fixes (G4–G16) are merged
-independently, but publishing (G1–G3) requires a team decision on registry
-target (public vs private), semver policy, and release automation before
-implementation.
+This ADR is **Accepted** (2026-08-28): the registry decision is GitHub
+Packages under the `plexica` organization, public access, triggered by semver
+tags + `workflow_dispatch`. Implementation on `verify/plugin-bootstrap-dx`
+survived dual-model review (3 HIGH findings fixed: scoped CLI name for GH
+Packages, publishability check extracted from `ci.yml` to stay under the
+200-line gate, user-level npm token for pnpm >= 10.34.2). A real
+(non-dry-run) publish smoke test against `npm.pkg.github.com` on a scratch
+version remains the definitive pre-release gate.
 
 ---
 
@@ -126,7 +173,8 @@ a mechanism hardcoded to one plugin, not reusable.
 2. Loopback-only client (`127.0.0.1`, `::1`, `::ffff:127.0.0.1`; else 403).
 3. Tenant resolved from the `X-Tenant-Slug` header via `resolveTenant()`
    (the header is already honored in non-production by
-   `tenantContextMiddleware`, H-3). Unknown/suspended tenants → 400.
+   `tenantContextMiddleware`, H-3). Unknown tenants → 400 (anti-enumeration);
+   suspended / pending-deletion → 403 (ADR-022 alignment, M-4).
 
 **Consequences**: dev registration requires no user identity — the trust
 boundary is dev-mode + localhost + explicit tenant declaration. The SDK

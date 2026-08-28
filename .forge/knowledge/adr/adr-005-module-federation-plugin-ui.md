@@ -14,7 +14,7 @@ Use Vite Module Federation for runtime plugin UI loading. Plugin frontend builds
 
 To eliminate the configuration complexity that plagued v1, three layers of tooling abstract it away:
 
-1. **CLI scaffolding**: `npx create-plexica-plugin` generates a plugin project with Module Federation pre-configured.
+1. **CLI scaffolding**: `npx @plexica/create-plexica-plugin` generates a plugin project with Module Federation pre-configured.
 2. **Vite plugin preset**: `@plexica/vite-plugin` reads the plugin manifest and auto-generates the Module Federation configuration. Plugin developers never write MF config directly.
 3. **Dev server integration**: The plugin dev server auto-registers with the shell for hot reload during development.
 

@@ -17,7 +17,7 @@ jobs:
         with:
           node-version: '24'
       - name: Setup exact pnpm
-        run: corepack enable && corepack prepare pnpm@10.33.0 --activate
+        run: corepack enable && corepack prepare pnpm@10.34.2 --activate
       - name: Prepare isolated targets
         run: |
           evidence="$RUNNER_TEMP/kafka-native-spike-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
@@ -59,7 +59,7 @@ jobs:
             -v "$KJM_EVIDENCE/core-runtime:/evidence" \
             -w /workspace \
             node:24-bookworm@sha256:934240a162082fd8b8a2f90cd5114446443f1eba1c5378f6687167ca405e6584 \
-            bash -c 'corepack enable && corepack prepare pnpm@10.33.0 --activate && bash services/core-api/scripts/native-spike/run-target.sh /evidence /tmp/kjm-store localhost:19092 core-runtime'
+            bash -c 'corepack enable && corepack prepare pnpm@10.34.2 --activate && bash services/core-api/scripts/native-spike/run-target.sh /evidence /tmp/kjm-store localhost:19092 core-runtime'
       - name: Write gate summary
         id: summary
         if: always()
