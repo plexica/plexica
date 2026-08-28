@@ -68,6 +68,10 @@ export async function sendKafkaEnvelope(
         'Kafka envelope not sent — producer closed by shutdown'
       );
     }
+    // registerSend threw (e.g. producer closed during shutdown) while sendTask
+    // is still pending on getProducer(): observe its late rejection so it is
+    // never reported as an unhandled rejection.
+    void sendTask.catch(() => undefined);
     throw err;
   }
 

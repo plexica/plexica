@@ -25,6 +25,7 @@ import {
   createConsumerGroup,
   deleteConsumerGroup,
 } from '../../modules/plugin/events/consumer-manager.service.js';
+import { cancellingGroups } from '../../modules/plugin/events/consumer-group-state.js';
 
 const INSTALL_ID = '11111111-2222-3333-4444-555555555555';
 const TENANT_ID = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
@@ -139,5 +140,49 @@ describe('consumer-manager per-group cancellation', () => {
     await expect(second).rejects.toMatchObject({ code: 'CONSUMER_GROUP_CANCELLED' });
     await deleting;
     expect(mocks.startLagMonitoring).not.toHaveBeenCalled();
+  });
+
+  it('keeps the cancellation marker while creation is in flight past the delete budget and clears it once creation settles', async () => {
+    vi.useFakeTimers();
+    try {
+      let resolveConnect!: () => void;
+      const consumer = makeFakeConsumer({
+        connect: vi.fn(
+          () =>
+            new Promise<void>((resolve) => {
+              resolveConnect = resolve;
+            })
+        ),
+      });
+      mocks.createConsumer.mockReturnValue(consumer);
+
+      const creating = createConsumerGroup(
+        INSTALL_ID,
+        TENANT_ID,
+        'acme',
+        ['plexica.workspace.*'],
+        handler,
+        PLUGIN_ID
+      );
+      await Promise.resolve();
+      const deleting = deleteConsumerGroup(INSTALL_ID, 'acme');
+
+      // The delete settle budget expires while the creation is still connecting,
+      // so the marker must be retained (not cleared in the hot path).
+      await vi.advanceTimersByTimeAsync(30000);
+
+      // Now the creation settles (connects, then aborts because the marker is
+      // still set); the marker is cleared rejection-safe via pending.then.
+      resolveConnect();
+
+      await expect(creating).rejects.toMatchObject({ code: 'CONSUMER_GROUP_CANCELLED' });
+      await deleting;
+      expect(cancellingGroups.has(`plugin-${INSTALL_ID}-acme`)).toBe(false);
+      expect(consumer.subscribe).not.toHaveBeenCalled();
+      expect(mocks.startLagMonitoring).not.toHaveBeenCalled();
+      expect(consumer.disconnect).toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

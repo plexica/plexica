@@ -37,7 +37,7 @@ Ambient host vs isolated store distinction is preserved: the runner verification
 
 ### G01 — Clean frozen install
 
-Both `install.log` show fresh `pnpm install --frozen-lockfile --store-dir <empty> --reporter=append-only` after `test ! -e node_modules` and `test ! -e <store>`. No cache reuse. Exact pnpm `10.33.0` for both targets (install.log version lines for runner and core-runtime).
+Both `install.log` show fresh `pnpm install --frozen-lockfile --store-dir <empty> --reporter=append-only` after `test ! -e node_modules` and `test ! -e <store>`. No cache reuse. Frozen install ran under exact pnpm 10.33.0 in both targets (install.log version lines for runner/ and core-runtime/ retained in the artifact); see the `pnpm` rows in the [Observed Targets](#target-identities) table.
 
 ### G02 — Exact version
 

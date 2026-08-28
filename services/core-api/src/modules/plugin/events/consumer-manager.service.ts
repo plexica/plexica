@@ -98,7 +98,10 @@ async function createConsumerGroupInner(
   }
   consumers.set(groupId, { consumer, topics, isRunning: true, installId, tenantSlug, pluginId });
   const { startLagMonitoring } = await import('./lag-metrics.service.js');
-  if (isShuttingDown()) return;
+  // Re-check after the yielding import: a delete/teardown that landed during
+  // the await may have removed the entry, so the monitor must not start for a
+  // deleted consumer.
+  if (isShuttingDown() || cancellingGroups.has(groupId) || !consumers.has(groupId)) return;
   startLagMonitoring(installId, pluginId, tenantSlug, topics);
   logger.info({ groupId, topics }, 'Consumer group started');
 }
@@ -130,12 +133,21 @@ export async function deleteConsumerGroup(installId: string, tenantSlug: string)
   // Creation is in flight but not yet registered: flag it so the in-flight
   // gates abort, then wait for the expected cancellation rejection.
   cancellingGroups.add(groupId);
+  let settled = false;
   try {
-    await settleWithBudget(pending, 30000);
+    settled = await settleWithBudget(pending, 30000);
   } catch {
     // expected: the pending creation rejected with ConsumerGroupCancelledError
-  } finally {
+  }
+  if (settled) {
     cancellingGroups.delete(groupId);
+  } else {
+    // Creation still in flight after the budget: keep the marker so its abort
+    // gates still fire; clear it (rejection-safe) once the creation settles.
+    void pending.then(
+      () => cancellingGroups.delete(groupId),
+      () => cancellingGroups.delete(groupId)
+    );
   }
   // The creation may have registered just before observing the cancel.
   const registered = consumers.get(groupId);
