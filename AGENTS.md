@@ -22,6 +22,7 @@ una UX professionale.
 - `docs/01-SPECIFICHE.md` — requisiti funzionali e non funzionali
 - `docs/02-ARCHITETTURA.md` — architettura tecnica e decisioni confermate
 - `docs/03-PROGETTO.md` — fasi, rischi, criteri di successo
+- `docs/04-SVILUPPO-PLUGIN.md` — guida operativa allo sviluppo di plugin (ADR-033)
 - `.forge/constitution.md` — le 6 regole non negoziabili
 
 ---
@@ -93,7 +94,7 @@ apps/
   admin/            # Frontend React super-admin
 packages/
   auth/             # @plexica/auth — auth frontend condivisa (PKCE, silent refresh, auth store)
-  cli/              # create-plexica-plugin — CLI scaffolding per nuovi plugin
+  cli/              # @plexica/create-plexica-plugin — CLI scaffolding per nuovi plugin
   keycloak-theme/   # @plexica/keycloak-theme — tema login Keycloak (Keycloakify, ADR-010)
   sdk/              # @plexica/sdk — SDK plugin
   ui/               # @plexica/ui — design system condiviso

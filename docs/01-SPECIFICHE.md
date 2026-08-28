@@ -273,7 +273,7 @@ Queste decisioni della v1 sono **confermate e non negoziabili** nella v2:
 | PL-007 | Plugin data extension (tabelle plugin nello schema tenant) | Alta | v1 sidecar pattern — cambiare a tabelle dedicate |
 | PL-008 | Marketplace con ricerca, categorie e rating | Alta | v1 ha modello dati |
 | PL-009 | Configurazione plugin per-tenant | Alta | Manifest dichiara config schema, tenant admin compila |
-| PL-010 | CLI per scaffolding plugin (`create-plexica-plugin`) | Alta | Non esiste in v1 |
+| PL-010 | CLI per scaffolding plugin (`@plexica/create-plexica-plugin`) | Alta | Non esiste in v1 |
 | PL-011 | Documentazione tutorial passo-passo per creare un plugin | Alta | Non esiste in v1 |
 
 ### 5.5 Amministrazione
