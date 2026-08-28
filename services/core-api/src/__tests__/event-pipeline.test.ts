@@ -6,7 +6,7 @@ import { getTenantEventKey } from '../events/event-key-service.js';
 import { enqueueEvent } from '../events/outbox-repository.js';
 import { publishOutboxBatch } from '../events/outbox-publisher.js';
 import { prisma } from '../lib/database.js';
-import { createConsumer } from '../lib/kafka.js';
+import { createConsumer, getKafkaAdmin } from '../lib/kafka.js';
 
 const tenantIds: string[] = [];
 
@@ -21,31 +21,46 @@ describe('event pipeline integration', () => {
   it('commits a mutation with outbox and publishes only tenant-keyed ciphertext', async () => {
     const tenantId = crypto.randomUUID();
     const eventId = crypto.randomUUID();
-    const topic = 'plexica.workspace.created';
+    // Ephemeral unique topic: avoids replaying the persistent core topic's
+    // backlog (fromBeginning true) and keeps this test self-contained.
+    const topic = `plexica.pipeline.${tenantId.slice(0, 8)}`;
     tenantIds.push(tenantId);
     await prisma.$transaction(async (tx) => {
       await tx.tenant.create({
         data: { id: tenantId, slug: `event-${tenantId.slice(0, 8)}`, name: 'Event Test' },
       });
-      await enqueueEvent(tx, topic, buildDomainEvent({
-        eventId,
-        type: topic,
-        tenantId,
-        producer: { kind: 'core', id: 'core' },
-        correlationId: eventId,
-        payload: { marker: 'readable-domain-marker' },
-      }));
+      await enqueueEvent(
+        tx,
+        topic,
+        buildDomainEvent({
+          eventId,
+          type: topic,
+          tenantId,
+          producer: { kind: 'core', id: 'core' },
+          correlationId: eventId,
+          payload: { marker: 'readable-domain-marker' },
+        })
+      );
     });
     await expect(prisma.eventOutbox.findUnique({ where: { eventId } })).resolves.toBeDefined();
 
-    const consumer = createConsumer(`event-pipeline-${crypto.randomUUID()}`);
-    await consumer.connect();
-    await consumer.subscribe({ topic, fromBeginning: false });
-    let resolveRecord!: (record: { key: string; value: string; tenantHeader: string }) => void;
-    const received = new Promise<{ key: string; value: string; tenantHeader: string }>((resolve) => {
-      resolveRecord = resolve;
+    const admin = getKafkaAdmin();
+    await admin.connect();
+    await admin.createTopics({ topics: [{ topic, numPartitions: 1, replicationFactor: 1 }] });
+
+    const consumer = createConsumer(`event-pipeline-${crypto.randomUUID()}`, {
+      fromBeginning: true,
     });
+    await consumer.connect();
+    await consumer.subscribe({ topics: [topic] });
+    let resolveRecord!: (record: { key: string; value: string; tenantHeader: string }) => void;
+    const received = new Promise<{ key: string; value: string; tenantHeader: string }>(
+      (resolve) => {
+        resolveRecord = resolve;
+      }
+    );
     await consumer.run({
+      partitionsConsumedConcurrently: 1,
       eachMessage: async ({ message }) => {
         const value = message.value?.toString() ?? '';
         if (value.includes(eventId)) {
@@ -57,44 +72,54 @@ describe('event pipeline integration', () => {
         }
       },
     });
+    // Assignment is readiness gate, not sleep
+    {
+      const deadline = Date.now() + 15000;
+      while (Date.now() < deadline) {
+        try {
+          if (consumer.assignment().length > 0) break;
+        } catch {
+          // intentionally ignored — assignment not ready, will retry
+        }
+        await new Promise((r) => setTimeout(r, 100));
+      }
+    }
 
     try {
-      // Harden against transient claim race (SKIP LOCKED / clock skew / parallel
-      // Vitest workers). Poll briefly before asserting publish count, and force
-      // availableAt into the past if the first claim observes nothing.
+      // Harden against the transient claim race and the concurrent background publisher.
       let publishResult: { published: number; failed: number } | undefined;
+      let externallyPublished = false;
       for (let attempt = 0; attempt < 5; attempt++) {
         publishResult = await publishOutboxBatch();
         if (publishResult.published === 1 && publishResult.failed === 0) break;
         if (publishResult.published === 0 && publishResult.failed === 0) {
           const pending = await prisma.eventOutbox.findUnique({ where: { eventId } });
-          if (pending) {
-            const leaseActive =
-              pending.leaseToken !== null &&
-              pending.leaseExpiresAt !== null &&
-              new Date(pending.leaseExpiresAt).getTime() > Date.now();
-            if (!leaseActive) {
-              // Only reset claimability when no active lease is held.
-              // If a lease is active we must wait for it to expire instead
-              // of making the row appear claimable by touching only
-              // availableAt, preserving the lease protection in
-              // claimOutboxEvents().
-              await prisma.eventOutbox.update({
-                where: { eventId },
-                data: {
-                  availableAt: new Date(Date.now() - 1_000),
-                  leaseToken: null,
-                  leaseExpiresAt: null,
-                },
-              });
-            }
+          if (!pending) {
+            externallyPublished = true;
+            break;
+          }
+          const leaseActive =
+            pending.leaseToken !== null &&
+            pending.leaseExpiresAt !== null &&
+            new Date(pending.leaseExpiresAt).getTime() > Date.now();
+          if (!leaseActive) {
+            // Atomic reset guarded by the unleased state read above: a publisher
+            // that claimed the row between read and update keeps its lease.
+            await prisma.eventOutbox.updateMany({
+              where: { eventId, leaseToken: null, leaseExpiresAt: null },
+              data: {
+                availableAt: new Date(Date.now() - 1_000),
+                leaseToken: null,
+                leaseExpiresAt: null,
+              },
+            });
           }
           await new Promise((r) => setTimeout(r, 200 * (attempt + 1)));
           continue;
         }
         break;
       }
-      expect(publishResult).toEqual({ published: 1, failed: 0 });
+      if (!externallyPublished) expect(publishResult).toEqual({ published: 1, failed: 0 });
       const record = await Promise.race([
         received,
         new Promise<never>((_, reject) =>
@@ -111,6 +136,8 @@ describe('event pipeline integration', () => {
       await expect(prisma.eventOutbox.findUnique({ where: { eventId } })).resolves.toBeNull();
     } finally {
       await consumer.disconnect();
+      await admin.deleteTopics({ topics: [topic] }).catch(() => undefined);
+      await admin.disconnect().catch(() => undefined);
     }
   });
 
@@ -118,19 +145,25 @@ describe('event pipeline integration', () => {
     const tenantId = crypto.randomUUID();
     const eventId = crypto.randomUUID();
     tenantIds.push(tenantId);
-    await expect(prisma.$transaction(async (tx) => {
-      await tx.tenant.create({
-        data: { id: tenantId, slug: `rollback-${tenantId.slice(0, 8)}`, name: 'Rollback Test' },
-      });
-      await enqueueEvent(tx, 'plexica.workspace.created', buildDomainEvent({
-        eventId,
-        type: 'plexica.workspace.created',
-        tenantId,
-        producer: { kind: 'core', id: 'core' },
-        payload: {},
-      }));
-      throw new Error('ROLLBACK_TEST');
-    })).rejects.toThrow('ROLLBACK_TEST');
+    await expect(
+      prisma.$transaction(async (tx) => {
+        await tx.tenant.create({
+          data: { id: tenantId, slug: `rollback-${tenantId.slice(0, 8)}`, name: 'Rollback Test' },
+        });
+        await enqueueEvent(
+          tx,
+          'plexica.workspace.created',
+          buildDomainEvent({
+            eventId,
+            type: 'plexica.workspace.created',
+            tenantId,
+            producer: { kind: 'core', id: 'core' },
+            payload: {},
+          })
+        );
+        throw new Error('ROLLBACK_TEST');
+      })
+    ).rejects.toThrow('ROLLBACK_TEST');
     await expect(prisma.tenant.findUnique({ where: { id: tenantId } })).resolves.toBeNull();
     await expect(prisma.eventOutbox.findUnique({ where: { eventId } })).resolves.toBeNull();
   });
@@ -147,17 +180,21 @@ describe('event pipeline integration', () => {
         status: 'pending_deletion',
       },
     });
-    await expect(prisma.$transaction((tx) => enqueueEvent(
-      tx,
-      'plexica.workspace.created',
-      buildDomainEvent({
-        eventId,
-        type: 'plexica.workspace.created',
-        tenantId,
-        producer: { kind: 'core', id: 'core' },
-        payload: { marker: 'must-not-persist' },
-      })
-    ))).rejects.toThrow('TENANT_NOT_ACTIVE');
+    await expect(
+      prisma.$transaction((tx) =>
+        enqueueEvent(
+          tx,
+          'plexica.workspace.created',
+          buildDomainEvent({
+            eventId,
+            type: 'plexica.workspace.created',
+            tenantId,
+            producer: { kind: 'core', id: 'core' },
+            payload: { marker: 'must-not-persist' },
+          })
+        )
+      )
+    ).rejects.toThrow('TENANT_NOT_ACTIVE');
     await expect(prisma.eventOutbox.findUnique({ where: { eventId } })).resolves.toBeNull();
   });
 });

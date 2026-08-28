@@ -107,6 +107,7 @@ does not erase readable tenant data from Kafka when a tenant is deleted.
    `eventId`, `tenantId`, `type`, and `schemaVersion` are mandatory and
    immutable. Plaintext routing metadata contains no tenant slug, user name,
    email, or domain payload.
+
 2. Kafka message key is always `tenantId`. Producers may not select another
    key. Plugin consumers validate the envelope and dispatch only when
    `envelope.tenantId` equals the installation's tenant ID; mismatch is skipped
@@ -178,10 +179,22 @@ does not erase readable tenant data from Kafka when a tenant is deleted.
 
 ### Constitution Alignment
 
-| Article | Status | Notes |
-| --- | --- | --- |
-| Rule 1 / Testing | Compliant | Requires real PostgreSQL, Kafka, two-tenant, crash-recovery, and deletion E2E gates. |
-| Rule 5 / ADR | Compliant | Records data-model and event infrastructure changes. |
-| Architecture: Events | Compliant | Retains Kafka/Redpanda and tenant-key partitioning. |
-| Security: tenant isolation | Improved | Mandatory ownership filter blocks cross-tenant dispatch. |
-| Security: secrets/PII | Improved | Wrapped keys and cryptographic payload erasure replace readable retention. |
+| Article                    | Status    | Notes                                                                                |
+| -------------------------- | --------- | ------------------------------------------------------------------------------------ |
+| Rule 1 / Testing           | Compliant | Requires real PostgreSQL, Kafka, two-tenant, crash-recovery, and deletion E2E gates. |
+| Rule 5 / ADR               | Compliant | Records data-model and event infrastructure changes.                                 |
+| Architecture: Events       | Compliant | Retains Kafka/Redpanda and tenant-key partitioning.                                  |
+| Security: tenant isolation | Improved  | Mandatory ownership filter blocks cross-tenant dispatch.                             |
+| Security: secrets/PII      | Improved  | Wrapped keys and cryptographic payload erasure replace readable retention.           |
+
+---
+
+## Amendment — 2026-08-27: Confluent JavaScript Client
+
+**Status**: Accepted (amends the accepted client decision above) · **Driver**: Spec 008 (`KJM-001`—`KJM-022`); explicit user approval to replace KafkaJS with `@confluentinc/kafka-javascript` · **Precedence**: Supersedes KafkaJS client references without changing Redpanda/Kafka, topics, envelopes, delivery guarantees, or the 2026-07-23 security amendment.
+
+Use exact `@confluentinc/kafka-javascript` **1.10.0** (bundled librdkafka 2.15.0) only, via its `KafkaJS` promisified compatibility API and `kafkaJS` configuration blocks; the native callback `RdKafka` API, KafkaJS runtime, dual-client paths, and fallback switching are prohibited. Compatibility mappings: [plan-appendices-traceability.md §11]; error-boundary outcomes: [plan-appendices-traceability.md §16]. Deployment evidence: [native-spike-report.md](native-spike-report.md), [native-spike-artifact-analysis.md](native-spike-artifact-analysis.md).
+
+### Same-day clarification — mandatory native deployment spike
+
+Adoption is conditional on a blocking Phase 1 native-deployment spike passing in **both** the default self-hosted CI runner and the digest-pinned Core Node 24 Bookworm runtime (`node:24-bookworm@sha256:934240a162082fd8b8a2f90cd5114446443f1eba1c5378f6687167ca405e6584`); a FAIL pauses Spec 008 for a user decision via a new ADR/constitution amendment. See [native-spike-artifact-analysis.md](native-spike-artifact-analysis.md) for the PASS/PASS verdict and [plan-appendices.md §3]/[§4] for the gate targets and KJM-G01—G10 matrix.

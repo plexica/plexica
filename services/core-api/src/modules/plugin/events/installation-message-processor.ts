@@ -3,6 +3,7 @@ import { decryptWireEvent } from '../../../events/event-crypto.js';
 import { getTenantEventKey } from '../../../events/event-key-service.js';
 import { wireEventEnvelopeSchema } from '../../../events/event-envelope.js';
 import { prisma } from '../../../lib/database.js';
+import { isRetriablePrismaError } from '../../../lib/kafka-errors.js';
 import { logger } from '../../../lib/logger.js';
 
 import { moveToDlq } from './dlq.service.js';
@@ -33,10 +34,17 @@ export async function processInstallationMessage(input: {
     wire = wireEventEnvelopeSchema.parse(JSON.parse(input.value));
   } catch {
     const event = malformedSourceEvent(input.tenantId, input.installId, input.source);
-    await moveToDlq(dlqPayloadSchema.parse({
-      tenantId: input.tenantId, installId: input.installId, pluginId: input.pluginId,
-      event, errorCode: 'MALFORMED_ENVELOPE', retryCount: 0, source: input.source,
-    }));
+    await moveToDlq(
+      dlqPayloadSchema.parse({
+        tenantId: input.tenantId,
+        installId: input.installId,
+        pluginId: input.pluginId,
+        event,
+        errorCode: 'MALFORMED_ENVELOPE',
+        retryCount: 0,
+        source: input.source,
+      })
+    );
     return;
   }
   // Early tenant filter: skip cross-tenant events before any expensive
@@ -48,12 +56,22 @@ export async function processInstallationMessage(input: {
   try {
     const key = await getTenantEventKey(prisma, wire.tenantId, wire.encryption.keyVersion);
     event = decryptWireEvent(wire, key);
-  } catch {
+  } catch (error) {
+    if (isRetriablePrismaError(error)) throw error;
+    // Any non-retriable decrypt failure (key unavailable or crypto/auth-tag
+    // mismatch) is permanent poison -> moveToDlq EVENT_DECRYPT_FAILED.
     const malformed = malformedSourceEvent(input.tenantId, input.installId, input.source);
-    await moveToDlq(dlqPayloadSchema.parse({
-      tenantId: input.tenantId, installId: input.installId, pluginId: input.pluginId,
-      event: malformed, errorCode: 'EVENT_DECRYPT_FAILED', retryCount: 0, source: input.source,
-    }));
+    await moveToDlq(
+      dlqPayloadSchema.parse({
+        tenantId: input.tenantId,
+        installId: input.installId,
+        pluginId: input.pluginId,
+        event: malformed,
+        errorCode: 'EVENT_DECRYPT_FAILED',
+        retryCount: 0,
+        source: input.source,
+      })
+    );
     return;
   }
 
@@ -70,8 +88,15 @@ export async function processInstallationMessage(input: {
       );
     }
   }
-  await moveToDlq(dlqPayloadSchema.parse({
-    tenantId: input.tenantId, installId: input.installId, pluginId: input.pluginId,
-    event, errorCode: 'PLUGIN_DELIVERY_FAILED', retryCount: 3, source: input.source,
-  }));
+  await moveToDlq(
+    dlqPayloadSchema.parse({
+      tenantId: input.tenantId,
+      installId: input.installId,
+      pluginId: input.pluginId,
+      event,
+      errorCode: 'PLUGIN_DELIVERY_FAILED',
+      retryCount: 3,
+      source: input.source,
+    })
+  );
 }

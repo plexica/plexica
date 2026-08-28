@@ -3,10 +3,6 @@
 
 import { logger } from '../../../lib/logger.js';
 
-// Consumer lag tracked in-memory (updated via Kafka consumer events).
-// In production, this should use Prometheus client, but for Phase 4
-// we expose the data via a simple API endpoint.
-
 interface LagEntry {
   pluginSlug: string;
   tenantSlug: string;
@@ -24,13 +20,7 @@ export function updateLag(
   tenantSlug: string,
   lag: number
 ): void {
-  lagEntries.set(installId, {
-    pluginSlug,
-    tenantSlug,
-    installId,
-    lag,
-    lastUpdated: new Date(),
-  });
+  lagEntries.set(installId, { pluginSlug, tenantSlug, installId, lag, lastUpdated: new Date() });
 }
 
 export function getLagMetrics(): LagEntry[] {
@@ -41,11 +31,24 @@ export function clearLagMetrics(installId: string): void {
   lagEntries.delete(installId);
 }
 
-/**
- * Starts periodic lag reporting for a consumer group.
- * Polls Kafka admin.fetchOffsets() every 30s to compute consumer lag
- * and updates the plexica_plugin_consumer_lag gauge via updateLag().
- */
+async function pollLag(
+  installId: string,
+  pluginSlug: string,
+  tenantSlug: string,
+  topics: string[]
+): Promise<void> {
+  try {
+    const { withKafkaAdmin, getConsumerGroupLag } = await import('../../../lib/kafka-admin.js');
+    const groupId = `plugin-${installId}-${tenantSlug}`;
+    const lag = await withKafkaAdmin((admin) => getConsumerGroupLag(admin, groupId, topics), {
+      connectTimeoutMs: 5000,
+    });
+    updateLag(installId, pluginSlug, tenantSlug, lag);
+  } catch {
+    logger.warn({ code: 'KAFKA_LAG_POLL_FAILED', installId }, 'Lag polling failed');
+  }
+}
+
 export function startLagMonitoring(
   installId: string,
   pluginSlug: string,
@@ -55,30 +58,11 @@ export function startLagMonitoring(
 ): void {
   if (monitoringTimers.has(installId)) return;
   logger.info({ installId, intervalMs }, 'Lag monitoring started');
-
-  const timer = setInterval(async () => {
-    try {
-      const { getKafkaAdmin } = await import('../../../lib/kafka.js');
-      const admin = getKafkaAdmin();
-      await admin.connect();
-      try {
-        const groupId = `plugin-${installId}-${tenantSlug}`;
-        const offsets = await admin.fetchOffsets({ groupId, topics });
-        let totalLag = 0;
-        for (const t of offsets) {
-          for (const p of t.partitions ?? []) {
-            totalLag += typeof p.offset === 'string' ? Number(p.offset) || 0 : 0;
-          }
-        }
-        updateLag(installId, pluginSlug, tenantSlug, totalLag);
-      } finally {
-        await admin.disconnect();
-      }
-    } catch (err) {
-      logger.warn({ err, installId }, 'Lag polling failed');
-    }
-  }, intervalMs);
-
+  void pollLag(installId, pluginSlug, tenantSlug, topics);
+  const timer = setInterval(
+    () => void pollLag(installId, pluginSlug, tenantSlug, topics),
+    intervalMs
+  );
   monitoringTimers.set(installId, timer);
 }
 

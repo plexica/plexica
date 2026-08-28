@@ -32,6 +32,7 @@
   },
   "pnpm": {
     "onlyBuiltDependencies": [
+      "@confluentinc/kafka-javascript",
       "@prisma/client",
       "@prisma/engines",
       "esbuild",
@@ -56,9 +57,6 @@
       "allowedVersions": {
         "react-intl>react": "19"
       }
-    },
-    "patchedDependencies": {
-      "kafkajs@2.2.4": "patches/kafkajs@2.2.4.patch"
     }
   }
 }

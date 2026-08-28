@@ -27,7 +27,8 @@ export async function moveToDlq(
 ): Promise<void> {
   const payload = dlqPayloadSchema.parse(input);
   const tenant = await db.tenant.findUnique({
-    where: { id: payload.tenantId }, select: { status: true },
+    where: { id: payload.tenantId },
+    select: { status: true },
   });
   if (tenant?.status !== 'active') throw new Error('TENANT_NOT_ACTIVE');
   const { keyVersion, key } = await ensureTenantEventKey(db, payload.tenantId);
@@ -41,7 +42,8 @@ export async function moveToDlq(
     payload: dlqPayloadAsJson(payload),
   });
   const current = await db.tenant.findUnique({
-    where: { id: payload.tenantId }, select: { status: true },
+    where: { id: payload.tenantId },
+    select: { status: true },
   });
   if (current?.status !== 'active') throw new Error('TENANT_NOT_ACTIVE');
   await send(Topics.dlq, encryptDomainEvent(dlqEvent, keyVersion, key), {
@@ -66,7 +68,10 @@ export async function retryDlqEntry(
 ): Promise<void> {
   const staleBefore = new Date(now.getTime() - RETRY_CLAIM_TTL_MS);
   const claim = await db.deadLetterQueue.updateMany({
-    where: { id, OR: [{ status: 'pending' }, { status: 'retrying', resolvedAt: { lt: staleBefore } }] },
+    where: {
+      id,
+      OR: [{ status: 'pending' }, { status: 'retrying', resolvedAt: { lt: staleBefore } }],
+    },
     data: { status: 'retrying', resolvedAt: now },
   });
   if (claim.count !== 1) await throwClaimError(db, id);
@@ -75,7 +80,8 @@ export async function retryDlqEntry(
 
   try {
     const tenant = await db.tenant.findUnique({
-      where: { id: entry.tenantId }, select: { status: true },
+      where: { id: entry.tenantId },
+      select: { status: true },
     });
     if (tenant?.status !== 'active') throw new Error('TENANT_NOT_ACTIVE');
     const event = domainEventEnvelopeSchema.parse(entry.payload);

@@ -11,7 +11,7 @@ packages:
 # Deliberately excluded:
 #   - jose: pinned exactly (6.2.10) in @plexica/auth vs ^ range in core-api —
 #     the auth pin is intentional; unifying would change one side's update policy.
-#   - single-workspace deps (storybook stack, @fastify/*, prisma, kafkajs, ...):
+#   - single-workspace deps (storybook stack, @fastify/*, prisma, ...):
 #     a catalog entry adds no dedup value for them.
 #   - zustand in @plexica/auth ("*"): intentionally version-agnostic there.
 #
