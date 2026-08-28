@@ -135,3 +135,21 @@ send it as `X-Tenant-Slug`. The route's internal `isDev`/loopback checks are
 retained as defense-in-depth. Covered by unit tests
 (`__tests__/unit/dev-route-auth.test.ts`) and an integration test with a real
 tenant (`__tests__/dev-plugin-registration.test.ts`).
+
+**Hardening (second review pass, 2026-08-28)**:
+- **Dev store tenant-scoped** (M-1): the in-memory dev registry moved to
+  `modules/plugin/services/dev-plugin-store.ts`, keyed `tenantSlug:slug`.
+  Register/unregister/list are all tenant-scoped, preventing cross-tenant
+  conflicts and unregister of another tenant's dev backend. Covered by an
+  integration test that registers the same slug in two tenants and unregisters
+  in one without affecting the other.
+- **ADR-022 alignment** (M-4): `devRouteAuth` now throws
+  `TenantSuspendedError`/`TenantPendingDeletionError` (403) for suspended /
+  pending-deletion tenants, mirroring the tenant path; unknown tenants stay 400
+  (anti-enumeration).
+- **Fail-closed NODE_ENV** (M-3): `devRouteAuth` reads `process.env.NODE_ENV`
+  with an implicit `production` default instead of `config.NODE_ENV` (which
+  defaults to `development` when unset, for local DX). A deployment that
+  forgets `NODE_ENV` now gets 404 on the dev routes, not an open gate.
+- Manifest contract pinned to the real Zod schema
+  (`__tests__/unit/manifest-template-contract.test.ts`, M-2).

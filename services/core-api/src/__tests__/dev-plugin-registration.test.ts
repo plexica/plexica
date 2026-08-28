@@ -34,6 +34,10 @@ let app: FastifyInstance;
 let context: TenantContext;
 
 beforeAll(async () => {
+  // The middleware reads process.env.NODE_ENV explicitly (fail-closed);
+  // dev.routes.ts also reads config.NODE_ENV at module scope as
+  // defense-in-depth. Both must be set for the dev gates to open.
+  process.env['NODE_ENV'] = 'development';
   config.NODE_ENV = 'development';
   ({ tenantContext: context } = await seedTenant(TENANT_SLUG));
   app = Fastify({ logger: false });
@@ -45,7 +49,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  config.NODE_ENV = 'test';
+  delete process.env['NODE_ENV'];
   await app?.close();
   await cleanupTenant(TENANT_SLUG);
 });
@@ -104,5 +108,50 @@ describe('dev plugin registration without user JWT', () => {
     });
 
     expect(res.statusCode).toBe(400);
+  });
+
+  skipIfNoDb('keeps the same plugin slug isolated per tenant (M-1)', async () => {
+    const otherSlug = `devreg-other-${randomUUID().slice(0, 8)}`;
+    await seedTenant(otherSlug);
+    try {
+      // Same slug, different tenant.
+      const otherRes = await app.inject({
+        method: 'POST',
+        url: '/api/v1/dev/plugins/register',
+        headers: { 'x-tenant-slug': otherSlug },
+        payload: { slug: PLUGIN_SLUG, backendUrl: 'http://127.0.0.1:4998' },
+      });
+      expect(otherRes.statusCode).toBe(200);
+
+      // Re-register in the first tenant too (a prior test may have unregistered).
+      const firstRes = await app.inject({
+        method: 'POST',
+        url: '/api/v1/dev/plugins/register',
+        headers: { 'x-tenant-slug': TENANT_SLUG },
+        payload: { slug: PLUGIN_SLUG, backendUrl: BACKEND_URL },
+      });
+      expect(firstRes.statusCode).toBe(200);
+
+      // Unregister in the first tenant must NOT affect the second tenant.
+      const unregFirst = await app.inject({
+        method: 'POST',
+        url: '/api/v1/dev/plugins/unregister',
+        headers: { 'x-tenant-slug': TENANT_SLUG },
+        payload: { slug: PLUGIN_SLUG },
+      });
+      expect(unregFirst.statusCode).toBe(200);
+
+      const listOther = await app.inject({
+        method: 'GET',
+        url: '/api/v1/dev/plugins',
+        headers: { 'x-tenant-slug': otherSlug },
+      });
+      const otherEntries = listOther.json().data.filter(
+        (p: { slug: string }) => p.slug === PLUGIN_SLUG
+      );
+      expect(otherEntries.length).toBe(1);
+    } finally {
+      await cleanupTenant(otherSlug);
+    }
   });
 });

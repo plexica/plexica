@@ -6,16 +6,11 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('../../lib/config.js', () => ({
-  config: { NODE_ENV: 'development' },
-}));
-
 vi.mock('../../middleware/tenant-context.js', () => ({
   resolveTenant: vi.fn(),
 }));
 
-import { InvalidTenantContextError } from '../../lib/app-error.js';
-import { config } from '../../lib/config.js';
+import { InvalidTenantContextError, TenantPendingDeletionError, TenantSuspendedError } from '../../lib/app-error.js';
 import { devRouteAuth } from '../../middleware/dev-route-auth.js';
 import { resolveTenant } from '../../middleware/tenant-context.js';
 
@@ -47,6 +42,7 @@ const ACTIVE_CONTEXT: TenantContext = {
 };
 
 beforeEach(() => {
+  process.env['NODE_ENV'] = 'development';
   mockResolveTenant.mockReset();
   mockResolveTenant.mockResolvedValue({ status: 'active', context: ACTIVE_CONTEXT });
 });
@@ -64,11 +60,25 @@ describe('devRouteAuth', () => {
   it('returns 404 when NODE_ENV is not development', async () => {
     const req = makeRequest();
     const reply = makeReply();
-    config.NODE_ENV = 'production';
+    process.env['NODE_ENV'] = 'production';
     try {
       await devRouteAuth(req, reply);
     } finally {
-      config.NODE_ENV = 'development';
+      process.env['NODE_ENV'] = 'development';
+    }
+    expect(reply.status).toHaveBeenCalledWith(404);
+    expect(reply.send).toHaveBeenCalledWith({ error: 'Not found' });
+    expect(mockResolveTenant).not.toHaveBeenCalled();
+  });
+
+  it('fails closed when NODE_ENV is unset (default production)', async () => {
+    const req = makeRequest();
+    const reply = makeReply();
+    delete process.env['NODE_ENV'];
+    try {
+      await devRouteAuth(req, reply);
+    } finally {
+      process.env['NODE_ENV'] = 'development';
     }
     expect(reply.status).toHaveBeenCalledWith(404);
     expect(reply.send).toHaveBeenCalledWith({ error: 'Not found' });
@@ -99,10 +109,35 @@ describe('devRouteAuth', () => {
     await expect(devRouteAuth(req, reply)).rejects.toThrow(InvalidTenantContextError);
   });
 
-  it('throws InvalidTenantContextError for a non-active tenant', async () => {
+  it('throws TenantSuspendedError for a suspended tenant (ADR-022)', async () => {
     mockResolveTenant.mockResolvedValue({ status: 'suspended', context: null });
     const req = makeRequest();
     const reply = makeReply();
-    await expect(devRouteAuth(req, reply)).rejects.toThrow(InvalidTenantContextError);
+    await expect(devRouteAuth(req, reply)).rejects.toThrow(TenantSuspendedError);
+  });
+
+  it('throws TenantPendingDeletionError for a pending-deletion tenant (ADR-022)', async () => {
+    mockResolveTenant.mockResolvedValue({ status: 'pending_deletion', context: null });
+    const req = makeRequest();
+    const reply = makeReply();
+    await expect(devRouteAuth(req, reply)).rejects.toThrow(TenantPendingDeletionError);
+  });
+
+  it('accepts IPv4-mapped IPv6 loopback (::ffff:127.0.0.1)', async () => {
+    const req = makeRequest({
+      socket: { remoteAddress: '::ffff:127.0.0.1' } as unknown as FastifyRequest['socket'],
+    });
+    const reply = makeReply();
+    await expect(devRouteAuth(req, reply)).resolves.toBeUndefined();
+    expect(reply.status).not.toHaveBeenCalled();
+  });
+
+  it('rejects a non-loopback IPv6 address', async () => {
+    const req = makeRequest({
+      socket: { remoteAddress: '2001:db8::1' } as unknown as FastifyRequest['socket'],
+    });
+    const reply = makeReply();
+    await devRouteAuth(req, reply);
+    expect(reply.status).toHaveBeenCalledWith(403);
   });
 });

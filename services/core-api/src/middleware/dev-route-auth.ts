@@ -13,8 +13,11 @@
 // The tenant slug is taken from the X-Tenant-Slug header (already honored in
 // non-production by tenantContextMiddleware, H-3) and validated before use.
 
-import { InvalidTenantContextError, NotFoundError } from '../lib/app-error.js';
-import { config } from '../lib/config.js';
+import {
+  InvalidTenantContextError,
+  TenantPendingDeletionError,
+  TenantSuspendedError,
+} from '../lib/app-error.js';
 import { TENANT_SLUG_REGEX } from '../lib/slug.js';
 import { enterWithTenant } from '../lib/tenant-context-store.js';
 import { resolveTenant } from './tenant-context.js';
@@ -22,8 +25,13 @@ import { resolveTenant } from './tenant-context.js';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 
 export async function devRouteAuth(request: FastifyRequest, reply: FastifyReply): Promise<void> {
-  // Dev registration is only available when the core runs in development mode.
-  if (config.NODE_ENV !== 'development') {
+  // Fail-closed dev gate: dev registration is only available when NODE_ENV is
+  // EXPLICITLY set to development. config.NODE_ENV defaults to 'development'
+  // when the variable is unset (for the local DX), so relying on it would
+  // leave the routes active in a deployment that forgot the variable. Reading
+  // process.env with a 'production' default closes that gap: unset → 404.
+  const effectiveEnv = process.env['NODE_ENV'] ?? 'production';
+  if (effectiveEnv !== 'development') {
     return reply.status(404).send({ error: 'Not found' });
   }
 
@@ -43,7 +51,18 @@ export async function devRouteAuth(request: FastifyRequest, reply: FastifyReply)
 
   const resolved = await resolveTenant(headerSlug);
   // ID-002: unknown or deleted tenant → same generic 400 as the tenant path.
-  if (resolved === null || resolved.context === null) {
+  if (resolved === null) {
+    throw new InvalidTenantContextError();
+  }
+  // ADR-022 Decision 1: mirror the tenant path — suspended / pending_deletion
+  // tenants get 403, not the generic 400 (unknown stays 400, anti-enumeration).
+  if (resolved.status === 'suspended') {
+    throw new TenantSuspendedError();
+  }
+  if (resolved.status === 'pending_deletion') {
+    throw new TenantPendingDeletionError();
+  }
+  if (resolved.context === null) {
     throw new InvalidTenantContextError();
   }
 

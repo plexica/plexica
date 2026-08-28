@@ -12,12 +12,13 @@ import Fastify from 'fastify';
 import { config } from './lib/config.js';
 import { logger } from './lib/logger.js';
 import { redis } from './lib/redis.js';
-import { connectRedis, startBackgroundServices, stopBackgroundServices } from './bootstrap.js';
+import { connectRedis, startBackgroundServices } from './bootstrap.js';
 import {
   GLOBAL_RATE_LIMIT,
   rateLimitKey,
   rateLimitErrorResponseBuilder,
 } from './lib/rate-limit-config.js';
+import { registerShutdownHandlers } from './lib/shutdown.js';
 import { configureErrorHandler } from './middleware/error-handler.js';
 import { authMiddleware } from './middleware/auth-middleware.js';
 import { tenantContextMiddleware } from './middleware/tenant-context.js';
@@ -157,37 +158,9 @@ await server.register(async (tenantScope) => {
 });
 
 // ---------------------------------------------------------------------------
-// Graceful shutdown
+// Graceful shutdown — SIGINT/SIGTERM handlers in lib/shutdown.ts (Rule 4).
 // ---------------------------------------------------------------------------
-let shuttingDown = false;
-
-async function shutdown(signal: string): Promise<void> {
-  // A second signal (or SIGINT after SIGTERM) must not run the teardown twice.
-  if (shuttingDown) {
-    logger.warn({ signal }, 'Shutdown already in progress — signal ignored');
-    return;
-  }
-  shuttingDown = true;
-
-  logger.info({ signal }, 'Shutdown signal received — closing server');
-  let exitCode = 0;
-  try {
-    await server.close();
-    await stopBackgroundServices();
-    logger.info('Server closed gracefully');
-  } catch (err) {
-    // try/finally guarantees process.exit is reached: shutdown() is invoked as
-    // `void shutdown(...)`, so a rejection here would leave the process alive
-    // and dependent on the event loop draining on its own.
-    exitCode = 1;
-    logger.error({ err, signal }, 'Graceful shutdown failed — exiting anyway');
-  } finally {
-    process.exit(exitCode);
-  }
-}
-
-process.on('SIGINT', () => void shutdown('SIGINT'));
-process.on('SIGTERM', () => void shutdown('SIGTERM'));
+registerShutdownHandlers(() => server.close());
 
 // ---------------------------------------------------------------------------
 // Start
