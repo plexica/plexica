@@ -1,19 +1,29 @@
-import { createConsumer } from '../../../lib/kafka.js';
 import {
   awaitOwnedHandlers,
   isConsumerClosing,
   markConsumerClosing,
-  waitForConsumerAssignment,
 } from '../../../lib/kafka-consumer.js';
+import {
+  ConsumerGroupCancelledError,
+  ConsumerGroupShutdownError,
+} from '../../../lib/kafka-errors.js';
 import { disconnectConsumerWithBudget, settleWithBudget } from '../../../lib/kafka-shutdown.js';
 import { logger } from '../../../lib/logger.js';
 
+import { buildGroupConsumer } from './consumer-group-lifecycle.js';
 import { buildGroupId } from './consumer-group-registry.js';
-import { createPluginEachMessage } from './consumer-plugin-handler.js';
+import {
+  cancellingGroups,
+  consumers,
+  isShuttingDown,
+  pendingConsumers,
+  setShuttingDown,
+} from './consumer-group-state.js';
 import { resolvePatterns } from './consumer-topic-patterns.js';
 
 import type { SourceCoordinates } from '../../../events/dlq-contract.js';
 import type { DomainEventEnvelope } from '../../../events/event-envelope.js';
+import type { ConsumerEntry } from './consumer-group-state.js';
 export { processInstallationMessage } from './installation-message-processor.js';
 export {
   CONSUMER_GROUP_PREFIX,
@@ -21,27 +31,7 @@ export {
   parseConsumerGroupName,
 } from './consumer-group-registry.js';
 
-interface ConsumerEntry {
-  consumer: ReturnType<typeof createConsumer>;
-  topics: string[];
-  isRunning: boolean;
-  installId: string;
-  tenantSlug: string;
-  pluginId: string;
-}
 type EventHandler = (event: DomainEventEnvelope, source: SourceCoordinates) => Promise<void>;
-const consumers = new Map<string, ConsumerEntry>();
-const pendingConsumers = new Map<string, Promise<void>>();
-let shuttingDown = false;
-
-class ConsumerGroupShutdownError extends Error {
-  readonly code = 'CONSUMER_GROUP_SHUTDOWN';
-
-  constructor() {
-    super('Consumer group creation aborted — shutdown in progress');
-    this.name = 'ConsumerGroupShutdownError';
-  }
-}
 
 export async function createConsumerGroup(
   installId: string,
@@ -51,7 +41,7 @@ export async function createConsumerGroup(
   handler: EventHandler,
   pluginId: string
 ): Promise<void> {
-  if (shuttingDown) throw new ConsumerGroupShutdownError();
+  if (isShuttingDown()) throw new ConsumerGroupShutdownError();
   const groupId = buildGroupId(installId, tenantSlug);
   const pending = pendingConsumers.get(groupId);
   if (pending) return pending;
@@ -82,26 +72,20 @@ async function createConsumerGroupInner(
   handler: EventHandler,
   pluginId: string
 ): Promise<void> {
-  const consumer = createConsumer(groupId);
   const topics = resolvePatterns(eventPatterns);
-  try {
-    await consumer.connect();
-    if (shuttingDown) throw new ConsumerGroupShutdownError();
-    await consumer.subscribe({ topics });
-    await consumer.run({
-      partitionsConsumedConcurrently: 1,
-      eachMessage: createPluginEachMessage({
-        consumer,
-        installId,
-        tenantId,
-        pluginId,
-        groupId,
-        handler,
-      }),
-    });
-    await waitForConsumerAssignment(consumer, 15000);
-    if (shuttingDown) throw new ConsumerGroupShutdownError();
-  } catch (error) {
+  const shouldAbort = () => cancellingGroups.has(groupId) || isShuttingDown();
+  const consumer = await buildGroupConsumer({
+    groupId,
+    installId,
+    tenantId,
+    pluginId,
+    topics,
+    handler,
+    shouldAbort,
+  });
+  // A delete/shutdown observed between the last gate and registration: the
+  // consumer must never become an orphan, so disconnect before rethrowing.
+  if (shouldAbort()) {
     try {
       await disconnectConsumerWithBudget(consumer);
     } catch {
@@ -110,49 +94,21 @@ async function createConsumerGroupInner(
         'Consumer disconnect failed'
       );
     }
-    throw error;
+    throw new ConsumerGroupCancelledError();
   }
   consumers.set(groupId, { consumer, topics, isRunning: true, installId, tenantSlug, pluginId });
   const { startLagMonitoring } = await import('./lag-metrics.service.js');
-  if (shuttingDown) return;
+  if (isShuttingDown()) return;
   startLagMonitoring(installId, pluginId, tenantSlug, topics);
   logger.info({ groupId, topics }, 'Consumer group started');
 }
 
-export async function pauseConsumerGroup(installId: string, tenantSlug: string): Promise<void> {
-  const entry = consumers.get(buildGroupId(installId, tenantSlug));
-  if (!entry?.isRunning) return;
-  if (entry.consumer.assignment().length === 0) return;
-  try {
-    entry.consumer.pause(entry.topics.map((topic) => ({ topic })));
-    entry.isRunning = false;
-  } catch {
-    logger.warn(
-      { code: 'KAFKA_PAUSE_FAILED', groupId: buildGroupId(installId, tenantSlug) },
-      'Pause failed'
-    );
-  }
-}
+export { pauseConsumerGroup, resumeConsumerGroup } from './consumer-group-control.js';
 
-export async function resumeConsumerGroup(installId: string, tenantSlug: string): Promise<void> {
-  const entry = consumers.get(buildGroupId(installId, tenantSlug));
-  if (!entry) return;
-  if (entry.consumer.assignment().length === 0) return;
-  try {
-    entry.consumer.resume(entry.topics.map((topic) => ({ topic })));
-    entry.isRunning = true;
-  } catch {
-    logger.warn({ code: 'KAFKA_RESUME_FAILED' }, 'Resume failed');
-  }
-}
-
-export async function deleteConsumerGroup(installId: string, tenantSlug: string): Promise<void> {
-  const groupId = buildGroupId(installId, tenantSlug);
-  const entry = consumers.get(groupId);
-  if (!entry) return;
+async function teardownConsumerGroup(groupId: string, entry: ConsumerEntry): Promise<void> {
   markConsumerClosing(entry.consumer);
   const { stopLagMonitoring } = await import('./lag-metrics.service.js');
-  stopLagMonitoring(installId);
+  stopLagMonitoring(entry.installId);
   try {
     await awaitOwnedHandlers(entry.consumer);
     await disconnectConsumerWithBudget(entry.consumer);
@@ -160,6 +116,30 @@ export async function deleteConsumerGroup(installId: string, tenantSlug: string)
     logger.warn({ code: 'KAFKA_DISCONNECT_FAILED', groupId }, 'Disconnect failed');
   }
   consumers.delete(groupId);
+}
+
+export async function deleteConsumerGroup(installId: string, tenantSlug: string): Promise<void> {
+  const groupId = buildGroupId(installId, tenantSlug);
+  const entry = consumers.get(groupId);
+  if (entry) {
+    await teardownConsumerGroup(groupId, entry);
+    return;
+  }
+  const pending = pendingConsumers.get(groupId);
+  if (!pending) return;
+  // Creation is in flight but not yet registered: flag it so the in-flight
+  // gates abort, then wait for the expected cancellation rejection.
+  cancellingGroups.add(groupId);
+  try {
+    await settleWithBudget(pending, 30000);
+  } catch {
+    // expected: the pending creation rejected with ConsumerGroupCancelledError
+  } finally {
+    cancellingGroups.delete(groupId);
+  }
+  // The creation may have registered just before observing the cancel.
+  const registered = consumers.get(groupId);
+  if (registered) await teardownConsumerGroup(groupId, registered);
 }
 
 export function getActiveConsumerGroups(): string[] {
@@ -171,14 +151,19 @@ export function getActiveConsumerGroups(): string[] {
 }
 
 export async function disconnectAllConsumerGroups(): Promise<void> {
-  shuttingDown = true;
+  setShuttingDown();
   const pending = [...pendingConsumers.values()];
   if (pending.length > 0) {
     const settled = await settleWithBudget(Promise.allSettled(pending), 30000);
-    if (!settled) logger.warn({ code: 'KAFKA_CONSUMER_GROUPS_PENDING_TIMEOUT' }, 'Pending consumer group creations did not settle within the shutdown budget');
+    if (!settled)
+      logger.warn(
+        { code: 'KAFKA_CONSUMER_GROUPS_PENDING_TIMEOUT' },
+        'Pending consumer group creations did not settle within the shutdown budget'
+      );
   }
   const entries = [...consumers.entries()];
   consumers.clear();
+  cancellingGroups.clear();
   const { stopLagMonitoring } = await import('./lag-metrics.service.js');
   await Promise.all(
     entries.map(async ([groupId, entry]) => {

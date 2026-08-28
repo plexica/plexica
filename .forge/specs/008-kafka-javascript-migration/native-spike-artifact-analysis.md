@@ -37,7 +37,7 @@ Ambient host vs isolated store distinction is preserved: the runner verification
 
 ### G01 — Clean frozen install
 
-Both `install.log` show fresh `pnpm install --frozen-lockfile --store-dir <empty> --reporter=append-only` after `test ! -e node_modules` and `test ! -e <store>`. No cache reuse.
+Both `install.log` show fresh `pnpm install --frozen-lockfile --store-dir <empty> --reporter=append-only` after `test ! -e node_modules` and `test ! -e <store>`. No cache reuse. Exact pnpm `10.33.0` for both targets (install.log version lines for runner and core-runtime).
 
 ### G02 — Exact version
 
@@ -78,7 +78,7 @@ Supervisor `status=natural-exit exit_code=0 duration_seconds=1` for both.
 
 ### G08 — Ordered shutdown + no leaked handles + failure injection
 
-Both `smoke-failure.jsonl` show injected-failure path also completes: `admin-topic-ready → consumer-assigned → shutdown* → handles-verified leaked 0 → injected-failure-cleanup-verified`. No consumer/producer skipped. Both supervisors natural-exit.
+Both `smoke-failure.jsonl` show injected-failure path also completes: `admin-topic-ready → consumer-assigned → shutdown complete in order consumer → producer → consumer-group → topic → admin → handles-verified leaked 0 → injected-failure-cleanup-verified` (runner and core-runtime `smoke-failure.jsonl` records). No consumer/producer skipped. Both supervisors natural-exit.
 
 ### G09 — No toolchain
 
@@ -96,7 +96,7 @@ Core runtime explicitly pulled and inspected the digest-pinned `node:24-bookworm
 ## Limitations / Follow-up
 
 - Evidence is for `linux glibc x64` only (both targets). `arm64` digest `5f057e2c...` exists in plan but was not exercised — acceptable because current self-hosted fleet and Core runtime are `x64`.
-- Artifact retention 30 days; `summary.json` is the single blocking signal for later CI. No secrets leaked in logs (verified no `headers`, `key`, or Redpanda credentials in smoke output).
+- Artifact retention 30 days; `summary.json` is the single blocking signal for later CI. No credentials/payload/headers observed in the retained smoke transcripts (smoke-success/failure.jsonl); install/native/integrity/supervisor logs contain only package/version/paths and were not audited for secrets.
 - Local isolated Node 24 and Bookworm evidence from earlier (`/tmp/opencode/kjm-evidence/*-final`) is now superseded by this self-hosted artifact and may be archived.
 
 ## Decision

@@ -29,7 +29,13 @@ describe('Redpanda smoke test', () => {
     let ready = false;
     const deadline = Date.now() + 10000;
     while (Date.now() < deadline) {
-      const meta = await admin.fetchTopicMetadata({ topics: CORE_TOPICS });
+      let meta;
+      try {
+        meta = await admin.fetchTopicMetadata({ topics: CORE_TOPICS });
+      } catch {
+        await new Promise((r) => setTimeout(r, 100));
+        continue;
+      }
       const readyNow = CORE_TOPICS.every((t) => {
         const entry = meta.find((m) => m.name === t);
         return entry ? entry.partitions.every((p) => p.leader >= 0 && p.leaderNode) : false;
@@ -75,7 +81,13 @@ describe('Redpanda smoke test', () => {
     let leaderReady = false;
     const leaderDeadline = Date.now() + 10000;
     while (Date.now() < leaderDeadline) {
-      const meta = await tAdmin.fetchTopicMetadata({ topics: [topic] });
+      let meta;
+      try {
+        meta = await tAdmin.fetchTopicMetadata({ topics: [topic] });
+      } catch {
+        await new Promise((r) => setTimeout(r, 100));
+        continue;
+      }
       const part = meta[0]?.partitions[0];
       if (part?.leaderNode) {
         leaderReady = true;

@@ -86,8 +86,7 @@ describe('event pipeline integration', () => {
     }
 
     try {
-      // Harden against the transient claim race and the concurrent background
-      // publisher (core-api-e2e) which claims any active-tenant outbox row.
+      // Harden against the transient claim race and the concurrent background publisher.
       let publishResult: { published: number; failed: number } | undefined;
       let externallyPublished = false;
       for (let attempt = 0; attempt < 5; attempt++) {
@@ -104,9 +103,10 @@ describe('event pipeline integration', () => {
             pending.leaseExpiresAt !== null &&
             new Date(pending.leaseExpiresAt).getTime() > Date.now();
           if (!leaseActive) {
-            // Reset only when no active lease is held (protects claimOutboxEvents()).
-            await prisma.eventOutbox.update({
-              where: { eventId },
+            // Atomic reset guarded by the unleased state read above: a publisher
+            // that claimed the row between read and update keeps its lease.
+            await prisma.eventOutbox.updateMany({
+              where: { eventId, leaseToken: null, leaseExpiresAt: null },
               data: {
                 availableAt: new Date(Date.now() - 1_000),
                 leaseToken: null,

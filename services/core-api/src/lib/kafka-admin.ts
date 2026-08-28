@@ -1,6 +1,8 @@
 // lib/kafka-admin.ts
 // Transient admin ownership, leader polling, lag normalization.
 
+import { KafkaJS } from '@confluentinc/kafka-javascript';
+
 import { kafkaClient } from './kafka-client.js';
 import { logger } from './logger.js';
 
@@ -11,6 +13,33 @@ export class KafkaAdminConnectTimeoutError extends Error {
   constructor() {
     super('Kafka admin connect timed out');
     this.name = 'TimeoutError';
+  }
+}
+
+export class KafkaAdminMetadataTimeoutError extends Error {
+  readonly code = 'KAFKA_ADMIN_METADATA_TIMEOUT';
+  constructor() {
+    super('Kafka admin metadata request timed out');
+    this.name = 'TimeoutError';
+  }
+}
+
+const METADATA_TIMEOUT_MS = 5000;
+
+async function withMetadataBudget<T>(task: () => Promise<T>): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      reject(new KafkaAdminMetadataTimeoutError());
+    }, METADATA_TIMEOUT_MS);
+    timer.unref?.();
+  });
+  // Promise.race subscribes to `task` at construction, so a late rejection
+  // after the budget expired is observed (no unhandled rejection).
+  try {
+    return await Promise.race([task(), timeout]);
+  } finally {
+    if (timer) clearTimeout(timer);
   }
 }
 
@@ -89,7 +118,9 @@ export async function getConsumerGroupLag(
   groupId: string,
   topics: string[]
 ): Promise<number> {
-  const groupOffsets = await admin.fetchOffsets({ groupId, topics });
+  const groupOffsets = await withMetadataBudget(() =>
+    admin.fetchOffsets({ groupId, topics, timeout: METADATA_TIMEOUT_MS })
+  );
   const committedByTopic = new Map<string, Map<number, bigint>>();
   for (const entry of groupOffsets) {
     const partitionMap = new Map<number, bigint>();
@@ -108,7 +139,12 @@ export async function getConsumerGroupLag(
   let totalLag = 0n;
   const maxSafe = BigInt(Number.MAX_SAFE_INTEGER);
   for (const topic of topics) {
-    const highOffsets = await admin.fetchTopicOffsets(topic);
+    const highOffsets = await withMetadataBudget(() =>
+      admin.fetchTopicOffsets(topic, {
+        timeout: METADATA_TIMEOUT_MS,
+        isolationLevel: KafkaJS.IsolationLevel.READ_UNCOMMITTED,
+      })
+    );
     const highMap = new Map<number, { high: bigint; low: bigint }>();
     for (const h of highOffsets) {
       highMap.set(h.partition, { high: BigInt(h.high), low: BigInt(h.low) });

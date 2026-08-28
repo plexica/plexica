@@ -97,7 +97,6 @@ export async function handleDlqMessage(db: PrismaClient, input: unknown): Promis
       throw new PermanentDlqError('DLQ_DECRYPT_FAILED');
     }
     // Conservative: any non-transient decrypt failure on an active tenant is poison.
-    if (error instanceof PermanentDlqError) throw error;
     throw new PermanentDlqError('DLQ_DECRYPT_FAILED');
   }
   let payload;

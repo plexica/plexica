@@ -15,6 +15,24 @@ export class KafkaSendError extends Error {
   }
 }
 
+export class ConsumerGroupShutdownError extends Error {
+  readonly code = 'CONSUMER_GROUP_SHUTDOWN';
+
+  constructor() {
+    super('Consumer group creation aborted — shutdown in progress');
+    this.name = 'ConsumerGroupShutdownError';
+  }
+}
+
+export class ConsumerGroupCancelledError extends Error {
+  readonly code = 'CONSUMER_GROUP_CANCELLED';
+
+  constructor() {
+    super('Consumer group creation cancelled — delete in progress');
+    this.name = 'ConsumerGroupCancelledError';
+  }
+}
+
 export function isKafkaJSError(error: unknown): boolean {
   return KafkaJS.isKafkaJSError(error as Error);
 }

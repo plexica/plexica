@@ -84,6 +84,21 @@ describe('getConsumerGroupLag', () => {
     });
     await expect(getConsumerGroupLag(admin as never, 'g', ['t1', 't2'])).resolves.toBe(180);
   });
+
+  it('rejects with a sanitized timeout when fetchOffsets never resolves', async () => {
+    vi.useFakeTimers();
+    const admin = fakeAdmin({
+      fetchOffsets: vi.fn(() => new Promise<never>(() => {})),
+    });
+    const lag = getConsumerGroupLag(admin as never, 'g', ['t1']);
+    const assertion = expect(lag).rejects.toMatchObject({
+      name: 'TimeoutError',
+      code: 'KAFKA_ADMIN_METADATA_TIMEOUT',
+    });
+    await vi.advanceTimersByTimeAsync(5000);
+    await assertion;
+    vi.useRealTimers();
+  });
 });
 
 describe('waitForTopicLeaders', () => {
