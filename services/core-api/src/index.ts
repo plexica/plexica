@@ -35,6 +35,7 @@ import {
   pluginAdminRoutes,
   pluginTenantRoutes,
   pluginEventRoutes,
+  pluginDevRoutes,
 } from './modules/plugin/index.js';
 import { adminRoutes } from './modules/admin/index.js';
 import { basicHealthRoutes } from './modules/health/basic-health-routes.js';
@@ -132,6 +133,10 @@ await server.register(async (eventScope) => {
   eventScope.addHook('preHandler', pluginEventAuth);
   await eventScope.register(pluginEventRoutes);
 });
+
+// Dev-mode plugin registration — outside tenantScope: dev backends have no
+// user JWT (see middleware/dev-route-auth.ts and pluginDevRoutes).
+await server.register(pluginDevRoutes);
 
 // ---------------------------------------------------------------------------
 // Authenticated + tenant-scoped routes

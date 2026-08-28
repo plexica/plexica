@@ -9,6 +9,10 @@ import { TEMPLATES, render } from './templates.js';
 interface Options { force: boolean; name: string | null }
 
 const SLUG_REGEX = /^[a-z][a-z0-9-]{1,62}$/;
+// Display name injected into JSON ("name" field) and TS string literals.
+// Restrict to letters, digits, spaces, hyphens, underscores — anything else
+// (quotes, backticks, backslashes, braces, $) would break the generated file.
+const NAME_REGEX = /^[\p{L}\p{N}][\p{L}\p{N} _-]{0,254}$/u;
 
 export function toSlug(name: string): string {
   return name
@@ -26,6 +30,12 @@ export async function run(options: Options): Promise<void> {
   if (!SLUG_REGEX.test(slug)) {
     throw new Error(
       `Invalid plugin name "${name}". Use lowercase letters, numbers, and hyphens.`
+    );
+  }
+
+  if (!NAME_REGEX.test(name)) {
+    throw new Error(
+      `Invalid plugin name "${name}". Use letters, digits, spaces, hyphens, or underscores.`
     );
   }
 

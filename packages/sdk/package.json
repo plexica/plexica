@@ -12,8 +12,8 @@
       "import": "./dist/src/index.js"
     },
     "./dev": {
-      "types": "./src/dev/index.ts",
-      "development": "./src/dev/index.ts",
+      "types": "./dev/index.ts",
+      "development": "./dev/index.ts",
       "import": "./dist/dev/index.js"
     }
   },

@@ -2,6 +2,12 @@
 // Dev mode registration endpoints — gated by NODE_ENV=development.
 // Allows plugin developers to register backends as local processes
 // (no container build needed). See Plan §10.7.
+//
+// Mounted OUTSIDE the authenticated tenantScope (pluginDevRoutes in
+// modules/plugin/index.ts): registerBackend() from @plexica/sdk/dev sends no
+// user JWT. middleware/dev-route-auth.ts enforces NODE_ENV=development +
+// loopback-only + X-Tenant-Slug. The isDev/loopback checks below are kept as
+// defense-in-depth in case the routes are ever mounted without the middleware.
 
 import { z } from 'zod';
 

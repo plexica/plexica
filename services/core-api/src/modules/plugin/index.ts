@@ -17,6 +17,7 @@ import { deactivateRoutes } from './routes/lifecycle/deactivate.routes.js';
 import { reactivateRoutes } from './routes/lifecycle/reactivate.routes.js';
 import { uninstallRoutes } from './routes/lifecycle/uninstall.routes.js';
 import { visibilityRoutes } from './routes/visibility.routes.js';
+import { devRouteAuth } from '../../middleware/dev-route-auth.js';
 import {
   startPeriodicHealthPolling,
   stopPeriodicHealthPolling,
@@ -61,7 +62,6 @@ export async function pluginEventRoutes(fastify: FastifyInstance): Promise<void>
 }
 
 export async function pluginTenantRoutes(fastify: FastifyInstance): Promise<void> {
-  await fastify.register(devPluginRoutes);
   await fastify.register(marketplaceRoutes);
   await fastify.register(proxyRoutes);
   await fastify.register(installRoutes);
@@ -84,4 +84,16 @@ export async function pluginTenantRoutes(fastify: FastifyInstance): Promise<void
       // CRM backend not running — container-based installs will handle routing.
     }
   }
+}
+
+/**
+ * Dev-mode plugin registration routes — registered OUTSIDE the authenticated
+ * tenantScope. Plugin dev backends call registerBackend() from @plexica/sdk/dev
+ * with no user JWT; authMiddleware would reject them with 401 before the
+ * handler runs. devRouteAuth gates on NODE_ENV=development + loopback + a
+ * validated X-Tenant-Slug header instead. See middleware/dev-route-auth.ts.
+ */
+export async function pluginDevRoutes(fastify: FastifyInstance): Promise<void> {
+  fastify.addHook('preHandler', devRouteAuth);
+  await fastify.register(devPluginRoutes);
 }
