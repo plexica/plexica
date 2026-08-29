@@ -37,10 +37,14 @@ run() {
 : > "$temp/topics.state"
 run
 grep -F -- '--project-name plexica-ci-topics-123456' "$temp/topics.log" >/dev/null
-[[ $(wc -l < "$temp/topics.state") -eq 4 ]]
-[[ $(grep -Fc 'retention.ms=604800000' "$temp/topics.log") -eq 3 ]]
+# 13 core domain topics + tenant/user/plugin buses = 16, plus the DLQ.
+[[ $(wc -l < "$temp/topics.state") -eq 17 ]]
+[[ $(grep -Fc 'retention.ms=604800000' "$temp/topics.log") -eq 16 ]]
 grep -F -- 'plexica.plugin.dlq --brokers redpanda:9092 --partitions 1 --replicas 1' "$temp/topics.log" >/dev/null
 grep -F -- 'retention.ms=2592000000' "$temp/topics.log" >/dev/null
+# A plugin consumer needs the subscription topic pre-created (CI-PORT: the
+# CRM subscribes to plexica.workspace.created).
+grep -F -- 'plexica.workspace.created --brokers redpanda:9092 --partitions 1 --replicas 1' "$temp/topics.log" >/dev/null
 cp "$temp/topics.state" "$temp/first-run.state"
 run
 cmp "$temp/first-run.state" "$temp/topics.state"
