@@ -61,6 +61,9 @@ export async function runCiRuntimeContractFlow(
     apiKey: hostKeys.apiKey,
     pollIntervalMs: 2_000,
     timeoutMs: 90_000,
+    // Consumer-start retries with backoff (install-runtime.service.ts) can
+    // push the install POST past the 30s API default under CI load.
+    installTimeoutMs: 90_000,
   });
   const workspaceId = await createWorkspaceFixture(
     page,

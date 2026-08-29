@@ -27,6 +27,10 @@ export interface CrmInstallPollOptions {
   /** Token source for poll iterations. Defaults to a fresh refresh-token
    *  grant (H-04: 60s access TTL). Unit tests inject a stub. */
   tokenProvider?: (page: Page) => Promise<string>;
+  /** Timeout for the install POST itself. Defaults to API_TIMEOUT_MS; the
+   *  contract raises it because consumer-start retries with backoff can push
+   *  the install over 30s under CI load. */
+  installTimeoutMs?: number;
 }
 
 const DEFAULT_POLL_INTERVAL_MS = 1000;
@@ -109,7 +113,11 @@ export async function ensureCrmInstalled(
   if (existing !== undefined) return existing.id;
   const response = await page.request.post(
     tenantApiUrl(ADMIN_TENANT_SLUG, '/api/v1/plugins/crm/install', { apiKey: options.apiKey }),
-    { headers: apiHeaders(token), data: {}, timeout: API_TIMEOUT_MS }
+    {
+      headers: apiHeaders(token),
+      data: {},
+      timeout: options.installTimeoutMs ?? API_TIMEOUT_MS,
+    }
   );
   if (!response.ok()) {
     throw new Error(`CRM contract fixture provisioning failed: ${response.status()} ${await response.text()}`);
