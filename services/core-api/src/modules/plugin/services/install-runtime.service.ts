@@ -58,21 +58,44 @@ export async function installPluginRuntime(input: InstallRuntimeInput): Promise<
     degraded = true;
   }
   if (input.manifest.events?.subscribes?.length) {
-    try {
-      await startInstallationConsumer(
-        {
-          id: installId,
-          pluginId,
-          tenantId: context.tenantId,
-          tenantSlug: context.slug,
-          hostingType,
-        },
-        { id: pluginId, slug: pluginSlug, manifest: input.manifest }
-      );
-    } catch {
-      logger.warn({ installId, reasonCode: 'PLUGIN_CONSUMER_START' }, 'Plugin runtime degraded');
-      degraded = true;
+    // The consumer waits up to 15s for a Kafka assignment
+    // (waitForConsumerAssignment in consumer-group-lifecycle.ts). Under CI
+    // load Redpanda can still be provisioning the plugin topic when the
+    // install lands, so a single attempt fails with a retryable timeout.
+    // Retry with a short linear backoff before declaring the install degraded
+    // (the periodic runtime reconciler heals anything that still fails).
+    const runtime = {
+      id: installId,
+      pluginId,
+      tenantId: context.tenantId,
+      tenantSlug: context.slug,
+      hostingType,
+    };
+    const plugin = { id: pluginId, slug: pluginSlug, manifest: input.manifest };
+    const CONSUMER_ATTEMPTS = 3;
+    const CONSUMER_BACKOFF_MS = 5_000;
+    for (let attempt = 1; attempt <= CONSUMER_ATTEMPTS; attempt++) {
+      try {
+        await startInstallationConsumer(runtime, plugin);
+        break;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        logger.warn(
+          { installId, attempt, of: CONSUMER_ATTEMPTS, err: msg, reasonCode: 'PLUGIN_CONSUMER_START' },
+          'Plugin consumer start failed — retrying'
+        );
+        if (attempt === CONSUMER_ATTEMPTS) {
+          logger.warn({ installId, reasonCode: 'PLUGIN_CONSUMER_START' }, 'Plugin runtime degraded');
+          degraded = true;
+        } else {
+          await sleep(CONSUMER_BACKOFF_MS * attempt);
+        }
+      }
     }
   }
   return degraded;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
