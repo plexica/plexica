@@ -3,6 +3,9 @@
 
 import type { PluginManifest } from './manifest-types.js';
 
+/**
+ * Module Federation configuration structure.
+ */
 export interface MfConfig {
   name: string;
   filename: string;

@@ -6,7 +6,10 @@ import { resolve, join } from 'node:path';
 
 import { TEMPLATES, render } from './templates.js';
 
-interface Options { force: boolean; name: string | null }
+interface Options {
+  force: boolean;
+  name: string | null;
+}
 
 const SLUG_REGEX = /^[a-z][a-z0-9-]{1,62}$/;
 // Display name injected into JSON ("name" field) and TS string literals.
@@ -14,6 +17,13 @@ const SLUG_REGEX = /^[a-z][a-z0-9-]{1,62}$/;
 // (quotes, backticks, backslashes, braces, $) would break the generated file.
 const NAME_REGEX = /^[\p{L}\p{N}][\p{L}\p{N} _-]{0,254}$/u;
 
+/**
+ * Convert a plugin display name to a valid slug identifier.
+ * Lowercases, replaces non-alphanumeric chars with hyphens, and truncates to 62 chars.
+ *
+ * @param name - Plugin display name
+ * @returns URL-safe slug identifier
+ */
 export function toSlug(name: string): string {
   return name
     .toLowerCase()
@@ -23,14 +33,19 @@ export function toSlug(name: string): string {
     .replace(/-+$/, '');
 }
 
+/**
+ * Main entry point for the CLI. Generates a new Plexica plugin project scaffold.
+ * Creates directory structure, package.json, tsconfig, Vite config, and starter files.
+ *
+ * @param options - CLI options including plugin name and force-overwrite flag
+ * @throws {Error} if plugin name is invalid or target directory exists without --force
+ */
 export async function run(options: Options): Promise<void> {
   const name = options.name ?? 'my-plugin';
   const slug = toSlug(name);
 
   if (!SLUG_REGEX.test(slug)) {
-    throw new Error(
-      `Invalid plugin name "${name}". Use lowercase letters, numbers, and hyphens.`
-    );
+    throw new Error(`Invalid plugin name "${name}". Use lowercase letters, numbers, and hyphens.`);
   }
 
   if (!NAME_REGEX.test(name)) {
@@ -41,9 +56,7 @@ export async function run(options: Options): Promise<void> {
 
   const targetDir = resolve(process.cwd(), slug);
   if (existsSync(targetDir) && !options.force) {
-    throw new Error(
-      `Directory "${slug}" already exists. Use --force to overwrite.`
-    );
+    throw new Error(`Directory "${slug}" already exists. Use --force to overwrite.`);
   }
 
   // eslint-disable-next-line no-console
@@ -51,7 +64,9 @@ export async function run(options: Options): Promise<void> {
 
   for (const [filePath, content] of Object.entries(TEMPLATES)) {
     const fullPath = join(targetDir, filePath);
-    const dir = filePath.includes('/') ? join(targetDir, filePath.split('/').slice(0, -1).join('/')) : targetDir;
+    const dir = filePath.includes('/')
+      ? join(targetDir, filePath.split('/').slice(0, -1).join('/'))
+      : targetDir;
     if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
     writeFileSync(fullPath, render(content, slug, name));
   }

@@ -17,10 +17,21 @@ import { SHARED_DEPS } from './shared-deps.js';
 import type { PluginManifest } from './manifest-types.js';
 import type { Plugin } from 'vite';
 
+/**
+ * Options for configuring the Plexica Vite plugin.
+ */
 export interface PlexicaPluginViteOptions {
   manifestPath?: string;
 }
 
+/**
+ * Vite plugin for Plexica plugin development.
+ * Auto-configures Module Federation based on the plugin's manifest.json.
+ *
+ * @param options - Configuration options (optional manifest path override)
+ * @returns Array of Vite plugins (includes Module Federation setup)
+ * @throws {Error} if manifest.json is not found at the expected path
+ */
 export default function plexicaPluginVite(options: PlexicaPluginViteOptions = {}): Plugin[] {
   const manifestPath = resolve(options.manifestPath ?? './manifest.json');
 
