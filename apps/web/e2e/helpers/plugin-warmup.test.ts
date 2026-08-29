@@ -60,6 +60,7 @@ describe('ensureCrmInstalled proxy warm-up', () => {
       pollIntervalMs: 5,
       timeoutMs: 5000,
       warmup: FAST_WARMUP,
+      tokenProvider: async () => 'token-123',
     });
 
     expect(installId).toBe('install-9');
@@ -99,6 +100,7 @@ describe('ensureCrmInstalled proxy warm-up', () => {
         pollIntervalMs: 5,
         timeoutMs: 5000,
         warmup: { intervalMs: 1, timeoutMs: 30 },
+        tokenProvider: async () => 'token-123',
       })
     ).rejects.toThrow(
       /did not answer within 30ms retry window \(last status=502, body=.*PLUGIN_BACKEND_UNREACHABLE/s

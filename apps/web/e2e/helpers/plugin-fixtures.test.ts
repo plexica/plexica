@@ -46,6 +46,7 @@ describe('plugin e2e fixtures', () => {
       pollIntervalMs: 5,
       timeoutMs: 5000,
       warmup: { intervalMs: 1, timeoutMs: 250 },
+      tokenProvider: async () => 'token-123',
     });
 
     expect(installId).toBe('install-1');
@@ -92,6 +93,7 @@ describe('plugin e2e fixtures', () => {
       pollIntervalMs: 5,
       timeoutMs: 5000,
       warmup: { intervalMs: 1, timeoutMs: 250 },
+      tokenProvider: async () => 'token-123',
     });
 
     expect(installId).toBe('install-1');
@@ -117,7 +119,7 @@ describe('plugin e2e fixtures', () => {
     });
 
     await expect(
-      ensureCrmInstalled(page, 'token-123', { pollIntervalMs: 5, timeoutMs: 30 })
+      ensureCrmInstalled(page, 'token-123', { pollIntervalMs: 5, timeoutMs: 30, tokenProvider: async () => 'token-123' })
     ).rejects.toThrow(
       /was not activated within 30ms; last observed crm installation status: 'degraded'; install response reported: status='degraded', degraded=true/
     );
@@ -136,7 +138,7 @@ describe('plugin e2e fixtures', () => {
     });
 
     await expect(
-      ensureCrmInstalled(page, 'token-123', { pollIntervalMs: 5, timeoutMs: 30 })
+      ensureCrmInstalled(page, 'token-123', { pollIntervalMs: 5, timeoutMs: 30, tokenProvider: async () => 'token-123' })
     ).rejects.toThrow(/last observed crm installation status: 'missing'; install response reported: <no status\/degraded fields>/);
   });
 

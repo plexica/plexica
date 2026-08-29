@@ -9,7 +9,7 @@
 import { API_TIMEOUT_MS } from '../../../../e2e/playwright-base.js';
 
 import { ADMIN_TENANT_SLUG, uniqueName } from './admin-login.js';
-import { getBrowserToken } from './plugin-fixtures.js';
+import { refreshBrowserToken } from './keycloak-token.js';
 import { createWorkspaceFixture } from './plugin-fixtures.js';
 import { listInstallations, apiHeaders } from './plugin-installations.js';
 import { pluginProxyRequestWithRetry } from './plugin-proxy-retry.js';
@@ -24,6 +24,9 @@ export interface CrmInstallPollOptions {
   timeoutMs?: number;
   warmup?: PluginProxyRetryOptions;
   apiKey?: EndpointKey | undefined;
+  /** Token source for poll iterations. Defaults to a fresh refresh-token
+   *  grant (H-04: 60s access TTL). Unit tests inject a stub. */
+  tokenProvider?: (page: Page) => Promise<string>;
 }
 
 const DEFAULT_POLL_INTERVAL_MS = 1000;
@@ -114,14 +117,16 @@ export async function ensureCrmInstalled(
   const installBody = (await response.json().catch(() => ({}))) as Record<string, unknown>;
   const pollIntervalMs = options.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS;
   const timeoutMs = options.timeoutMs ?? DEFAULT_POLL_TIMEOUT_MS;
+  const tokenProvider = options.tokenProvider ?? refreshBrowserToken;
   const deadline = Date.now() + timeoutMs;
   let observedStatus = 'missing';
   while (Date.now() < deadline) {
-    // H-04: the realm access token TTL is 60s. The install flow (sidecar start
-    // + health poll) can exceed that under CI load, so re-read the token from
-    // the browser session — the frontend silent-refreshes it in sessionStorage
-    // every 55s (see auth-store.ts). A static copy would expire mid-poll.
-    const freshToken = await getBrowserToken(page);
+    // H-04: the realm access token TTL is 60s, and the install flow (sidecar
+    // start + health poll) routinely exceeds that under CI load. The browser's
+    // api-client refreshes silently, but this direct page.request.* flow
+    // bypasses it — mint a fresh token from the persisted refresh token on
+    // every poll instead of holding a static (expiring) copy.
+    const freshToken = await tokenProvider(page);
     const fixture = (await listInstallations(page, freshToken, options.apiKey)).find(
       (installation) => installation.pluginSlug === 'crm' && installation.status !== 'uninstalled'
     );
