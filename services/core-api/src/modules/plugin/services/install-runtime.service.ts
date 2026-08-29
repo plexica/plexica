@@ -72,8 +72,13 @@ export async function installPluginRuntime(input: InstallRuntimeInput): Promise<
       hostingType,
     };
     const plugin = { id: pluginId, slug: pluginSlug, manifest: input.manifest };
-    const CONSUMER_ATTEMPTS = 3;
-    const CONSUMER_BACKOFF_MS = 5_000;
+    // Two attempts: the first may hit a transient assignment timeout while
+    // Redpanda provisions the topic; a short backoff then usually succeeds.
+    // Three attempts with linear backoff pushed a slow install past 60s and
+    // the E2E contract's 120s window — the periodic runtime reconciler
+    // (runtime-reconcile-poller) heals anything that still fails.
+    const CONSUMER_ATTEMPTS = 2;
+    const CONSUMER_BACKOFF_MS = 3_000;
     for (let attempt = 1; attempt <= CONSUMER_ATTEMPTS; attempt++) {
       try {
         await startInstallationConsumer(runtime, plugin);
