@@ -65,6 +65,13 @@ export function fakePage(handler: (req: RecordedRequest) => FakeResponseOptions)
       get: async (url: string, options?: Record<string, unknown>) =>
         fakeResponse(handler(record('GET', url, options))),
     },
+    // getBrowserToken(page) reads the refreshed access token from the browser
+    // session (H-04: 60s TTL, silent refresh in sessionStorage). The fake
+    // returns a syntactically valid stored session so the fixture yields a
+    // token; unit tests do not assert on token contents.
+    evaluate: async (): Promise<{ state: { accessToken: string } }> => ({
+      state: { accessToken: 'unit-test-token' },
+    }),
   };
   return { page: page as unknown as Page, requests };
 }

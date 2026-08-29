@@ -9,41 +9,15 @@
 import { API_TIMEOUT_MS } from '../../../../e2e/playwright-base.js';
 
 import { ADMIN_TENANT_SLUG, uniqueName } from './admin-login.js';
-import { pluginProxyRequestWithRetry } from './plugin-proxy-retry.js';
+import { getBrowserToken } from './plugin-fixtures.js';
 import { createWorkspaceFixture } from './plugin-fixtures.js';
+import { listInstallations, apiHeaders } from './plugin-installations.js';
+import { pluginProxyRequestWithRetry } from './plugin-proxy-retry.js';
 import { tenantApiUrl } from './tenant-hosts.js';
 
 import type { EndpointKey } from './tenant-hosts.js';
 import type { PluginProxyRetryOptions } from './plugin-proxy-retry.js';
 import type { Page } from '@playwright/test';
-
-interface Installation {
-  id: string;
-  pluginSlug?: string;
-  status: string;
-}
-
-export function apiHeaders(token: string): Record<string, string> {
-  return {
-    Authorization: `Bearer ${token}`,
-    'Content-Type': 'application/json',
-  };
-}
-
-export async function listInstallations(
-  page: Page,
-  token: string,
-  apiKey?: EndpointKey | undefined
-): Promise<Installation[]> {
-  const response = await page.request.get(
-    tenantApiUrl(ADMIN_TENANT_SLUG, '/api/v1/plugins/installed', { apiKey }),
-    { headers: apiHeaders(token), timeout: API_TIMEOUT_MS }
-  );
-  if (response.status() !== 200) {
-    throw new Error(`Installed plugin fixture lookup failed: ${response.status()}`);
-  }
-  return (await response.json()) as Installation[];
-}
 
 export interface CrmInstallPollOptions {
   pollIntervalMs?: number;
@@ -143,11 +117,16 @@ export async function ensureCrmInstalled(
   const deadline = Date.now() + timeoutMs;
   let observedStatus = 'missing';
   while (Date.now() < deadline) {
-    const fixture = (await listInstallations(page, token, options.apiKey)).find(
+    // H-04: the realm access token TTL is 60s. The install flow (sidecar start
+    // + health poll) can exceed that under CI load, so re-read the token from
+    // the browser session — the frontend silent-refreshes it in sessionStorage
+    // every 55s (see auth-store.ts). A static copy would expire mid-poll.
+    const freshToken = await getBrowserToken(page);
+    const fixture = (await listInstallations(page, freshToken, options.apiKey)).find(
       (installation) => installation.pluginSlug === 'crm' && installation.status !== 'uninstalled'
     );
     if (fixture?.status === 'active') {
-      await warmUpPluginProxy(page, token, fixture.id, options);
+      await warmUpPluginProxy(page, freshToken, fixture.id, options);
       return fixture.id;
     }
     observedStatus = fixture?.status ?? 'missing';
