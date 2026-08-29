@@ -53,7 +53,15 @@ export async function runCiRuntimeContractFlow(
   await page.goto(options.baseUrl);
   await loginAsAdmin(page, hostKeys);
   const token = await getBrowserToken(page);
-  const installId = await ensureCrmInstalled(page, token, { apiKey: hostKeys.apiKey });
+  // The CRM sidecar health gate (Docker start + circuit-breaker health poll)
+  // can take well over the 15s fixture default under CI load (observed 16s
+  // install + 'degraded' until the next 30s poll closes the circuit). Give
+  // the contract a window aligned with the core's 30s poller plus margin.
+  const installId = await ensureCrmInstalled(page, token, {
+    apiKey: hostKeys.apiKey,
+    pollIntervalMs: 2_000,
+    timeoutMs: 90_000,
+  });
   const workspaceId = await createWorkspaceFixture(
     page,
     token,
