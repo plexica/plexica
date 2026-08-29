@@ -22,6 +22,10 @@ import {
   startPeriodicHealthPolling,
   stopPeriodicHealthPolling,
 } from './services/health-polling.service.js';
+import {
+  startPeriodicRuntimeReconcile,
+  stopPeriodicRuntimeReconcile,
+} from './services/runtime-reconcile-poller.service.js';
 import { createContainerManager } from './services/container-manager.service.js';
 import { extractInstallIds, getActiveConsumerGroups } from './events/consumer-manager.service.js';
 import { registerDevBackend } from './services/dev-backends.js';
@@ -44,6 +48,18 @@ export function startPluginHealthPolling(intervalMs = 30_000): void {
 }
 
 export { stopPeriodicHealthPolling as stopPluginHealthPolling };
+
+/**
+ * Background consumer/credential reconciliation. Call from
+ * bootstrap.startBackgroundServices() / stopBackgroundServices() — the same
+ * ownership rule as the health poller: timers started while wiring routes
+ * have no teardown counterpart.
+ */
+export function startPluginRuntimeReconcile(intervalMs = 300_000): void {
+  startPeriodicRuntimeReconcile(intervalMs);
+}
+
+export { stopPeriodicRuntimeReconcile as stopPluginRuntimeReconcile };
 
 export async function pluginAdminRoutes(fastify: FastifyInstance): Promise<void> {
   await fastify.register(adminCatalogRoutes);

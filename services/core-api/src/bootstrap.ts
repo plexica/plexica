@@ -34,7 +34,12 @@ import {
 } from './modules/admin/services/tenant-lifecycle-worker.js';
 import { awaitKafkaHealthCleanup } from './modules/admin/services/health-check-kafka.js';
 import { disconnectAllConsumerGroups } from './modules/plugin/events/consumer-manager.service.js';
-import { startPluginHealthPolling, stopPluginHealthPolling } from './modules/plugin/index.js';
+import {
+  startPluginHealthPolling,
+  stopPluginHealthPolling,
+  startPluginRuntimeReconcile,
+  stopPluginRuntimeReconcile,
+} from './modules/plugin/index.js';
 import { reconcilePluginRuntimes } from './modules/plugin/services/runtime-recovery.service.js';
 
 /**
@@ -84,6 +89,12 @@ export async function startBackgroundServices(): Promise<void> {
   // has a teardown counterpart that runs before disconnectRedis().
   startPluginHealthPolling();
 
+  // 6b. Periodic runtime reconciliation: re-creates consumer groups that
+  // failed after bootstrap (e.g. PLUGIN_CONSUMER_START at install time when
+  // Redpanda was still provisioning the topic), so degraded installations
+  // self-heal without a core restart. Longer cadence than the health poller.
+  startPluginRuntimeReconcile();
+
   // 7. Scheduled job: aggregate user/workspace counts across tenant schemas
   // into Redis (5-minute interval). Dashboard reads the cached totals. Errors
   // within each tick are caught and logged inside the aggregator.
@@ -131,6 +142,7 @@ async function stopStep(name: string, stop: () => Promise<void>): Promise<void> 
 export async function stopBackgroundServices(): Promise<void> {
   await stopStep('metrics-aggregator', stopMetricsAggregator);
   await stopStep('plugin-health-polling', stopPluginHealthPolling);
+  await stopStep('plugin-runtime-reconcile', stopPluginRuntimeReconcile);
   await stopStep('plugin-consumer-groups', disconnectAllConsumerGroups);
   await stopStep('tenant-lifecycle-worker', stopTenantLifecycleWorker);
   await stopStep('event-workers', stopEventWorkers);

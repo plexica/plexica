@@ -94,6 +94,26 @@ dependencies are resolvable. The remaining blocker is purely distribution.
    broke `pnpm install --frozen-lockfile` there. `prepublishOnly` builds only
    when `pnpm publish` runs — verified it also executes on `--dry-run`.
 
+## Addendum 2026-08-29: Periodic Plugin Runtime Reconciliation
+
+**Decision (implemented on `verify/plugin-bootstrap-dx`)**: add a periodic
+reconciler (`startPeriodicRuntimeReconcile`, 5-minute cadence) that re-runs
+`reconcilePluginRuntimes()` so plugin installations stuck in `degraded`
+state self-heal without a core restart.
+
+**Context**: the E2E CI contract exposed that a CRM install timing out on
+`PLUGIN_CONSUMER_START` (Redpanda still provisioning the plugin topic at
+install time) left the installation `degraded` forever — the health poller
+only probes container status and never re-creates the consumer group, and
+`reconcilePluginRuntimes()` ran only once at bootstrap. The E2E spec timed
+out polling for `active` status. (The E2E timeout itself was a separate,
+pre-existing CI issue; see the E2E fixes in this branch.)
+
+**Consequences**: consumer groups that fail after bootstrap are retried on
+a longer interval; the reconciler never throws (per-item try/catch) and is
+unref'd like the health poller. Covered by unit tests
+(`__tests__/unit/runtime-reconcile-poller.test.ts`).
+
 ## Consumer Setup (GitHub Packages)
 
 Consumers configure the token at **user level** (pnpm >= 10.34.2 ignores env
