@@ -22,7 +22,6 @@ import { cleanupTenant, seedTenant } from './helpers/db-tenant.helpers.js';
 import { isDbReachable } from './helpers/reachability.helpers.js';
 
 import type { FastifyInstance } from 'fastify';
-import type { TenantContext } from '../lib/tenant-context-store.js';
 
 const skipIfNoDb = it.skipIf(!(await isDbReachable()));
 
@@ -31,7 +30,6 @@ const PLUGIN_SLUG = `devreg-plugin-${randomUUID().slice(0, 8)}`;
 const BACKEND_URL = 'http://127.0.0.1:4999';
 
 let app: FastifyInstance;
-let context: TenantContext;
 
 beforeAll(async () => {
   // The middleware reads process.env.NODE_ENV explicitly (fail-closed);
@@ -39,7 +37,7 @@ beforeAll(async () => {
   // defense-in-depth. Both must be set for the dev gates to open.
   process.env['NODE_ENV'] = 'development';
   config.NODE_ENV = 'development';
-  ({ tenantContext: context } = await seedTenant(TENANT_SLUG));
+  await seedTenant(TENANT_SLUG);
   app = Fastify({ logger: false });
   configureErrorHandler(app);
   // Production mounting: pluginDevRoutes outside tenantScope with devRouteAuth.

@@ -13,6 +13,7 @@
 // modules/plugin/index.ts, mirroring startPeriodicHealthPolling.
 
 import { logger } from '../../../lib/logger.js';
+
 import { reconcilePluginRuntimes } from './runtime-recovery.service.js';
 
 let pollingInterval: ReturnType<typeof setInterval> | null = null;

@@ -5,6 +5,7 @@
 // dependent on the event loop draining on its own.
 
 import { stopBackgroundServices } from '../bootstrap.js';
+
 import { logger } from './logger.js';
 
 export function registerShutdownHandlers(closeServer: () => Promise<void>): void {

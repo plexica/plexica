@@ -3,6 +3,7 @@
 
 import { config } from '../../lib/config.js';
 import { logger } from '../../lib/logger.js';
+import { devRouteAuth } from '../../middleware/dev-route-auth.js';
 
 import { adminCatalogRoutes } from './routes/admin-catalog.routes.js';
 import { adminPublishRoutes } from './routes/admin-publish.routes.js';
@@ -17,7 +18,6 @@ import { deactivateRoutes } from './routes/lifecycle/deactivate.routes.js';
 import { reactivateRoutes } from './routes/lifecycle/reactivate.routes.js';
 import { uninstallRoutes } from './routes/lifecycle/uninstall.routes.js';
 import { visibilityRoutes } from './routes/visibility.routes.js';
-import { devRouteAuth } from '../../middleware/dev-route-auth.js';
 import {
   startPeriodicHealthPolling,
   stopPeriodicHealthPolling,

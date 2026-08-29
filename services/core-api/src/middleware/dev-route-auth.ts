@@ -20,6 +20,7 @@ import {
 } from '../lib/app-error.js';
 import { TENANT_SLUG_REGEX } from '../lib/slug.js';
 import { enterWithTenant } from '../lib/tenant-context-store.js';
+
 import { resolveTenant } from './tenant-context.js';
 
 import type { FastifyReply, FastifyRequest } from 'fastify';
