@@ -13,8 +13,7 @@ import Fastify from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { configureErrorHandler } from '../middleware/error-handler.js';
-import { devRouteAuth } from '../middleware/dev-route-auth.js';
-import { devPluginRoutes } from '../modules/plugin/routes/dev.routes.js';
+import { pluginDevRoutes } from '../modules/plugin/index.js';
 import { getDevBackend } from '../modules/plugin/services/dev-backends.js';
 import { config } from '../lib/config.js';
 
@@ -40,9 +39,10 @@ beforeAll(async () => {
   await seedTenant(TENANT_SLUG);
   app = Fastify({ logger: false });
   configureErrorHandler(app);
-  // Production mounting: pluginDevRoutes outside tenantScope with devRouteAuth.
-  app.addHook('preHandler', devRouteAuth);
-  await app.register(devPluginRoutes);
+  // Production mounting: the exported pluginDevRoutes wrapper (devRouteAuth
+  // hook + devPluginRoutes) — exercises the real hook wiring, not the raw
+  // routes (CodeRabbit).
+  await app.register(pluginDevRoutes);
   await app.ready();
 });
 
@@ -69,7 +69,7 @@ describe('dev plugin registration without user JWT', () => {
     const body = res.json();
     expect(body.status).toBe('ok');
     expect(body.pluginUrl).toContain(`/api/v1/plugins/${PLUGIN_SLUG}/proxy`);
-    expect(getDevBackend(PLUGIN_SLUG) !== undefined).toBe(true);
+    expect(getDevBackend(PLUGIN_SLUG, TENANT_SLUG) !== undefined).toBe(true);
   });
 
   skipIfNoDb('lists the registered dev plugin', async () => {
@@ -95,7 +95,7 @@ describe('dev plugin registration without user JWT', () => {
     });
 
     expect(res.statusCode).toBe(200);
-    expect(getDevBackend(PLUGIN_SLUG) !== undefined).toBe(false);
+    expect(getDevBackend(PLUGIN_SLUG, TENANT_SLUG) !== undefined).toBe(false);
   });
 
   skipIfNoDb('rejects requests without a tenant header', async () => {
@@ -106,6 +106,31 @@ describe('dev plugin registration without user JWT', () => {
     });
 
     expect(res.statusCode).toBe(400);
+  });
+
+  skipIfNoDb('wrapper rejects all dev endpoints without X-Tenant-Slug (CodeRabbit)', async () => {
+    // register
+    const reg = await app.inject({
+      method: 'POST',
+      url: '/api/v1/dev/plugins/register',
+      payload: { slug: PLUGIN_SLUG, backendUrl: BACKEND_URL },
+    });
+    expect(reg.statusCode).toBe(400);
+    // unregister
+    const unreg = await app.inject({
+      method: 'POST',
+      url: '/api/v1/dev/plugins/unregister',
+      payload: { slug: PLUGIN_SLUG },
+    });
+    expect(unreg.statusCode).toBe(400);
+    // list
+    const list = await app.inject({
+      method: 'GET',
+      url: '/api/v1/dev/plugins',
+    });
+    expect(list.statusCode).toBe(400);
+    // The handlers must never have run: no backend was registered.
+    expect(getDevBackend(PLUGIN_SLUG, TENANT_SLUG)).toBeUndefined();
   });
 
   skipIfNoDb('keeps the same plugin slug isolated per tenant (M-1)', async () => {
@@ -148,6 +173,11 @@ describe('dev plugin registration without user JWT', () => {
         (p: { slug: string }) => p.slug === PLUGIN_SLUG
       );
       expect(otherEntries.length).toBe(1);
+
+      // CodeRabbit: the second tenant's RUNTIME backend must survive the
+      // first tenant's unregister (registry is keyed tenant|slug).
+      expect(getDevBackend(PLUGIN_SLUG, otherSlug) !== undefined).toBe(true);
+      expect(getDevBackend(PLUGIN_SLUG, TENANT_SLUG) === undefined).toBe(true);
     } finally {
       await cleanupTenant(otherSlug);
     }

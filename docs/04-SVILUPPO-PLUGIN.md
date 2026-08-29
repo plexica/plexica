@@ -60,8 +60,9 @@ GHSA-3qhv-2rgh-x77r):
 
 ```bash
 # Token con scope read:packages (o un PAT classico con read:packages)
-pnpm config set //npm.pkg.github.com/:_authToken <TOKEN> --location user
-pnpm config set @plexica:registry=https://npm.pkg.github.com/ --location user
+# pnpm config set senza --location scrive nella config utente (global).
+pnpm config set //npm.pkg.github.com/:_authToken <TOKEN>
+pnpm config set @plexica:registry=https://npm.pkg.github.com/
 ```
 
 In alternativa, aggiungi al `~/.npmrc` utente:
@@ -90,7 +91,7 @@ generato include `.gitignore`, `.dockerignore` e `.npmrc` già configurati.
 
 ## 4. Struttura del Progetto
 
-```
+```text
 my-plugin/
 ├── manifest.json          # Dichiarazione del plugin (fonte di verità)
 ├── package.json           # Script dev/build/start

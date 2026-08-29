@@ -24,20 +24,42 @@ export async function refreshBrowserToken(page: Page): Promise<string> {
   });
   expect(refreshToken, 'browser session has a refresh token').not.toBe('');
   const keycloakUrl = process.env['PLAYWRIGHT_KEYCLOAK_URL'] ?? 'http://localhost:8080';
+  // Never forward the refresh token over plain HTTP to a non-loopback host
+  // (CodeRabbit): HTTPS is fine; HTTP is only acceptable for local Keycloak.
+  const parsedUrl = new URL(keycloakUrl);
+  const isLoopback =
+    parsedUrl.hostname === 'localhost' ||
+    parsedUrl.hostname === '127.0.0.1' ||
+    parsedUrl.hostname === '::1';
+  if (parsedUrl.protocol === 'http:' && !isLoopback) {
+    throw new Error(
+      `Refusing to send the refresh token over plain HTTP to non-loopback Keycloak at ${keycloakUrl}`
+    );
+  }
   const realm = `plexica-${ADMIN_TENANT_SLUG}`;
-  const response = await fetch(
-    `${keycloakUrl}/realms/${realm}/protocol/openid-connect/token`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        grant_type: 'refresh_token',
-        client_id: 'plexica-web',
-        refresh_token: refreshToken,
-      }),
-    }
-  );
-  expect(response.ok, `token refresh failed: ${response.status}`).toBe(true);
-  const tokens = (await response.json()) as { access_token: string };
-  return tokens.access_token;
+  // Bound the request so a non-responsive Keycloak cannot block the fixture
+  // past its timeout window (CodeRabbit).
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 10_000);
+  try {
+    const response = await fetch(
+      `${keycloakUrl}/realms/${realm}/protocol/openid-connect/token`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          grant_type: 'refresh_token',
+          client_id: 'plexica-web',
+          refresh_token: refreshToken,
+        }),
+        signal: controller.signal,
+        redirect: 'error',
+      }
+    );
+    expect(response.ok, `token refresh failed: ${response.status}`).toBe(true);
+    const tokens = (await response.json()) as { access_token: string };
+    return tokens.access_token;
+  } finally {
+    clearTimeout(timer);
+  }
 }

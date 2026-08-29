@@ -1,9 +1,27 @@
 // CLI generator tests
 
-import { describe, expect, it } from 'vitest';
+import { existsSync, mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
-import { toSlug } from '../src/index.js';
+import { afterEach, describe, expect, it } from 'vitest';
+
+import { run, toSlug } from '../src/index.js';
 import { render } from '../src/templates.js';
+
+const tempDirs: string[] = [];
+
+function makeTempDir(): string {
+  const dir = mkdtempSync(join(tmpdir(), 'plexica-cli-test-'));
+  tempDirs.push(dir);
+  return dir;
+}
+
+afterEach(() => {
+  for (const dir of tempDirs.splice(0)) {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
 
 describe('CLI template rendering', () => {
   it('replaces {{slug}} in manifest', () => {
@@ -54,5 +72,18 @@ describe('Slug generation', () => {
   it('strips trailing hyphens left by truncation', () => {
     const slug = toSlug(`${'a'.repeat(61)}-b`);
     expect(slug).toBe('a'.repeat(61));
+  });
+
+  it('rejects a name with no ASCII alphanumeric (empty slug)', async () => {
+    await expect(run({ force: false, name: '插件' })).rejects.toThrow(
+      /at least one ASCII letter or digit/
+    );
+  });
+
+  it('accepts a mixed ASCII/Unicode name that yields a valid slug', async () => {
+    const dir = makeTempDir();
+    process.chdir(dir);
+    await run({ force: false, name: 'Café CRM' });
+    expect(existsSync(join(dir, 'caf-crm', 'manifest.json'))).toBe(true);
   });
 });

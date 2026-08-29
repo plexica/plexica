@@ -56,7 +56,15 @@ export function startPeriodicRuntimeReconcile(intervalMs = 300_000): void {
 /**
  * Stops the reconciler and awaits the in-flight cycle, so no DB or Kafka call
  * is still pending when shutdown moves on to closing those connections.
+ *
+ * The wait is bounded (CodeRabbit): reconcilePluginRuntimes awaits Prisma
+ * queries with no statement-level timeout, so a slow PostgreSQL could keep the
+ * cycle pending indefinitely. After STOP_WAIT_MS we give up waiting and let
+ * shutdown proceed; the abandoned cycle resolves on its own and touches no
+ * torn-down connection (its per-item try/catch swallows errors).
  */
+const STOP_WAIT_MS = 10_000;
+
 export async function stopPeriodicRuntimeReconcile(): Promise<void> {
   if (pollingInterval === null && pollingCycle === null) return;
 
@@ -65,7 +73,14 @@ export async function stopPeriodicRuntimeReconcile(): Promise<void> {
     pollingInterval = null;
   }
 
-  await pollingCycle?.catch(() => undefined);
+  const cycle = pollingCycle;
+  if (cycle !== null && cycle !== undefined) {
+    await Promise.race([cycle.catch(() => undefined), sleep(STOP_WAIT_MS)]);
+  }
   pollingCycle = null;
   logger.info('Periodic plugin runtime reconciliation stopped');
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }

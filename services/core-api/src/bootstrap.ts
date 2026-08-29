@@ -141,8 +141,8 @@ async function stopStep(name: string, stop: () => Promise<void>): Promise<void> 
  */
 export async function stopBackgroundServices(): Promise<void> {
   await stopStep('metrics-aggregator', stopMetricsAggregator);
-  await stopStep('plugin-health-polling', stopPluginHealthPolling);
   await stopStep('plugin-runtime-reconcile', stopPluginRuntimeReconcile);
+  await stopStep('plugin-health-polling', stopPluginHealthPolling);
   await stopStep('plugin-consumer-groups', disconnectAllConsumerGroups);
   await stopStep('tenant-lifecycle-worker', stopTenantLifecycleWorker);
   await stopStep('event-workers', stopEventWorkers);

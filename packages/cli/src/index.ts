@@ -16,6 +16,10 @@ const SLUG_REGEX = /^[a-z][a-z0-9-]{1,62}$/;
 // Restrict to letters, digits, spaces, hyphens, underscores — anything else
 // (quotes, backticks, backslashes, braces, $) would break the generated file.
 const NAME_REGEX = /^[\p{L}\p{N}][\p{L}\p{N} _-]{0,254}$/u;
+// toSlug() drops non-ASCII and keeps [a-z0-9-]. A name with no ASCII
+// alphanumeric (e.g. "插件") produces an empty slug and fails the slug check
+// with a confusing message — reject it up front with a clear error.
+const HAS_ASCII_ALNUM = /[a-z0-9]/i;
 
 /**
  * Convert a plugin display name to a valid slug identifier.
@@ -44,14 +48,14 @@ export async function run(options: Options): Promise<void> {
   const name = options.name ?? 'my-plugin';
   const slug = toSlug(name);
 
-  if (!SLUG_REGEX.test(slug)) {
-    throw new Error(`Invalid plugin name "${name}". Use lowercase letters, numbers, and hyphens.`);
+  if (!NAME_REGEX.test(name) || !HAS_ASCII_ALNUM.test(name)) {
+    throw new Error(
+      `Invalid plugin name "${name}". Use letters, digits, spaces, hyphens, or underscores — and at least one ASCII letter or digit (the name becomes the project slug).`
+    );
   }
 
-  if (!NAME_REGEX.test(name)) {
-    throw new Error(
-      `Invalid plugin name "${name}". Use letters, digits, spaces, hyphens, or underscores.`
-    );
+  if (!SLUG_REGEX.test(slug)) {
+    throw new Error(`Invalid plugin name "${name}". Use lowercase letters, numbers, and hyphens.`);
   }
 
   const targetDir = resolve(process.cwd(), slug);

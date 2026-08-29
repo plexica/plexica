@@ -65,9 +65,13 @@ export async function runCiRuntimeContractFlow(
     // push the install POST past the 30s API default under CI load.
     installTimeoutMs: 90_000,
   });
+  // The install wait can exceed the 60s access-token TTL (H-04): the token
+  // captured before it may be expired. Re-read the refreshed token for the
+  // workspace/proxy calls that follow (CodeRabbit).
+  const freshToken = await getBrowserToken(page);
   const workspaceId = await createWorkspaceFixture(
     page,
-    token,
+    freshToken,
     uniqueName('ci-runtime-contract'),
     ADMIN_TENANT_SLUG,
     hostKeys
@@ -82,7 +86,7 @@ export async function runCiRuntimeContractFlow(
       ordinary: { status: ordinaryResponse.status, body: await ordinaryResponse.json() },
       headers,
     };
-  }, { accessToken: token, workspace: workspaceId });
+  }, { accessToken: freshToken, workspace: workspaceId });
   const pluginResult = await pluginProxyRequestWithRetry(() =>
     browserFetchBody(page, `${pluginPathname}?contract=plugin`, {
       credentials: 'include',
@@ -93,7 +97,7 @@ export async function runCiRuntimeContractFlow(
     page,
     runtime.CORE_API_PUBLIC_BASE,
     [await ordinaryWait, await pluginWait],
-    token,
+    freshToken,
     workspaceId,
     options.appLabel
   );
