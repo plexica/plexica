@@ -71,10 +71,12 @@ jobs:
           PUBLISH_SDK: ${{ inputs.publish_sdk || false }}
           PUBLISH_VITE_PLUGIN: ${{ inputs.publish_vite_plugin || false }}
           PUBLISH_UI: ${{ inputs.publish_ui || false }}
-          # M1: on a v* tag the tag is the version gate — strip the leading v.
-          # `|| ''` so branch-based dispatch yields an empty string, NOT the
-          # literal "false" (which the bash guard would treat as a version).
-          TAG_VERSION: ${{ github.ref_type == 'tag' && startsWith(github.ref_name, 'v') && github.ref_name || '' }}
+          # M1: on a PUSH of a v* tag, the tag is the version gate — strip the leading
+          # v. Gate on event_name == 'push': on workflow_dispatch the tag may
+          # target a branch ref and PUBLISH_ALL is false (partial publish), so
+          # the version guard must not reject a selected-package release.
+          # `|| ''` so branch-based dispatch yields '' not the literal "false".
+          TAG_VERSION: ${{ github.event_name == 'push' && github.ref_type == 'tag' && startsWith(github.ref_name, 'v') && github.ref_name || '' }}
         run: |
           set -euo pipefail
 

@@ -55,8 +55,9 @@ GHSA-3qhv-2rgh-x77r). `pnpm config set` senza `--location` scrive nella
 config utente:
 
 ```bash
-pnpm config set //npm.pkg.github.com/:_authToken <TOKEN>
-pnpm config set @plexica:registry=https://npm.pkg.github.com/
+# $GITHUB_TOKEN deve contenere un PAT con scope read:packages.
+pnpm config set //npm.pkg.github.com/:_authToken "$GITHUB_TOKEN"
+pnpm config set @plexica:registry https://npm.pkg.github.com/
 ```
 
 Il token si genera su GitHub (Settings → Developer settings → Personal

@@ -22,6 +22,19 @@ describe('assertSecureApiUrl (CWE-319)', () => {
     expect(() => assertSecureApiUrl('http://core-api:3001')).not.toThrow();
   });
 
+  it('rejects http to non-loopback IP literals (CodeRabbit regression)', () => {
+    // IPv4 public / private literals and a public IPv6 literal must NOT slip
+    // through the dotless single-label exception.
+    for (const url of [
+      'http://10.0.0.5:3001',
+      'http://192.168.1.10',
+      'http://8.8.8.8',
+      'http://[2001:4860:4860::8888]:3001',
+    ]) {
+      expect(() => assertSecureApiUrl(url)).toThrow(/CWE-319/);
+    }
+  });
+
   it('rejects http to public hosts', () => {
     for (const url of ['http://api.plexica.dev', 'http://10.0.0.5:3001', 'http://192.168.1.10']) {
       expect(() => assertSecureApiUrl(url)).toThrow(/CWE-319/);
