@@ -69,7 +69,7 @@ jobs:
         run: node services/core-api/scripts/native-spike/write-summary.mjs "$KJM_EVIDENCE" > "$KJM_EVIDENCE/summary.json"
       - name: Upload immutable spike evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: kafka-native-spike-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ env.KJM_EVIDENCE }}
