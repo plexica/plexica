@@ -15,7 +15,14 @@ describe('assertSecureApiUrl (CWE-319)', () => {
     }
   });
 
-  it('rejects http to non-loopback hosts', () => {
+  it('allows http to single-label internal service names (Docker/K8s)', () => {
+    // The E2E plugin sidecar reaches the core as "core-api-e2e" over the
+    // isolated container network — not exposed cleartext.
+    expect(() => assertSecureApiUrl('http://core-api-e2e:3001')).not.toThrow();
+    expect(() => assertSecureApiUrl('http://core-api:3001')).not.toThrow();
+  });
+
+  it('rejects http to public hosts', () => {
     for (const url of ['http://api.plexica.dev', 'http://10.0.0.5:3001', 'http://192.168.1.10']) {
       expect(() => assertSecureApiUrl(url)).toThrow(/CWE-319/);
     }
