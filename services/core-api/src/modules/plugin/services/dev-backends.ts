@@ -61,7 +61,7 @@ export function getDevBackend(slug: string, tenantSlug?: string): ProxyTarget | 
 }
 
 export function getDevBackendForInstallation(
-  slug: string,
+  _slug: string,
   installId: string
 ): ProxyTarget | undefined {
   for (const entry of devBackends.values()) {
