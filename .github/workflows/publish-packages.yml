@@ -72,7 +72,9 @@ jobs:
           PUBLISH_VITE_PLUGIN: ${{ inputs.publish_vite_plugin || false }}
           PUBLISH_UI: ${{ inputs.publish_ui || false }}
           # M1: on a v* tag the tag is the version gate — strip the leading v.
-          TAG_VERSION: ${{ github.ref_type == 'tag' && startsWith(github.ref_name, 'v') && github.ref_name }}
+          # `|| ''` so branch-based dispatch yields an empty string, NOT the
+          # literal "false" (which the bash guard would treat as a version).
+          TAG_VERSION: ${{ github.ref_type == 'tag' && startsWith(github.ref_name, 'v') && github.ref_name || '' }}
         run: |
           set -euo pipefail
 

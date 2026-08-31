@@ -28,17 +28,12 @@
 
 ## 1. Panoramica
 
-Un plugin Plexica è un progetto **indipendente** — un repository git proprio,
-non parte del monorepo Plexica — che estende la piattaforma con:
-
-- **Backend sidecar**: servizio HTTP (Fastify) esposto e proxyato dal core
-- **UI**: micro-frontend React caricato nella shell via Module Federation
-- **Dati**: tabelle nello schema del tenant (le migrazioni le gestisce il core)
-- **Eventi**: sottoscrizione/emissione su Kafka via SDK
-
-La developer experience della v2 è **incapsulata nel tooling**: lo
-sviluppatore scrive React normale e un backend Fastify semplice, senza
-configurare Module Federation, Kafka o schema-per-tenant.
+Un plugin Plexica è un progetto **indipendente** (repository git proprio)
+che estende la piattaforma con: **backend sidecar** (Fastify proxyato dal
+core), **UI** (React via Module Federation), **dati** (tabelle nello schema
+del tenant) ed **eventi** (Kafka via SDK). La DX v2 è **incapsulata nel
+tooling**: si scrive React normale e Fastify, senza configurare MF, Kafka o
+schema-per-tenant.
 
 ## 2. Prerequisiti
 
@@ -56,24 +51,17 @@ l'installazione (GitHub Packages non serve pacchetti anonimi).
 
 Configura il token a **livello utente** (mai nel `.npmrc` del progetto —
 pnpm >= 10.34.2 ignora i placeholder `${VAR}` nei `.npmrc` di progetto,
-GHSA-3qhv-2rgh-x77r):
+GHSA-3qhv-2rgh-x77r). `pnpm config set` senza `--location` scrive nella
+config utente:
 
 ```bash
-# Token con scope read:packages (o un PAT classico con read:packages)
-# pnpm config set senza --location scrive nella config utente (global).
 pnpm config set //npm.pkg.github.com/:_authToken <TOKEN>
 pnpm config set @plexica:registry=https://npm.pkg.github.com/
 ```
 
-In alternativa, aggiungi al `~/.npmrc` utente:
-
-```ini
-@plexica:registry=https://npm.pkg.github.com
-//npm.pkg.github.com/:_authToken=<TOKEN>
-```
-
-Il token si genera su GitHub → Settings → Developer settings → Personal
-access tokens, con scope `read:packages`.
+Il token si genera su GitHub (Settings → Developer settings → Personal
+access tokens, scope `read:packages`); in alternativa aggiungi le stesse
+righe al `~/.npmrc` utente.
 
 ## 3. Creare un Plugin
 
@@ -100,10 +88,8 @@ my-plugin/
 ├── tsconfig.ui.json       # TypeScript UI
 ├── tsconfig.dev.json      # TypeScript dev-entry
 ├── dev-entry.ts           # Registrazione dev-mode nel core
-├── .env.development       # Variabili di sviluppo (CORE_API_URL, TENANT_SLUG)
-├── .npmrc                 # Registry @plexica → GitHub Packages (solo scope, no token)
-├── .gitignore             # Esclude node_modules, dist, dist-ui, .env
-├── .dockerignore          # Esclude artefatti host dall'immagine
+├── .env.development       # CORE_API_URL, TENANT_SLUG
+├── .npmrc                 # Registry @plexica → GH Packages (solo scope)
 ├── Dockerfile             # Sidecar container
 ├── migrations/            # Migrazioni SQL per le tabelle plugin
 ├── src/
@@ -116,9 +102,9 @@ my-plugin/
 
 ### 4.1 Manifest
 
-`manifest.json` è la fonte di verità: slug, versione, hosting, extension
-points, eventi, tabelle dichiarate. Deve superare la validazione Zod del
-core (campi `author`, `icon` e `description` non vuoti; `version` semver).
+`manifest.json` è la fonte di verità (slug, versione, hosting, extension
+points, eventi, tabelle). Deve superare la validazione Zod del core
+(`author`/`icon`/`description` non vuoti; `version` semver).
 
 ## 5. Sviluppo Locale
 
@@ -154,35 +140,18 @@ Avvia tre processi insieme:
 | ui (vite dev) | 4001 | Micro-frontend + remoteEntry |
 | reg (dev-entry) | — | Registra backend+UI nel core (`/api/v1/dev/plugins/register`) |
 
-La registrazione dev richiede un header `X-Tenant-Slug` (aggiunto
-automaticamente dall'SDK) e funziona **senza JWT utente**: il core la
-accetta solo se `NODE_ENV=development` e la richiesta arriva da localhost
-(middleware `devRouteAuth`).
+La registrazione dev richiede l'header `X-Tenant-Slug` (aggiunto
+dall'SDK) e funziona **senza JWT**: il core la accetta solo se
+`NODE_ENV=development` da localhost (middleware `devRouteAuth`).
 
-Per il solo backend o la sola UI:
-
-```bash
-pnpm dev:backend    # solo Fastify su :3000
-pnpm dev:ui         # solo Vite su :4001
-```
+Per il solo backend o la sola UI: `pnpm dev:backend` (Fastify :3000) o
+`pnpm dev:ui` (Vite :4001).
 
 ## 6. Build di Produzione
 
-```bash
-pnpm build
-```
-
-Produce due artefatti:
-
-- `dist/` — backend compilato (entry `dist/index.js`)
-- `dist-ui/` — UI bundle con `remoteEntry.js` (Module Federation)
-
-Verifica:
-
-```bash
-pnpm typecheck                # backend + UI + dev-entry
-node dist/index.js            # avvia il backend buildato su :3000
-```
+`pnpm build` produce `dist/` (backend, entry `dist/index.js`) e `dist-ui/`
+(UI bundle con `remoteEntry.js`). Verifica con `pnpm typecheck` e
+`node dist/index.js` (backend su :3000).
 
 ## 7. Containerizzazione
 
@@ -193,32 +162,22 @@ docker build -t my-plugin:latest .
 docker run -p 3000:3000 --env PORT=3000 my-plugin:latest
 ```
 
-L'immagine espone `/_plexica/health` e `/_plexica/ready` per il health
-check del core; `node_modules`/`dist`/`.env` sono esclusi via `.dockerignore`.
+L'immagine espone `/_plexica/health` e `/_plexica/ready`; `node_modules`/
+`dist`/`.env` sono esclusi via `.dockerignore`.
 
 ## 8. SDK
 
-`@plexica/sdk` espone:
-
-| Export | Uso |
-| ------ | --- |
-| `PluginSDK` | Classe runtime: `initialize()`, `callApi()`, `emitEvent()`, `dispatchEvent()`, `query()`/`queryOne()` su tabelle plugin |
-| `PluginDb` | Pool pg tipizzato per le tabelle del plugin |
-| `@plexica/sdk/dev` | `registerBackend()` / `unregisterBackend()` per la registrazione dev |
-
-Config minima (`PluginConfig`): `pluginId`, `slug`, `tenantId`, `apiUrl`.
-`PLEXICA_SERVICE_TOKEN` viene iniettato dalla piattaforma per l'emissione
-eventi senza JWT utente.
+Riferimento completo dell'SDK in [04a-SDK.md](04a-SDK.md).
 
 ## 9. Risoluzione Problemi
 
 | Problema | Causa | Fix |
 | -------- | ----- | --- |
-| `ERR_PNPM_FETCH_404` su `@plexica/*` | Token GitHub Packages mancante | Configura token a livello utente (§2.1) |
-| `401` nella registrazione dev | `NODE_ENV` non è `development` o richiesta non-loopback | Avvia il core in dev; registra da localhost |
+| `ERR_PNPM_FETCH_404` su `@plexica/*` | Token GH Packages mancante | Configura token a livello utente (§2.1) |
+| `401` registrazione dev | `NODE_ENV` non dev o non-loopback | Core in dev; registra da localhost |
 | `TENANT_SLUG is not set` | Variabile mancante | Imposta `TENANT_SLUG` in `.env.development` |
-| Il plugin non appare nella shell | Registrazione fallita o UI non raggiungibile | Controlla il log `[reg]`; verifica Vite su :4001 |
-| Build UI fallisce su entry mancante | `ui/index.ts` rimosso | Rigenera con la CLI o ripristina l'entry |
+| Plugin non appare nella shell | Registrazione fallita / UI non raggiungibile | Log `[reg]`; verifica Vite :4001 |
+| Build UI fallisce | `ui/index.ts` rimosso | Rigenera con la CLI o ripristina l'entry |
 
 ---
 
@@ -228,3 +187,9 @@ eventi senza JWT utente.
 - [Architettura](02-ARCHITETTURA.md) — sezione 7: Sistema Plugin Semplificato
 - ADR-033 — pubblicazione package su GitHub Packages
 - `docs/03-PROGETTO.md` — fasi (sezione 3.6: Marketplace e CLI)
+
+
+
+
+
+

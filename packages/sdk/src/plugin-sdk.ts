@@ -1,14 +1,15 @@
 // plugin-sdk.ts
-// The PluginSDK class — one class per plugin backend (v2 Lesson #9).
+// The PluginSDK class — one class per plugin backend (spec §7.6 "SDK Plugin
+// v2", docs/01-SPECIFICHE.md; v2 Lesson #9: single SDK class, no Kafka).
 //
 // Events: dispatched via HTTP POST /_plexica/event (core → plugin backend).
-// No direct Kafka connection — core manages all Kafka consumption/production.
-// DB: delegated to PluginDb (db.ts) — returns a typed pg.Pool.
-// HTTP: delegated to PluginHttp (http.ts) — callApi/emitEvent to core.
+// DB/HTTP delegated to PluginDb (db.ts) and PluginHttp (http.ts). No direct
+// Kafka connection — core manages Kafka consumption/production.
 
 import { SdkNotInitializedError, DbAccessError } from './errors.js';
 import { PluginDb } from './db.js';
 import { PluginHttp } from './http.js';
+import { assertSecureApiUrl } from './url-guard.js';
 
 import type { Pool } from 'pg';
 import type { PluginConfig, PluginContext, PluginEvent, EventHandler } from './types.js';
@@ -40,13 +41,17 @@ export class PluginSDK {
   /**
    * Creates a new PluginSDK instance.
    *
-   * @param config - Plugin configuration including IDs, credentials, and optional callbacks
+   * @param config - Plugin configuration (IDs, credentials, callbacks)
    */
   constructor(config: PluginConfig) {
     this.config = {
       ...config,
-      apiUrl: config.apiUrl ?? process.env['CORE_API_URL'] ?? 'http://localhost:3001',
+      // `||` not `??`: an empty apiUrl must fall back to the loopback dev
+      // default, and only that default is allowed over cleartext HTTP.
+      apiUrl: config.apiUrl || process.env['CORE_API_URL'] || 'http://localhost:3001',
     };
+    // CWE-319 guard (see url-guard.ts): reject cleartext non-loopback apiUrl.
+    assertSecureApiUrl(this.config.apiUrl);
     const svcToken = config.serviceToken ?? process.env['PLEXICA_SERVICE_TOKEN'];
     const instId = config.installId ?? process.env['PLEXICA_INSTALL_ID'];
     if (svcToken) this.config.serviceToken = svcToken;
@@ -75,15 +80,10 @@ export class PluginSDK {
   }
 
   /**
-   * Register an event handler for a specific event type or pattern.
-   * Supports wildcard matching with `.*` suffix (e.g., 'tenant.*' matches 'tenant.created').
+   * Register an event handler for an event type or `.*` glob pattern.
    *
-   * @param pattern - Event type or glob pattern to match
-   * @param handler - Async callback to invoke when matching events are dispatched
-   *
-   * @example
-   * sdk.onEvent('tenant.created', async (event) => { event.payload; });
-   * sdk.onEvent('workspace.*', async (event) => { ... });
+   * @param pattern - Event type or glob pattern (e.g. 'tenant.*')
+   * @param handler - Async callback invoked for matching dispatched events
    */
   onEvent(pattern: string, handler: EventHandler): void {
     this.handlers.push({ pattern, handler });
@@ -115,12 +115,11 @@ export class PluginSDK {
   /**
    * Authenticated API call to core.
    *
-   * @param method - HTTP method (GET, POST, PUT, DELETE, etc.)
-   * @param path - API path relative to core API base URL
-   * @param body - Optional request body (will be JSON-serialized)
-   * @returns Response object from fetch
-   * @throws {ApiCallError} on non-2xx response
-   * @throws {SdkNotInitializedError} if SDK not initialized
+   * @param method - HTTP method
+   * @param path - API path relative to the core API base URL
+   * @param body - Optional request body (JSON-serialized)
+   * @returns Response from fetch
+   * @throws {ApiCallError} on non-2xx; {SdkNotInitializedError} if not initialized
    */
   async callApi(method: string, path: string, body?: unknown): Promise<Response> {
     if (!this.initialized) throw new SdkNotInitializedError();

@@ -18,10 +18,16 @@ function makeTempDir(): string {
 }
 
 afterEach(() => {
+  // Restore the worker cwd before removing temp dirs: a test that ran
+  // process.chdir(dir) must not leave the process in a deleted directory
+  // (CodeRabbit: ENOENT on later process.cwd() calls).
+  process.chdir(originalCwd);
   for (const dir of tempDirs.splice(0)) {
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+const originalCwd = process.cwd();
 
 describe('CLI template rendering', () => {
   it('replaces {{slug}} in manifest', () => {

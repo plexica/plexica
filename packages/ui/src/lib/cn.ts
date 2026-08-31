@@ -12,7 +12,7 @@ import { twMerge } from 'tailwind-merge';
  *
  * @example
  * cn('px-2 py-1', { 'bg-red-500': isError }, ['rounded'])
- * // => 'px-2 py-1 bg-red-500 rounded'
+ * // => isError ? 'px-2 py-1 bg-red-500 rounded' : 'px-2 py-1 rounded'
  */
 export function cn(...inputs: ClassValue[]): string {
   return twMerge(clsx(inputs));
