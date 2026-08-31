@@ -6,8 +6,8 @@
 > For lessons learned from the v1 codebase, see
 > [lessons-learned.md](./lessons-learned.md).
 
-**Last Updated**: 2026-08-27 (ADR-004 clarified — Confluent 1.10.0 adoption is
-conditional on the blocking dual-target native deployment spike)
+**Last Updated**: 2026-08-31 (CodeRabbit review fixes on PR #135 — plugin
+bootstrap verification, GitHub Packages publishing, SD-07/SD-08/SD-09)
 
 ---
 
