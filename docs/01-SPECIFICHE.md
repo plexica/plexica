@@ -273,7 +273,7 @@ Queste decisioni della v1 sono **confermate e non negoziabili** nella v2:
 | PL-007 | Plugin data extension (tabelle plugin nello schema tenant) | Alta | v1 sidecar pattern — cambiare a tabelle dedicate |
 | PL-008 | Marketplace con ricerca, categorie e rating | Alta | v1 ha modello dati |
 | PL-009 | Configurazione plugin per-tenant | Alta | Manifest dichiara config schema, tenant admin compila |
-| PL-010 | CLI per scaffolding plugin (`create-plexica-plugin`) | Alta | Non esiste in v1 |
+| PL-010 | CLI per scaffolding plugin (`@plexica/create-plexica-plugin`) | Alta | Non esiste in v1 |
 | PL-011 | Documentazione tutorial passo-passo per creare un plugin | Alta | Non esiste in v1 |
 
 ### 5.5 Amministrazione
@@ -382,7 +382,7 @@ Barriera d'ingresso altissima.
 La semplificazione avviene su 3 livelli:
 
 **Livello 1 — CLI di scaffolding**:
-- `npx create-plexica-plugin my-plugin` genera un progetto completo
+- `npx @plexica/create-plexica-plugin my-plugin` genera un progetto completo
 - Il progetto generato ha gia: vite config con MF pre-configurato,
   manifest pre-compilato, componente React di esempio, test di esempio
 - Lo sviluppatore non vede e non tocca mai la configurazione MF

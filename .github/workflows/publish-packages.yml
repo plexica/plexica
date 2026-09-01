@@ -1,0 +1,153 @@
+name: Publish packages to GitHub Packages
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      publish_cli:
+        description: 'Publish @plexica/create-plexica-plugin'
+        type: boolean
+        default: false
+      publish_sdk:
+        description: 'Publish @plexica/sdk'
+        type: boolean
+        default: false
+      publish_vite_plugin:
+        description: 'Publish @plexica/vite-plugin'
+        type: boolean
+        default: false
+      publish_ui:
+        description: 'Publish @plexica/ui'
+        type: boolean
+        default: false
+
+# One publish job at a time: rapid tag pushes or concurrent dispatches must
+# not race on the same package version (M5).
+concurrency:
+  group: publish-packages
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish packages
+    runs-on: self-hosted
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    env:
+      NODE_ENV: production
+      REGISTRY_URL: https://npm.pkg.github.com
+    steps:
+      # SHA-pinned (supply-chain): tags are mutable; this job holds
+      # packages:write so the action code must be immutable.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          # Do not persist the GITHUB_TOKEN into the local git config: package
+          # auth stays scoped to the setup-node step below (CodeRabbit).
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: '24'
+          # Auth for GH Packages: setup-node writes the token to a runner-local
+          # .npmrc and exposes it as NODE_AUTH_TOKEN for this job only — nothing
+          # persists in ~/.npmrc on the shared self-hosted runner (M1).
+          registry-url: ${{ env.REGISTRY_URL }}
+          scope: '@plexica'
+      - name: Setup pnpm via Corepack
+        run: corepack enable && corepack prepare pnpm@10.34.2 --activate
+      - run: pnpm install --frozen-lockfile
+
+      # On a semver tag, publish every package (the tag is the release gate).
+      # On workflow_dispatch, publish only the selected packages.
+      - name: Publish packages
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PUBLISH_ALL: ${{ github.event_name == 'push' }}
+          PUBLISH_CLI: ${{ inputs.publish_cli || false }}
+          PUBLISH_SDK: ${{ inputs.publish_sdk || false }}
+          PUBLISH_VITE_PLUGIN: ${{ inputs.publish_vite_plugin || false }}
+          PUBLISH_UI: ${{ inputs.publish_ui || false }}
+          # M1: on a PUSH of a v* tag, the tag is the version gate — strip the leading
+          # v. Gate on event_name == 'push': on workflow_dispatch the tag may
+          # target a branch ref and PUBLISH_ALL is false (partial publish), so
+          # the version guard must not reject a selected-package release.
+          # `|| ''` so branch-based dispatch yields '' not the literal "false".
+          TAG_VERSION: ${{ github.event_name == 'push' && github.ref_type == 'tag' && startsWith(github.ref_name, 'v') && github.ref_name || '' }}
+        run: |
+          set -euo pipefail
+
+          # workflow_dispatch with nothing selected must fail loudly.
+          if [[ "$PUBLISH_ALL" != "true" ]] \
+             && [[ "$PUBLISH_CLI" != "true" && "$PUBLISH_SDK" != "true" \
+                  && "$PUBLISH_VITE_PLUGIN" != "true" && "$PUBLISH_UI" != "true" ]]; then
+            echo "::error::No package selected for publish (use the workflow inputs or a v* tag)"
+            exit 1
+          fi
+
+          # M1: every published package must carry the tag version (v0.1.0 →
+          # 0.1.0). Prevents publishing stale manifests under a release tag and
+          # failing mid-run with "cannot republish existing version".
+          expected_version=""
+          if [[ -n "$TAG_VERSION" ]]; then
+            expected_version="${TAG_VERSION#v}"
+            for manifest in packages/cli/package.json packages/sdk/package.json \
+                            packages/vite-plugin/package.json packages/ui/package.json; do
+              actual=$(node -p "require('./$manifest').version")
+              if [[ "$actual" != "$expected_version" ]]; then
+                echo "::error::$manifest version is $actual but tag is v$expected_version (M1)"
+                exit 1
+              fi
+            done
+            echo "Tag v$expected_version matches all package versions"
+          fi
+
+          publish_pkg() {
+            local filter="$1"
+            local name="$2"
+            local selected="$3"
+            if [[ "$PUBLISH_ALL" != "true" && "$selected" != "true" ]]; then
+              echo "Skipping $name (not selected)"
+              return
+            fi
+            echo "::group::Publishing $name"
+            pnpm --filter "$filter" publish --no-git-checks --publish-branch main --registry "$REGISTRY_URL"
+            verify_public "$name"
+            echo "::endgroup::"
+          }
+
+          # M3: GitHub Packages does not honor publishConfig.access on first
+          # publish — packages inherit repo visibility. Assert server-side
+          # visibility is public after publishing, or fail the workflow. The
+          # packages belong to the ORG, so query /orgs/plexica, not /user
+          # (the bot token is not the package owner).
+          verify_public() {
+            local name="$1"
+            local encoded
+            encoded=$(node -e "process.stdout.write(encodeURIComponent('$name'))")
+            local visibility
+            visibility=$(curl -sS --fail-with-body -H "Authorization: Bearer $NODE_AUTH_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/orgs/plexica/packages/npm/$encoded" | node -e "
+                let raw = '';
+                process.stdin.on('data', (c) => (raw += c));
+                process.stdin.on('end', () => {
+                  try { process.stdout.write(JSON.parse(raw).visibility || 'unknown'); }
+                  catch { process.stdout.write('unknown'); }
+                });
+              ")
+            if [[ "$visibility" != "public" ]]; then
+              echo "::error::$name published with visibility '$visibility' — expected 'public' (ADR-033)."
+              echo "Set the package visibility to public in the GitHub Packages UI and re-run."
+              exit 1
+            fi
+            echo "OK: $name is public"
+          }
+
+          publish_pkg "@plexica/create-plexica-plugin" "@plexica/create-plexica-plugin" "$PUBLISH_CLI"
+          publish_pkg "@plexica/sdk" "@plexica/sdk" "$PUBLISH_SDK"
+          publish_pkg "@plexica/vite-plugin" "@plexica/vite-plugin" "$PUBLISH_VITE_PLUGIN"
+          publish_pkg "@plexica/ui" "@plexica/ui" "$PUBLISH_UI"

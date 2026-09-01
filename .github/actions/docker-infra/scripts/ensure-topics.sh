@@ -22,7 +22,20 @@ ensure_topic() {
   fi
   "${compose[@]}" exec -T redpanda rpk topic alter-config "$topic" --set "retention.ms=$retention" --brokers redpanda:9092
 }
-for topic in plexica.tenant.events plexica.user.events plexica.plugin.events; do
+# Core domain topics (mirror CORE_TOPICS in
+# services/core-api/src/modules/plugin/events/consumer-topic-patterns.ts) plus
+# the tenant/user/plugin aggregate buses. Pre-creating them here is REQUIRED:
+# a plugin consumer subscribing to e.g. plexica.workspace.created cannot get a
+# Kafka assignment until the topic exists, and with auto-creation disabled on
+# the consumer path the install would time out (PLUGIN_CONSUMER_START degraded)
+# when the first install lands before the first workspace event.
+for topic in \
+  plexica.workspace.created plexica.workspace.updated plexica.workspace.deleted \
+  plexica.user.invited plexica.user.joined plexica.user.removed \
+  plexica.tenant.created plexica.tenant.suspended plexica.tenant.deleted \
+  plexica.plugin.installed plexica.plugin.activated plexica.plugin.deactivated \
+  plexica.plugin.uninstalled \
+  plexica.tenant.events plexica.user.events plexica.plugin.events; do
   ensure_topic "$topic" 604800000
 done
 ensure_topic plexica.plugin.dlq 2592000000

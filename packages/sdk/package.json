@@ -1,7 +1,6 @@
 {
   "name": "@plexica/sdk",
   "version": "0.1.0",
-  "private": true,
   "type": "module",
   "main": "./dist/src/index.js",
   "types": "./dist/src/index.d.ts",
@@ -12,24 +11,41 @@
       "import": "./dist/src/index.js"
     },
     "./dev": {
-      "types": "./src/dev/index.ts",
-      "development": "./src/dev/index.ts",
+      "types": "./dev/index.ts",
+      "development": "./dev/index.ts",
       "import": "./dist/dev/index.js"
     }
+  },
+  "files": [
+    "dist",
+    "src",
+    "dev",
+    "!dist/*.tsbuildinfo",
+    "!dist/*.tsbuildinfo.map"
+  ],
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com",
+    "access": "public"
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:unit:coverage": "vitest run --coverage --coverage.reporter=cobertura --coverage.reportsDirectory=coverage/unit"
+    "test:unit:coverage": "vitest run --coverage --coverage.reporter=cobertura --coverage.reportsDirectory=coverage/unit",
+    "prepublishOnly": "pnpm build"
   },
   "dependencies": {
-    "pg": "catalog:"
+    "@types/pg": "^8.23.1",
+    "pg": "^8.23.0"
   },
   "devDependencies": {
-    "@types/pg": "catalog:",
-    "@vitest/coverage-v8": "catalog:",
-    "typescript": "catalog:",
-    "vitest": "catalog:"
+    "@vitest/coverage-v8": "4.1.11",
+    "typescript": "^5.9.0",
+    "vitest": "^4.1.11"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/plexica/plexica.git",
+    "directory": "packages/sdk"
   }
 }

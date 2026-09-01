@@ -225,3 +225,4 @@ POSTGRES_PORT=5433
 - [Specifications](docs/01-SPECIFICHE.md)
 - [Architecture](docs/02-ARCHITETTURA.md)
 - [Project Plan](docs/03-PROGETTO.md)
+- [Plugin Development Guide](docs/04-SVILUPPO-PLUGIN.md)

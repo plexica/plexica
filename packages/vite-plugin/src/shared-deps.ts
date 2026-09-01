@@ -3,6 +3,11 @@
 // These are the deps that the shell exposes and plugins consume.
 // Pinned to exact version ranges to prevent runtime mismatch.
 
+/**
+ * Module Federation shared dependencies configuration.
+ * Defines React, TanStack Query, UI components, and i18n as singleton shared modules.
+ * These are provided by the host application and consumed by plugin remotes.
+ */
 export const SHARED_DEPS = {
   react: {
     singleton: true,

@@ -15,12 +15,16 @@ interface DevRuntimeInput {
 }
 
 export async function registerDevRuntime(input: DevRuntimeInput): Promise<string | undefined> {
-  registerDevBackend(input.slug, {
-    baseUrl: input.backendUrl,
-    ...(input.installId ? { installId: input.installId } : {}),
-    ...(input.uiUrl ? { uiUrl: input.uiUrl } : {}),
-    extensionPoints: input.extensionPoints,
-  });
+  registerDevBackend(
+    input.slug,
+    {
+      baseUrl: input.backendUrl,
+      ...(input.installId ? { installId: input.installId } : {}),
+      ...(input.uiUrl ? { uiUrl: input.uiUrl } : {}),
+      extensionPoints: input.extensionPoints,
+    },
+    input.tenantSlug
+  );
   if (!input.installId || input.events.length === 0) return undefined;
 
   // Replace a container-backed callback with the local dev backend callback.
@@ -46,6 +50,6 @@ export async function unregisterDevRuntime(
   installId: string | undefined,
   tenantSlug: string,
 ): Promise<void> {
-  unregisterDevBackend(slug, installId);
+  unregisterDevBackend(slug, installId, tenantSlug);
   if (installId) await deleteConsumerGroup(installId, tenantSlug);
 }

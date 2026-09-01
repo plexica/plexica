@@ -27,7 +27,7 @@ case "$*" in
        const services = Object.fromEntries([["postgres", 5432], ["keycloak", 8080], ["redpanda", 19092], ["core-api-e2e", 3001], ["web-e2e", 3000], ["admin-e2e", 3002]].map(([name, target]) => [name, { ports: ports(target) }]));
         for (const service of ["core-api-e2e", "web-e2e", "admin-e2e"]) {
           services[service].image = "node:24-bookworm@sha256:immutable";
-          services[service].command = process.env.CI_RENDER_AMBIENT ? "pnpm start" : "corepack enable && corepack prepare pnpm@10.33.0 --activate && pnpm start";
+          services[service].command = process.env.CI_RENDER_AMBIENT ? "pnpm start" : "corepack enable && corepack prepare pnpm@10.34.2 --activate && pnpm start";
         }
         services["core-api-e2e"].environment = { NODE_ENV: "production", KEYCLOAK_URL: "http://keycloak:8080", KEYCLOAK_CONTAINER_ADMIN_JWKS_BASE: "http://keycloak:8080", PLUGIN_DOCKER_HOST: "http://plugin-docker-proxy:2375" };
         services["core-api-e2e"].volumes = process.env.CI_RENDER_NO_CA ? [] : [{ type: "bind", source: `${process.env.CI_RUNTIME_DIR}/postgres-ca.crt`, target: "/run/plexica-ci-plexica-ci-render-123456/postgres-ca.crt", read_only: true }];

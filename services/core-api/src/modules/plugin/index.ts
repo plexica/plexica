@@ -3,6 +3,7 @@
 
 import { config } from '../../lib/config.js';
 import { logger } from '../../lib/logger.js';
+import { devRouteAuth } from '../../middleware/dev-route-auth.js';
 
 import { adminCatalogRoutes } from './routes/admin-catalog.routes.js';
 import { adminPublishRoutes } from './routes/admin-publish.routes.js';
@@ -21,6 +22,10 @@ import {
   startPeriodicHealthPolling,
   stopPeriodicHealthPolling,
 } from './services/health-polling.service.js';
+import {
+  startPeriodicRuntimeReconcile,
+  stopPeriodicRuntimeReconcile,
+} from './services/runtime-reconcile-poller.service.js';
 import { createContainerManager } from './services/container-manager.service.js';
 import { extractInstallIds, getActiveConsumerGroups } from './events/consumer-manager.service.js';
 import { registerDevBackend } from './services/dev-backends.js';
@@ -44,6 +49,18 @@ export function startPluginHealthPolling(intervalMs = 30_000): void {
 
 export { stopPeriodicHealthPolling as stopPluginHealthPolling };
 
+/**
+ * Background consumer/credential reconciliation. Call from
+ * bootstrap.startBackgroundServices() / stopBackgroundServices() — the same
+ * ownership rule as the health poller: timers started while wiring routes
+ * have no teardown counterpart.
+ */
+export function startPluginRuntimeReconcile(intervalMs = 300_000): void {
+  startPeriodicRuntimeReconcile(intervalMs);
+}
+
+export { stopPeriodicRuntimeReconcile as stopPluginRuntimeReconcile };
+
 export async function pluginAdminRoutes(fastify: FastifyInstance): Promise<void> {
   await fastify.register(adminCatalogRoutes);
   await fastify.register(adminPublishRoutes);
@@ -61,7 +78,6 @@ export async function pluginEventRoutes(fastify: FastifyInstance): Promise<void>
 }
 
 export async function pluginTenantRoutes(fastify: FastifyInstance): Promise<void> {
-  await fastify.register(devPluginRoutes);
   await fastify.register(marketplaceRoutes);
   await fastify.register(proxyRoutes);
   await fastify.register(installRoutes);
@@ -84,4 +100,16 @@ export async function pluginTenantRoutes(fastify: FastifyInstance): Promise<void
       // CRM backend not running — container-based installs will handle routing.
     }
   }
+}
+
+/**
+ * Dev-mode plugin registration routes — registered OUTSIDE the authenticated
+ * tenantScope. Plugin dev backends call registerBackend() from @plexica/sdk/dev
+ * with no user JWT; authMiddleware would reject them with 401 before the
+ * handler runs. devRouteAuth gates on NODE_ENV=development + loopback + a
+ * validated X-Tenant-Slug header instead. See middleware/dev-route-auth.ts.
+ */
+export async function pluginDevRoutes(fastify: FastifyInstance): Promise<void> {
+  fastify.addHook('preHandler', devRouteAuth);
+  await fastify.register(devPluginRoutes);
 }
