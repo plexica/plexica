@@ -10,12 +10,13 @@ services:
       resources:
         limits:
           memory: 256M
+    # Loki 3.6+ switched to distroless/static:nonroot (no shell, no wget/busybox).
+    # The previous CMD-SHELL wget check fails with "no such file or directory"
+    # and marks the container permanently unhealthy (breaks `docker compose up
+    # --wait` in CI — see PR 152). Disable the in-container probe and rely on
+    # external HTTP readiness (wait-services.sh polls /ready from the host).
     healthcheck:
-      test: ['CMD-SHELL', 'wget -q --spider http://localhost:3100/ready || exit 1']
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 15s
+      disable: true
 
   grafana:
     image: grafana/grafana:11.6.16@sha256:d67af92050b8d93b393dc741864752a69c9da1ffa39c1bb9af49ad5d9e47d2c3
