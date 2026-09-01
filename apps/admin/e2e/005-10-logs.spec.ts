@@ -33,9 +33,13 @@ test.describe('005-10 System logs', () => {
   test('searching logs returns entries with timestamp, level, tenant and message', async ({
     page,
   }) => {
-    test.setTimeout(60_000);
+    test.setTimeout(90_000);
 
-    await expect.poll(isLokiReady, { timeout: 15_000 }).toBe(true);
+    // Loki 3.7 (distroless) can take >15s for the ingester to become ready
+    // (`sleeping for initial delay before starting periodic flushing` is
+    // 15–22s in CI). The previous 15s poll was borderline and flakes under
+    // parallel two-project load (see PR 152). Poll for up to 60s.
+    await expect.poll(isLokiReady, { timeout: 60_000 }).toBe(true);
     const emittedAfter = new Date().toISOString();
     const resolveResponse = await fetch(
       `${CORE_API_URL}/api/tenants/resolve?slug=${encodeURIComponent(E2E_TENANT_SLUG)}`,
