@@ -412,7 +412,7 @@ migrations e marketplace.
 | N.    | Feature                                     | Test E2E                                                                   |
 | ----- | ------------------------------------------- | -------------------------------------------------------------------------- |
 | 3.6.1 | Marketplace UI (ricerca, categorie, rating) | Tenant admin cerca plugin, vede dettagli, installa                         |
-| 3.6.2 | CLI `create-plexica-plugin`                 | Comando genera progetto completo con MF preset, manifest, backend template |
+| 3.6.2 | CLI `@plexica/create-plexica-plugin`       | Comando genera progetto completo con MF preset, manifest, backend template |
 | 3.6.3 | Plugin SDK consolidato (1 classe)           | SDK con `onEvent`, `callApi`, `getContext`, `getDb`                        |
 
 **Criterio di completamento Fase 3**: un plugin CRM reale funziona

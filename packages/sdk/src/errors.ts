@@ -1,6 +1,9 @@
 // errors.ts
 // SDK-specific error classes.
 
+/**
+ * Error thrown when SDK methods are called before initialize().
+ */
 export class SdkNotInitializedError extends Error {
   readonly code = 'SDK_NOT_INITIALIZED';
   constructor() {
@@ -8,6 +11,9 @@ export class SdkNotInitializedError extends Error {
   }
 }
 
+/**
+ * Error thrown when event subscription fails.
+ */
 export class EventSubscriptionError extends Error {
   readonly code = 'EVENT_SUBSCRIPTION_ERROR';
   constructor(pattern: string, cause: string) {
@@ -15,6 +21,9 @@ export class EventSubscriptionError extends Error {
   }
 }
 
+/**
+ * Error thrown when an API call to the core platform fails with a non-2xx status.
+ */
 export class ApiCallError extends Error {
   readonly code = 'API_CALL_ERROR';
   constructor(method: string, path: string, status: number, body: string) {
@@ -22,6 +31,9 @@ export class ApiCallError extends Error {
   }
 }
 
+/**
+ * Error thrown when database operations fail (connection, query execution, etc.).
+ */
 export class DbAccessError extends Error {
   readonly code = 'DB_ACCESS_ERROR';
   constructor(message: string) {

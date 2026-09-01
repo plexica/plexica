@@ -2,6 +2,11 @@
 // TypeScript types for the plugin manifest structure.
 // Mirrors the Zod schema from services/core-api/src/modules/plugin/schema/manifest.ts
 
+/**
+ * Plugin manifest structure defining plugin metadata, capabilities, and UI extensions.
+ * Must be present as manifest.json in every plugin project root.
+ * Schema validation is performed by core-api during plugin registration.
+ */
 export interface PluginManifest {
   slug: string;
   name: string;

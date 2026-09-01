@@ -8,6 +8,7 @@ import {
   uniqueName,
 } from '../helpers/admin-login.js';
 import { ensureCrmInstalled } from '../helpers/crm-plugin-fixture.js';
+import { refreshBrowserToken } from '../helpers/keycloak-token.js';
 import { createWorkspaceFixture, getBrowserToken } from '../helpers/plugin-fixtures.js';
 
 const API_BASE = coreApiUrl();
@@ -49,36 +50,9 @@ async function setTenantStatus(
 // The e2e tenant realm mints 60s access tokens (see keycloak-admin-helpers).
 // The browser silently refreshes on 401, but direct page.request calls bypass
 // the app's api-client, so a token captured once expires during long lifecycle
-// flows. Use the browser's persisted refresh token to mint a fresh access token
-// (same grant the app uses) before the late-phase API calls.
-async function refreshBrowserToken(
-  page: import('@playwright/test').Page
-): Promise<string> {
-  const refreshToken = await page.evaluate(() => {
-    const stored = sessionStorage.getItem('plexica-auth');
-    if (stored === null) return '';
-    const parsed = JSON.parse(stored) as { state?: { refreshToken?: string } };
-    return parsed.state?.refreshToken ?? '';
-  });
-  expect(refreshToken, 'browser session has a refresh token').not.toBe('');
-  const keycloakUrl = process.env['PLAYWRIGHT_KEYCLOAK_URL'] ?? 'http://localhost:8080';
-  const realm = `plexica-${ADMIN_TENANT_SLUG}`;
-  const response = await fetch(
-    `${keycloakUrl}/realms/${realm}/protocol/openid-connect/token`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        grant_type: 'refresh_token',
-        client_id: 'plexica-web',
-        refresh_token: refreshToken,
-      }),
-    }
-  );
-  expect(response.ok, `token refresh failed: ${response.status}`).toBe(true);
-  const tokens = (await response.json()) as { access_token: string };
-  return tokens.access_token;
-}
+// flows. refreshBrowserToken (shared helper) mints a fresh access token from
+// the browser's persisted refresh token — the same grant the app uses — before
+// the late-phase API calls.
 
 test.describe.serial('004 Plugin System - AC-03: Proxy Lifecycle Visibility', () => {
   test.beforeAll(() => requireKeycloakInCI());

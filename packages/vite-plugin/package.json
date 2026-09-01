@@ -1,7 +1,6 @@
 {
   "name": "@plexica/vite-plugin",
   "version": "0.1.0",
-  "private": true,
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -11,19 +10,34 @@
       "import": "./dist/index.js"
     }
   },
+  "files": [
+    "dist",
+    "!dist/*.tsbuildinfo",
+    "!dist/*.tsbuildinfo.map"
+  ],
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com",
+    "access": "public"
+  },
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:unit:coverage": "vitest run --coverage --coverage.reporter=cobertura --coverage.reportsDirectory=coverage/unit"
+    "test:unit:coverage": "vitest run --coverage --coverage.reporter=cobertura --coverage.reportsDirectory=coverage/unit",
+    "prepublishOnly": "pnpm build"
   },
   "dependencies": {
-    "@originjs/vite-plugin-federation": "catalog:"
+    "@originjs/vite-plugin-federation": "^1.4.1"
   },
   "devDependencies": {
-    "@vitest/coverage-v8": "catalog:",
-    "typescript": "catalog:",
-    "vite": "catalog:",
-    "vitest": "catalog:"
+    "@vitest/coverage-v8": "4.1.10",
+    "typescript": "^5.9.0",
+    "vite": "^6.4.3",
+    "vitest": "^4.1.10"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/plexica/plexica.git",
+    "directory": "packages/vite-plugin"
   }
 }

@@ -3,6 +3,9 @@
 
 import type { PluginManifest } from './manifest-types.js';
 
+/**
+ * Module Federation configuration structure.
+ */
 export interface MfConfig {
   name: string;
   filename: string;
@@ -13,7 +16,7 @@ export interface MfConfig {
 /**
  * Generates Module Federation config from a plugin manifest.
  * Maps ui.extensionPoints to MF exposes entries by convention:
- *   "sidebar:admin" → "./sidebar:admin" → "./ui/sidebar-entry.tsx"
+ *   "sidebar:admin" → "./sidebar:admin" → "./ui/sidebar-admin.tsx"
  */
 export function generateMfConfig(
   manifest: PluginManifest,

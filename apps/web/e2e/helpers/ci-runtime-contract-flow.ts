@@ -53,10 +53,25 @@ export async function runCiRuntimeContractFlow(
   await page.goto(options.baseUrl);
   await loginAsAdmin(page, hostKeys);
   const token = await getBrowserToken(page);
-  const installId = await ensureCrmInstalled(page, token, { apiKey: hostKeys.apiKey });
+  // The CRM sidecar health gate (Docker start + circuit-breaker health poll)
+  // can take well over the 15s fixture default under CI load (observed 16s
+  // install + 'degraded' until the next 30s poll closes the circuit). Give
+  // the contract a window aligned with the core's 30s poller plus margin.
+  const installId = await ensureCrmInstalled(page, token, {
+    apiKey: hostKeys.apiKey,
+    pollIntervalMs: 2_000,
+    timeoutMs: 90_000,
+    // Consumer-start retries with backoff (install-runtime.service.ts) can
+    // push the install POST past the 30s API default under CI load.
+    installTimeoutMs: 90_000,
+  });
+  // The install wait can exceed the 60s access-token TTL (H-04): the token
+  // captured before it may be expired. Re-read the refreshed token for the
+  // workspace/proxy calls that follow (CodeRabbit).
+  const freshToken = await getBrowserToken(page);
   const workspaceId = await createWorkspaceFixture(
     page,
-    token,
+    freshToken,
     uniqueName('ci-runtime-contract'),
     ADMIN_TENANT_SLUG,
     hostKeys
@@ -71,7 +86,7 @@ export async function runCiRuntimeContractFlow(
       ordinary: { status: ordinaryResponse.status, body: await ordinaryResponse.json() },
       headers,
     };
-  }, { accessToken: token, workspace: workspaceId });
+  }, { accessToken: freshToken, workspace: workspaceId });
   const pluginResult = await pluginProxyRequestWithRetry(() =>
     browserFetchBody(page, `${pluginPathname}?contract=plugin`, {
       credentials: 'include',
@@ -82,7 +97,7 @@ export async function runCiRuntimeContractFlow(
     page,
     runtime.CORE_API_PUBLIC_BASE,
     [await ordinaryWait, await pluginWait],
-    token,
+    freshToken,
     workspaceId,
     options.appLabel
   );

@@ -65,6 +65,12 @@ export function fakePage(handler: (req: RecordedRequest) => FakeResponseOptions)
       get: async (url: string, options?: Record<string, unknown>) =>
         fakeResponse(handler(record('GET', url, options))),
     },
+    // getBrowserToken(page) reads the refreshed access token from the browser
+    // session (H-04: 60s TTL, silent refresh in sessionStorage). The fake
+    // returns the stored session string exactly as the real sessionStorage
+    // read would, so the fixture yields a plain token (CodeRabbit).
+    evaluate: async (): Promise<string> =>
+      JSON.stringify({ state: { accessToken: 'unit-test-token' } }),
   };
   return { page: page as unknown as Page, requests };
 }

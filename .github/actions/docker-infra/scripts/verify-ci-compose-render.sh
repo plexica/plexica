@@ -64,7 +64,7 @@ for (const service of ["core-api-e2e", "web-e2e", "admin-e2e"]) {
   const value = config.services[service];
   if (!String(value.image).startsWith("node:24-bookworm@sha256:") ||
       !String(value.command).includes("corepack enable") ||
-      !String(value.command).includes("corepack prepare pnpm@10.33.0 --activate")) {
+      !String(value.command).includes("corepack prepare pnpm@10.34.2 --activate")) {
     throw new Error(`${service} does not activate the pinned project pnpm version`);
   }
 }

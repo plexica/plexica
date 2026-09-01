@@ -2,30 +2,27 @@
 // Dev mode registration endpoints — gated by NODE_ENV=development.
 // Allows plugin developers to register backends as local processes
 // (no container build needed). See Plan §10.7.
+//
+// Mounted OUTSIDE the authenticated tenantScope (pluginDevRoutes in
+// modules/plugin/index.ts): registerBackend() from @plexica/sdk/dev sends no
+// user JWT. middleware/dev-route-auth.ts enforces NODE_ENV=development +
+// loopback-only + X-Tenant-Slug. The isDev/loopback checks below are kept as
+// defense-in-depth in case the routes are ever mounted without the middleware.
 
 import { z } from 'zod';
 
 import { config } from '../../../lib/config.js';
 import { parseOrThrow } from '../../../lib/validation.js';
 import { registerDevRuntime, unregisterDevRuntime } from '../services/dev-registration.service.js';
+import {
+  deleteDevPlugin,
+  getDevPlugin,
+  listDevPlugins,
+  setDevPlugin,
+} from '../services/dev-plugin-store.js';
 
+import type { DevPluginEntry } from '../services/dev-plugin-store.js';
 import type { FastifyInstance } from 'fastify';
-
-interface DevPluginEntry {
-  slug: string;
-  backendUrl: string;
-  installId?: string;
-  tenantSlug: string;
-  uiUrl?: string;
-  extensionPoints: string[];
-  actions: Array<{ action: string; defaultRole: string }>;
-  events: string[];
-  consumerGroupId?: string;
-  registeredAt: Date;
-}
-
-// In-memory store of dev-registered plugins
-const devPlugins = new Map<string, DevPluginEntry>();
 
 const devRegisterSchema = z.object({
   slug: z.string().regex(/^[a-z][a-z0-9-]{1,62}$/),
@@ -74,23 +71,24 @@ export async function devPluginRoutes(fastify: FastifyInstance): Promise<void> {
       request.body
     );
 
-    if (devPlugins.has(slug)) {
+    const tenantSlug = request.tenantContext.slug;
+    if (getDevPlugin(tenantSlug, slug)) {
       return reply.status(409).send({
-        error: `Plugin "${slug}" is already registered in dev mode. Unregister first, or restart the dev server.`,
+        error: `Plugin "${slug}" is already registered in dev mode for tenant "${tenantSlug}". Unregister first, or restart the dev server.`,
       });
     }
 
-    const devEntry: DevPluginEntry = {
+    const entry: DevPluginEntry = {
       slug,
       backendUrl,
-      tenantSlug: request.tenantContext.slug,
+      tenantSlug,
       extensionPoints,
       actions: actions ?? [],
       events: events?.subscribes ?? [],
       registeredAt: new Date(),
     };
-    if (installId) devEntry.installId = installId;
-    if (uiUrl) devEntry.uiUrl = uiUrl;
+    if (installId) entry.installId = installId;
+    if (uiUrl) entry.uiUrl = uiUrl;
 
     // Plan §10.7 step 5: register temporary plugin actions so dev ABAC
     // evaluation works. Actions are held in-memory only (no tenant-schema
@@ -100,14 +98,14 @@ export async function devPluginRoutes(fastify: FastifyInstance): Promise<void> {
     try {
       const consumerGroupId = await registerDevRuntime({
         slug,
-        tenantSlug: request.tenantContext.slug,
+        tenantSlug,
         backendUrl,
         extensionPoints,
-        events: devEntry.events,
+        events: entry.events,
         ...(installId ? { installId } : {}),
         ...(uiUrl ? { uiUrl } : {}),
       });
-      if (consumerGroupId) devEntry.consumerGroupId = consumerGroupId;
+      if (consumerGroupId) entry.consumerGroupId = consumerGroupId;
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       request.log.warn(
@@ -116,14 +114,15 @@ export async function devPluginRoutes(fastify: FastifyInstance): Promise<void> {
       );
     }
 
-    devPlugins.set(slug, devEntry);
+    setDevPlugin(tenantSlug, slug, entry);
 
     request.log.info(
       {
         slug,
+        tenantSlug,
         backendUrl,
-        actionCount: devEntry.actions.length,
-        hasConsumer: !!devEntry.consumerGroupId,
+        actionCount: entry.actions.length,
+        hasConsumer: !!entry.consumerGroupId,
       },
       'Plugin registered in dev mode'
     );
@@ -142,11 +141,11 @@ export async function devPluginRoutes(fastify: FastifyInstance): Promise<void> {
     }
 
     const { slug } = parseOrThrow(devUnregisterSchema, request.body);
-    const removed = devPlugins.get(slug);
+    const tenantSlug = request.tenantContext.slug;
+    const removed = deleteDevPlugin(tenantSlug, slug);
     if (!removed) {
       return reply.status(404).send({ error: `Plugin "${slug}" is not registered in dev mode` });
     }
-    devPlugins.delete(slug);
 
     try {
       await unregisterDevRuntime(slug, removed.installId, removed.tenantSlug);
@@ -155,17 +154,18 @@ export async function devPluginRoutes(fastify: FastifyInstance): Promise<void> {
       request.log.warn({ err: msg, slug }, 'Failed to delete dev consumer group during unregister');
     }
 
-    request.log.info({ slug }, 'Plugin unregistered from dev mode');
+    request.log.info({ slug, tenantSlug }, 'Plugin unregistered from dev mode');
     return reply.status(200).send({ status: 'ok', slug });
   });
 
-  // ── GET /api/v1/dev/plugins — list dev-registered plugins ────────────────
+  // ── GET /api/v1/dev/plugins — list dev-registered plugins (tenant-scoped) ─
   fastify.get('/api/v1/dev/plugins', async (request, reply) => {
     if (!isDev) {
       return reply.status(404).send({ error: 'Not found' });
     }
 
-    const plugins = Array.from(devPlugins.values()).map((p) => {
+    const tenantSlug = request.tenantContext.slug;
+    const plugins = listDevPlugins(tenantSlug).map((p) => {
       const entry: Omit<DevPluginEntry, 'tenantSlug'> = {
         slug: p.slug,
         backendUrl: p.backendUrl,

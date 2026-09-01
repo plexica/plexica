@@ -170,7 +170,7 @@
 **Trigger**: Dev wants to build a "Time Tracking" plugin for Plexica.
 
 **Steps**:
-1. Runs `npx create-plexica-plugin time-tracker` in terminal (per FR 004-29)
+1. Runs `npx @plexica/create-plexica-plugin time-tracker` in terminal (per FR 004-29)
 2. CLI prompts: plugin name (autofilled), description, author → Dev inputs details
 3. CLI generates project in `./time-tracker/` with: `manifest.json`, `vite.config.ts` (MF preset pre-configured), `src/` (backend TypeScript), `ui/` (React frontend), `Dockerfile`, `migrations/`
 4. Runs `pnpm install && pnpm dev` → local dev server starts:
