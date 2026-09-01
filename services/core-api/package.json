@@ -34,7 +34,7 @@
     "jose": "^6.2.10",
     "minio": "^8.0.0",
     "node-sql-parser": "^5.4.0",
-    "nodemailer": "^9.0.3",
+    "nodemailer": "^9.0.6",
     "pino": "catalog:",
     "pino-loki": "^3.0.0",
     "zod": "catalog:"
