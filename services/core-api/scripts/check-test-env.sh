@@ -88,6 +88,23 @@ check_http() {
   curl -fsS --max-time 5 "$1" >/dev/null 2>&1
 }
 
+# Loki 3.7+ (distroless) needs 15–30s after start for the ingester to become
+# ready (see 005-10-logs polling and PR 152). Poll /ready for up to 60s instead
+# of a single shot so the preflight does not flake under load.
+check_http_with_retry() {
+  local url="$1"
+  local deadline=$(( $(date +%s) + 60 ))
+  while true; do
+    if curl -fsS --max-time 5 "$url" >/dev/null 2>&1; then
+      return 0
+    fi
+    if (( $(date +%s) >= deadline )); then
+      return 1
+    fi
+    sleep 2
+  done
+}
+
 info "PostgreSQL ${postgres_host}:${postgres_port}"
 if check_tcp "$postgres_host" "$postgres_port"; then
   check_script="$(dirname "$0")/check-db-connect.mjs"
@@ -118,7 +135,7 @@ info "Mailpit ${smtp_host}:${smtp_port}"
 check_tcp "$smtp_host" "$smtp_port" && ok 'Mailpit reachable' || unavailable 'Mailpit unavailable'
 
 info "Loki ${loki_url}"
-check_http "${loki_url}/ready" && ok 'Loki reachable' || unavailable 'Loki unavailable'
+check_http_with_retry "${loki_url}/ready" && ok 'Loki reachable' || unavailable 'Loki unavailable'
 
 if $failed; then
   printf 'Integration test preflight failed.\n' >&2

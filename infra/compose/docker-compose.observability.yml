@@ -1,6 +1,6 @@
 services:
   loki:
-    image: grafana/loki:3.5.0@sha256:4c431d2e6b9b38718694b31c5d56be7c80dc69c513215fde1aeb5b02cd4e2665
+    image: grafana/loki:3.7.7@sha256:d70e4659623f3e109af669cae76fe2a5dd5be54e2298fe8aed380d982fbc2500
     command: -config.file=/etc/loki/local-config.yaml
     ports:
       - '${LOKI_PORT:-3100}:3100'
@@ -10,12 +10,13 @@ services:
       resources:
         limits:
           memory: 256M
+    # Loki 3.6+ switched to distroless/static:nonroot (no shell, no wget/busybox).
+    # The previous CMD-SHELL wget check fails with "no such file or directory"
+    # and marks the container permanently unhealthy (breaks `docker compose up
+    # --wait` in CI — see PR 152). Disable the in-container probe and rely on
+    # external HTTP readiness (wait-services.sh polls /ready from the host).
     healthcheck:
-      test: ['CMD-SHELL', 'wget -q --spider http://localhost:3100/ready || exit 1']
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 15s
+      disable: true
 
   grafana:
     image: grafana/grafana:11.6.16@sha256:d67af92050b8d93b393dc741864752a69c9da1ffa39c1bb9af49ad5d9e47d2c3

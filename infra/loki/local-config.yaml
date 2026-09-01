@@ -42,6 +42,11 @@ limits_config:
   reject_old_samples_max_age: 168h
   max_query_length: 721h
   retention_period: 168h
+  # Loki 3.7 moved `querier.engine.enable_multi_variant_queries` to
+  # `limits_config.enable_multi_variant_queries` (see upstream
+  # cmd/loki/loki-local-config.yaml diff v3.5.0..v3.7.7). Keeping the
+  # flag here preserves the v3.5 behaviour on newer images.
+  enable_multi_variant_queries: true
 
 analytics:
   reporting_enabled: false
