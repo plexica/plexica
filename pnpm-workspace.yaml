@@ -33,6 +33,9 @@ onlyBuiltDependencies:
 # Security overrides — pinned to patched versions (Dependabot / pnpm audit)
 # These override transitive dependencies. Kept here (not in package.json) because
 # pnpm v10 ignores the `pnpm` field in package.json.
+# Dependabot #77 (stream-json 1.9.1 via minio@8.0.7): override to 3.x NOT safe —
+# 3.x is ESM-only and breaks minio CJS (jsonl/Parser.js). MinIO only uses
+# jsonl/Parser, not the vulnerable filters. Re-evaluate on MinIO upgrade.
 overrides:
   'brace-expansion@<2': 1.1.18
   'brace-expansion@>=4.0.0 <5.0.9': 5.0.9
@@ -40,7 +43,7 @@ overrides:
   'postcss-selector-parser': 6.1.3
   'decode-uri-component': 0.5.0
   lodash: ^4.18.1
-  'js-yaml': ^4.3.1
+  'js-yaml': ^4.3.2
   'fast-uri': 3.1.7
   'deepmerge-ts': ^8.0.0
   'nanoid@<3.3.18': 3.3.18
