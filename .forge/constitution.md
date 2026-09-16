@@ -39,7 +39,7 @@ These are absolute. No exceptions, no workarounds.
 | Database       | PostgreSQL       | 18+        |
 | ORM            | Prisma           | ^6         |
 | Cache          | Redis (ioredis)  | ^5         |
-| Object Storage | MinIO            | ^8         |
+| Object Storage | S3-compatible server (digest-pinned `pgsty/silo` image); `minio` npm SDK kept (E2) | ^8 (client) |
 | Event Bus      | Kafka / Redpanda | `@confluentinc/kafka-javascript` 1.10.0 (exact) |
 | Auth           | Keycloak         | 26+        |
 
