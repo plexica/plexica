@@ -25,7 +25,7 @@ set -a; source "$runtime/keycloak-credentials.env"; set +a
 # so stage-browser populates it between create and start, and only after
 # START does write-browser resolve the dynamic ports for the host/browser
 # manifests.
-"${compose[@]}" up -d --wait --wait-timeout 300 postgres redis minio keycloak mailpit loki
+"${compose[@]}" up -d --wait --wait-timeout 300 postgres redis storage keycloak mailpit loki
 bash "$script_dir/ci-runtime-compose.sh" stage-redpanda
 "${compose[@]}" up -d --wait --wait-timeout 300 redpanda
 "${compose[@]}" up -d redpanda-init

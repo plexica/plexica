@@ -9,8 +9,8 @@ export CI_COMPOSE_PROJECT=plexica-ci-wait-123456
 export EVENT_KEY_ENCRYPTION_KEY=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
 export PLUGIN_DB_ENCRYPTION_KEY=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 export PLUGIN_CREDENTIAL_PEPPER=0123456789abcdef0123456789abcdef
-export MINIO_ACCESS_KEY=00112233445566778899aabb
-export MINIO_SECRET_KEY=00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff
+export STORAGE_ACCESS_KEY=00112233445566778899aabb
+export STORAGE_SECRET_KEY=00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff
 export CI_RUNTIME_DIR="$(bash "$dir/ci-runtime-env.sh" init "$CI_COMPOSE_PROJECT")"
 cat > "$temp/bin/docker" <<'EOF'
 #!/usr/bin/env bash
@@ -18,7 +18,7 @@ printf '%s\n' "$*" >> "$DOCKER_LOG"
 case "$*" in
   *' port postgres 5432'*) printf '127.0.0.1:32001\n' ;;
   *' port redis 6379'*) printf '127.0.0.1:32002\n' ;;
-  *' port minio 9000'*) printf '127.0.0.1:32003\n' ;;
+  *' port storage 9000'*) printf '127.0.0.1:32003\n' ;;
   *' port keycloak 8080'*) printf '127.0.0.1:32004\n' ;;
   *' port redpanda 19092'*) printf '127.0.0.1:32005\n' ;;
   *' port core-api-e2e 3001'*) printf '127.0.0.1:32006\n' ;;
@@ -44,7 +44,7 @@ esac
 EOF
 cat > "$temp/bin/pnpm" <<'EOF'
 #!/usr/bin/env bash
-printf '%s|%s|%s|%s|%s\n' "$DATABASE_URL" "$KEYCLOAK_URL" "$REDIS_URL" "$MINIO_ENDPOINT" "$KAFKA_BROKERS" >> "$COMMAND_LOG"
+printf '%s|%s|%s|%s|%s\n' "$DATABASE_URL" "$KEYCLOAK_URL" "$REDIS_URL" "$STORAGE_ENDPOINT" "$KAFKA_BROKERS" >> "$COMMAND_LOG"
 EOF
 cat > "$temp/bin/curl" <<'EOF'
 #!/usr/bin/env bash
@@ -130,7 +130,7 @@ case "$*" in
   *' port web-e2e 3000'*) printf '127.0.0.1:39999\n' ;;
   *' port postgres 5432'*) printf '127.0.0.1:32001\n' ;;
   *' port redis 6379'*) printf '127.0.0.1:32002\n' ;;
-  *' port minio 9000'*) printf '127.0.0.1:32003\n' ;;
+  *' port storage 9000'*) printf '127.0.0.1:32003\n' ;;
   *' port keycloak 8080'*) printf '127.0.0.1:32004\n' ;;
   *' port redpanda 19092'*) printf '127.0.0.1:32005\n' ;;
   *' port core-api-e2e 3001'*) printf '127.0.0.1:32006\n' ;;

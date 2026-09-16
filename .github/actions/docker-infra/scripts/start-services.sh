@@ -28,8 +28,8 @@ if [[ -n ${E2E_POSTGRES_TLS_SOURCE:-} ]]; then
     [[ $(docker wait "$init") == 0 ]] || { docker logs "$init" >&2; exit 1; }
   done
 fi
-"${compose[@]}" create postgres redis minio keycloak mailpit loki
-"${compose[@]}" start postgres redis minio keycloak mailpit loki
+"${compose[@]}" create postgres redis storage keycloak mailpit loki
+"${compose[@]}" start postgres redis storage keycloak mailpit loki
 # stage-redpanda: create, START (host port is allocated at start), then
 # resolve the dynamic mapping and write the gated entrypoint's listener file.
 bash "$script_dir/ci-runtime-compose.sh" stage-redpanda

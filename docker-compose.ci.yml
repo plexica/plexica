@@ -39,7 +39,7 @@ services:
   redis:
     <<: *ci-scope-labels
     ports: !override ['127.0.0.1::6379']
-  minio:
+  storage:
     <<: *ci-scope-labels
     ports: !override ['127.0.0.1::9000', '127.0.0.1::9001']
   redpanda:

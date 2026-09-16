@@ -14,7 +14,7 @@ const secrets = [
   'PLUGIN_DB_ENCRYPTION_KEY=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
   'PLUGIN_CREDENTIAL_PEPPER=0123456789abcdef0123456789abcdef',
   'KEYCLOAK_ADMIN_USER=ci-admin-user-0001',
-  'MINIO_ACCESS_KEY=Min0AccessKeyValue-0001',
+  'STORAGE_ACCESS_KEY=Min0AccessKeyValue-0001',
 ];
 try {
   writeFileSync(container, `${secrets.join('\n')}\n`);
@@ -36,10 +36,10 @@ try {
     throw new Error('Container-only secrets were not redacted');
   }
   const inline = 'KEYCLOAK_ADMIN_USER=ci-admin-0123456789abcdef';
-  const inlineAccessKey = 'MINIO_ACCESS_KEY=AKIA-inline-access-key';
+  const inlineAccessKey = 'STORAGE_ACCESS_KEY=AKIA-inline-access-key';
   for (const [label, inlineLine, redacted] of [
     ['Inline KEYCLOAK_ADMIN_USER assignment was not redacted', inline, 'KEYCLOAK_ADMIN_USER=[REDACTED]'],
-    ['Inline MINIO_ACCESS_KEY assignment was not redacted', inlineAccessKey, 'MINIO_ACCESS_KEY=[REDACTED]'],
+    ['Inline STORAGE_ACCESS_KEY assignment was not redacted', inlineAccessKey, 'STORAGE_ACCESS_KEY=[REDACTED]'],
   ]) {
     const inlineCheck = spawnSync(
       process.execPath,
