@@ -46,18 +46,25 @@ function runPrisma(args: string[]): string {
   });
 }
 
+function splitStatements(sql: string): string[] {
+  const body = sql
+    .split('\n')
+    .filter((line) => !line.trim().startsWith('--'))
+    .join('\n');
+  const out: string[] = [];
+  for (const match of body.matchAll(/DO\s+\$\$[\s\S]*?\$\$;|\S[^;]*;/g)) {
+    const statement = match[0].trim();
+    if (statement.length > 0) out.push(statement);
+  }
+  return out;
+}
+
 function downMigrationStatements(): string[] {
   const sql = readFileSync(
     resolve(process.cwd(), 'prisma/migrations', MIGRATION_DIR, 'down-migration.sql'),
     'utf-8'
   );
-  return sql
-    .split('\n')
-    .filter((line) => !line.trim().startsWith('--'))
-    .join('\n')
-    .split(';')
-    .map((statement) => statement.trim())
-    .filter((statement) => statement.length > 0);
+  return splitStatements(sql);
 }
 
 let admin: PrismaClient | undefined;
@@ -128,14 +135,20 @@ describe.skipIf(!dbOk)('tenant bucket column migration (011 up + down)', () => {
     for (const statement of downMigrationStatements()) {
       await db.$executeRawUnsafe(statement);
     }
+    // Production rollback equivalent: `prisma migrate resolve --rolled-back
+    // 011_rename_minio_bucket_to_storage_bucket` — the 011 folder is removed by
+    // the code revert, so the row must be marked rolled-back for deploy/status.
     await db.$executeRawUnsafe(
-      `DELETE FROM _prisma_migrations WHERE migration_name = '${MIGRATION_DIR}'`
+      `DELETE FROM _prisma_migrations WHERE migration_name = $1`,
+      MIGRATION_DIR
     );
 
     for (const seed of SEEDED) {
       await db.$executeRawUnsafe(
         `INSERT INTO core.tenants (slug, name, status, minio_bucket)
-         VALUES ('${seed.slug}', '${seed.name}', 'active', $1::varchar)`,
+         VALUES ($1, $2, 'active', $3::varchar)`,
+        seed.slug,
+        seed.name,
         seed.bucket
       );
     }
@@ -176,7 +189,7 @@ describe.skipIf(!dbOk)('tenant bucket column migration (011 up + down)', () => {
 
   it('down-migration restores the prior column name and values', async () => {
     for (const statement of downMigrationStatements()) {
-      await db.$executeRawUnsafe(statement);
+      await db!.$executeRawUnsafe(statement);
     }
     await assertColumn('minio_bucket');
     await assertIndexNames(PRE_INDEX);
