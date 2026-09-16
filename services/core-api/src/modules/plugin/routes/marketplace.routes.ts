@@ -8,7 +8,7 @@ import { withCoreDb, withTenantDb } from '../../../lib/tenant-database.js';
 import { RESOURCE_SLUG_REGEX } from '../../../lib/slug.js';
 import { requireAbac } from '../../../middleware/abac.js';
 import { ForbiddenError } from '../../../lib/app-error.js';
-import { getPresignedReadUrl } from '../../../lib/minio-client.js';
+import { getPresignedReadUrl } from '../../../lib/storage-client.js';
 import { buildPaginatedResult } from '../../../lib/pagination.js';
 import { PluginNotFoundError } from '../errors.js';
 import { manifestSchema } from '../schema/manifest.js';

@@ -16,7 +16,7 @@ function manifestEnv(overrides: Record<string, string> = {}): Record<string, str
   const urls: Record<string, string> = {
     POSTGRES_HOST_URL: 'postgresql://127.0.0.1:5432/postgres',
     REDIS_HOST_URL: 'redis://127.0.0.1:6379',
-    MINIO_HOST_URL: 'http://127.0.0.1:9000',
+    STORAGE_HOST_URL: 'http://127.0.0.1:9000',
     LOKI_HOST_URL: 'http://127.0.0.1:3100',
     MAILPIT_SMTP_URL: 'smtp://127.0.0.1:1025',
     MAILPIT_UI_BASE: 'http://127.0.0.1:8025',

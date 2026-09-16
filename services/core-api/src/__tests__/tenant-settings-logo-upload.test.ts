@@ -14,7 +14,7 @@ import { tenantSettingsRoutes } from '../modules/tenant-settings/routes.js';
 import {
   cleanupTenant, ensureTenantBucket, removeTenantBucket, seedTenant,
 } from './helpers/db.helpers.js';
-import { createTestServer, isMinioReachable, makeFullStub } from './helpers/server.helpers.js';
+import { createTestServer, isStorageReachable, makeFullStub } from './helpers/server.helpers.js';
 
 import type { FastifyInstance } from 'fastify';
 import type { TenantContext } from '../lib/tenant-context-store.js';
@@ -23,8 +23,8 @@ const SLUG = 'ws-int06-logo-upload';
 // Fixed UUID — audit_log.actor_id is UUID NOT NULL (written by updateBranding)
 const ADMIN_ID = '00000000-0106-0002-0000-000000000001';
 
-const minioAvailable = await isMinioReachable();
-const skipIfNoMinio = it.skipIf(!minioAvailable);
+const storageAvailable = await isStorageReachable();
+const skipIfNoStorage = it.skipIf(!storageAvailable);
 
 let server: FastifyInstance;
 let ctx: TenantContext;
@@ -78,14 +78,14 @@ afterAll(async () => {
 });
 
 describe('INT-06 Branding logo upload', () => {
-  skipIfNoMinio('rejects logo upload > 2MB (413)', async () => {
+  skipIfNoStorage('rejects logo upload > 2MB (413)', async () => {
     const oversize = Buffer.alloc(config.LOGO_MAX_BYTES + 1, 0x00);
     const boundary = '----TestBoundaryLogoSize';
     const res = await patchLogo(boundary, buildLogoBody(boundary, 'logo.png', 'image/png', oversize));
     expect(res.statusCode).toBe(413);
   });
 
-  skipIfNoMinio('rejects logo upload carrying an SVG <script> payload (415)', async () => {
+  skipIfNoStorage('rejects logo upload carrying an SVG <script> payload (415)', async () => {
     const malicious = Buffer.from(
       '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>'
     );
@@ -95,7 +95,7 @@ describe('INT-06 Branding logo upload', () => {
     expect(res.statusCode).toBe(415);
   });
 
-  skipIfNoMinio('rejects a file declared image/png that is actually an SVG (415)', async () => {
+  skipIfNoStorage('rejects a file declared image/png that is actually an SVG (415)', async () => {
     const svgAsPng = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><circle r="1"/></svg>');
     const boundary = '----TestBoundaryLogoSvgAsPng';
     const body = buildLogoBody(boundary, 'logo.png', 'image/png', svgAsPng);
@@ -103,7 +103,7 @@ describe('INT-06 Branding logo upload', () => {
     expect(res.statusCode).toBe(415);
   });
 
-  skipIfNoMinio('accepts a legitimate PNG logo upload (200)', async () => {
+  skipIfNoStorage('accepts a legitimate PNG logo upload (200)', async () => {
     const png = Buffer.concat([
       Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
       Buffer.alloc(64, 0x00),

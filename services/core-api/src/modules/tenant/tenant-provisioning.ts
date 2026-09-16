@@ -9,7 +9,7 @@ import { ProvisioningFailedError } from '../../lib/app-error.js';
 import { invalidateTenantDbClient } from '../../lib/tenant-database.js';
 import { createTenantSchema } from '../../lib/tenant-schema.js';
 import { createRealm, deleteRealm } from '../../lib/keycloak-admin.js';
-import { createBucket, deleteBucket } from '../../lib/minio-client.js';
+import { createBucket, deleteBucket } from '../../lib/storage-client.js';
 import { migrateTenantSchema } from '../../lib/multi-schema-migrate.js';
 import { toRealmName, toSchemaName } from '../../lib/tenant-schema-helpers.js';
 

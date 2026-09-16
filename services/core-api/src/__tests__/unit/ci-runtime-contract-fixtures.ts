@@ -10,8 +10,8 @@ export const contractSecrets = {
   PLUGIN_DB_SSL_MODE: 'disable',
   KEYCLOAK_ADMIN_USER: 'admin',
   KEYCLOAK_ADMIN_PASSWORD: 'password',
-  MINIO_ACCESS_KEY: 'x',
-  MINIO_SECRET_KEY: 'x',
+  STORAGE_ACCESS_KEY: 'x',
+  STORAGE_SECRET_KEY: 'x',
   CI_RUNTIME_CONTRACT: '1',
 };
 
@@ -26,7 +26,7 @@ export const containerBase = {
   KEYCLOAK_PUBLIC_ISSUER_BASE: 'http://127.0.0.1:32000',
   KEYCLOAK_CONTAINER_ADMIN_JWKS_BASE: 'http://keycloak:8080',
   REDIS_URL: 'redis://redis:6379',
-  MINIO_ENDPOINT: 'http://minio:9000',
+  STORAGE_ENDPOINT: 'http://storage:9000',
   KAFKA_BROKERS: 'redpanda:9092',
   PLUGIN_CORE_API_URL: 'http://core-api-e2e:3001',
   PLUGIN_RUNTIME_SCOPE: pluginRuntimeScope(contractProject),
@@ -44,6 +44,6 @@ export const hostBase = {
   KEYCLOAK_PUBLIC_ISSUER_BASE: 'http://127.0.0.1:32000',
   KEYCLOAK_HOST_ADMIN_BASE: 'http://127.0.0.1:32000',
   REDIS_URL: 'redis://127.0.0.1:6379',
-  MINIO_ENDPOINT: 'http://127.0.0.1:9000',
+  STORAGE_ENDPOINT: 'http://127.0.0.1:9000',
   KAFKA_BROKERS: '127.0.0.1:9092',
 };

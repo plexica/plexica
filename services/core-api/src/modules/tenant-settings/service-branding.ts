@@ -5,7 +5,7 @@
 
 import { Readable } from 'node:stream';
 
-import { uploadLogo, getPresignedReadUrl } from '../../lib/minio-client.js';
+import { uploadLogo, getPresignedReadUrl } from '../../lib/storage-client.js';
 import { validateFileContent, LOGO_ALLOWED_MIME_TYPES } from '../../lib/file-upload.js';
 import { writeAuditLog } from '../audit-log/writer.js';
 

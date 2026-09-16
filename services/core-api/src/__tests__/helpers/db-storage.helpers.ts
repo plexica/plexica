@@ -1,10 +1,10 @@
 export async function ensureTenantBucket(tenantSlug: string): Promise<void> {
-  const { createBucket } = await import('../../lib/minio-client.js');
+  const { createBucket } = await import('../../lib/storage-client.js');
   await createBucket(`tenant-${tenantSlug}`);
 }
 
 export async function removeTenantBucket(tenantSlug: string): Promise<void> {
-  const { deleteBucket } = await import('../../lib/minio-client.js');
+  const { deleteBucket } = await import('../../lib/storage-client.js');
   try {
     await deleteBucket(`tenant-${tenantSlug}`);
   } catch {

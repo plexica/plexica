@@ -4,7 +4,7 @@
 // before the bucket itself is deleted. Throws on any failure so the saga
 // executor can retry with backoff.
 
-import { deleteBucket } from '../../../lib/minio-client.js';
+import { deleteBucket } from '../../../lib/storage-client.js';
 import { logger } from '../../../lib/logger.js';
 
 /**

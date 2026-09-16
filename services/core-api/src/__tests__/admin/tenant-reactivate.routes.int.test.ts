@@ -6,7 +6,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { prisma } from '../../lib/database.js';
-import { deleteBucket } from '../../lib/minio-client.js';
+import { deleteBucket } from '../../lib/storage-client.js';
 import { deleteRealm } from '../../lib/keycloak-admin.js';
 import { toSchemaName } from '../../lib/tenant-schema-helpers.js';
 import { provisionTenant } from '../../modules/tenant/tenant-provisioning.js';

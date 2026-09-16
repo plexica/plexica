@@ -1,6 +1,7 @@
 // plugin-loader.tsx
 // Dynamic remote loader for Module Federation plugins.
-// Fetches remoteEntry.js from MinIO in production, or from dev server in dev.
+// Fetches remoteEntry.js from the object-storage asset origin in production,
+// or from dev server in dev.
 
 import { createElement, lazy, Suspense } from 'react';
 import * as ReactModule from 'react';
@@ -29,13 +30,14 @@ const ALLOWED_ORIGINS = [
   'http://127.0.0.1:4001',
 ];
 
-const MINIO_ORIGIN_PATTERN = /^https:\/\/minio\./;
+const STORAGE_ORIGIN_PATTERN = /^https:\/\/minio\./;
 const configuredAssetOrigin = import.meta.env.VITE_PLUGIN_ASSET_ORIGIN as string | undefined;
 
-// CI runtime contract builds serve plugin assets from a per-project MinIO
-// published on an ephemeral loopback port (dynamic-port mandate). The origin
-// cannot be baked in at build time, so these builds trust strict loopback
-// http origins; production builds keep the exact allow-list above.
+// CI runtime contract builds serve plugin assets from a per-project object
+// storage server published on an ephemeral loopback port (dynamic-port
+// mandate). The origin cannot be baked in at build time, so these builds
+// trust strict loopback http origins; production builds keep the exact
+// allow-list above.
 declare const __PLEXICA_CI_RUNTIME_CONTRACT__: boolean;
 
 function ciRuntimeContractBuild(): boolean {
@@ -86,7 +88,7 @@ function isOriginAllowed(url: string): boolean {
       ALLOWED_ORIGINS.includes(parsed.origin) ||
       parsed.origin === configuredAssetOrigin ||
       parsed.origin === 'http://localhost:9000' ||
-      MINIO_ORIGIN_PATTERN.test(parsed.origin) ||
+      STORAGE_ORIGIN_PATTERN.test(parsed.origin) ||
       (ciRuntimeContractBuild() && CI_LOOPBACK_ORIGIN_PATTERN.test(parsed.origin))
     );
   } catch {

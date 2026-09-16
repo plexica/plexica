@@ -45,7 +45,7 @@ const manifestSchema = z
   .object({
     POSTGRES_HOST_URL: hostUrl('POSTGRES_HOST_URL'),
     REDIS_HOST_URL: hostUrl('REDIS_HOST_URL'),
-    MINIO_HOST_URL: hostUrl('MINIO_HOST_URL'),
+    STORAGE_HOST_URL: hostUrl('STORAGE_HOST_URL'),
     LOKI_HOST_URL: hostUrl('LOKI_HOST_URL'),
     MAILPIT_SMTP_URL: hostUrl('MAILPIT_SMTP_URL'),
     MAILPIT_UI_BASE: hostUrl('MAILPIT_UI_BASE'),

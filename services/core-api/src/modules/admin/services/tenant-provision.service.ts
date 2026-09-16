@@ -11,7 +11,7 @@ import { provisionTenant, type ProvisioningResult } from '../../tenant/tenant-pr
 import { TenantConflictError, type TenantConflictType } from '../../../lib/app-error.js';
 import { toSchemaName, toRealmName } from '../../../lib/tenant-schema-helpers.js';
 import { realmExists } from '../../../lib/keycloak-admin.js';
-import { bucketExists } from '../../../lib/minio-client.js';
+import { bucketExists } from '../../../lib/storage-client.js';
 import { logger } from '../../../lib/logger.js';
 
 import { writeAuditEntry } from './audit-log.service.js';

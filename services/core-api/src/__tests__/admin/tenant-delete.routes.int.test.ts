@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { getTenantEventKey } from '../../events/event-key-service.js';
 import { prisma } from '../../lib/database.js';
 import { redis } from '../../lib/redis.js';
-import { bucketExists, deleteBucket } from '../../lib/minio-client.js';
+import { bucketExists, deleteBucket } from '../../lib/storage-client.js';
 import { realmExists, deleteRealm } from '../../lib/keycloak-admin.js';
 import { toSchemaName } from '../../lib/tenant-schema-helpers.js';
 import { provisionTenant } from '../../modules/tenant/tenant-provisioning.js';
