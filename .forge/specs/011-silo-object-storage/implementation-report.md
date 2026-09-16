@@ -1,7 +1,7 @@
 # Spec 011 Implementation Report — Silo Object Storage Swap + Neutral Rename + FR-013 Bucket-Column Migration
 
 **Spec**: `.forge/specs/011-silo-object-storage/` (spec.md / plan.md / tasks.md)
-**ADR**: `.forge/knowledge/adr/adr-034-silo-object-storage.md` (amended 2026-09-16, status Proposed pending human accept)
+**ADR**: `.forge/knowledge/adr/adr-034-silo-object-storage.md` (amended + accepted 2026-09-16)
 **Branch**: `feat/011-silo-object-storage`
 **Report date**: 2026-09-16
 **Phase coverage**: 1–4 implemented, committed; Phase 5 (this report + runbook) closes the loop.
@@ -149,7 +149,7 @@ operation.
 | Core-API integration | **8 files / 38 tests** green post-Phase-3 re-run: `admin/health.routes.int.test.ts`, `admin/tenant-delete.routes.int.test.ts`, `admin/tenant-provision.routes.int.test.ts`, `admin/tenant-reactivate.routes.int.test.ts`, `admin/tenant-suspend.routes.int.test.ts`, `admin/tenant-list.routes.int.test.ts`, `admin/plugin-catalog.routes.int.test.ts`, `admin/logs.routes.int.test.ts` (lifecycle/GDPR erasure batching, provisioning, logo suites, marketplace/presigned reads via plugin-catalog + user-profile/tenant-settings flows) |
 | Admin E2E (local) | `apps/admin/e2e/005-09-health-check.spec.ts` (storage card green) + `apps/admin/e2e/005-07-deletion.spec.ts` (bucket gone) — **2/2** green |
 | Web production E2E + full Playwright | **DEFERRED TO CI** (web production E2E build not re-run locally in Phase 4; covered by CI on merge) |
-| Marketplace presigned-asset gap | **ACCEPTED**: `apps/web/e2e/marketplace-assets.spec.ts` does not exist (verified 2026-09-16); presigned reads are covered by the integration suite + plugin-system E2E in CI. Recorded as an explicitly accepted gap per spec US-003/NFR-001. |
+| Marketplace presigned-asset coverage | Presigned reads are covered via the avatar/logo integration suites + web E2E in CI; the marketplace plugin-assets presigned path (`marketplace.routes.ts`) is covered by production E2E in CI only — accepted gap per spec US-003/NFR-001, tracked as a test-debt item (owner **lucaforni**, date **2026-09-16**). |
 | Full CI (unit + integration + E2E) | Merge gate (Rule 2); runs in CI on the PR |
 
 ---
@@ -168,10 +168,12 @@ the Phase-4 run on the covered endpoints:
 | `putObject` avatar (`/api/v1/profile/avatar`) | 9.4 ms |
 | `putObject` logo (branding PATCH) | 7.3 ms |
 | `presignedGetObject` (marketplace presigned issue) | 0.8 ms |
-| `removeObjects` 100-batch (GDPR erasure) | 24.4 ms |
+| `removeObjects` 1000-batch (GDPR erasure) | 24.4 ms |
 | presigned GET read | 5.3 ms |
 
-All < 200 ms → **NFR-002 satisfied**.
+All < 200 ms → **NFR-002 satisfied**. GDPR erasure batches with
+`BATCH_SIZE = 1000` (`storage-client.ts`); the measured tenant bucket held
+fewer than one batch, so a single `removeObjects` call was timed.
 
 ---
 
@@ -190,6 +192,14 @@ weak/hardcoded secret ships in committed compose** — `changeme` /
 `storageadmin` are documented dev defaults only, and the committed compose
 always pulls them through `${STORAGE_ACCESS_KEY:-storageadmin}` /
 `${STORAGE_SECRET_KEY:-changeme}` interpolation.
+
+The dual fail-fast guard (`storage-env-guard.ts`) now has dedicated unit
+tests (`src/__tests__/unit/storage-env-guard.test.ts`): each of the canonical
+14 stale keys names its `STORAGE_*` replacement, the `MINIO_ROOT_*` compose
+mapping targets are excluded, an empty-string stale value throws, and a clean
+`STORAGE_*`-only environment passes. The guard also **aggregates** every stale
+key into a single error listing each `key -> STORAGE_*` replacement rather
+than throwing on the first hit.
 
 ---
 
@@ -258,9 +268,14 @@ in §14. No non-English commit present; nothing was rejected/rewritten.
 
 ## 14. Commit list (branch `feat/011-silo-object-storage`, `main..HEAD`)
 
-15 commits, all English:
+17 commits, all English (the blocker-fix commits from the dual-model review —
+aggregate guard error, guard unit tests, migration index raise, plugin-loader
+origin warning, parameterized migration-test SQL — will follow as separate
+commits):
 
 ```
+ed11c37 docs(spec): add spec 011 implementation report
+9fffabd docs(adr): add rollout and rollback runbook for storage server swap
 db325a2 fix(core-api): sort health service names assertion after storage rename
 302d63d fix(web): use neutral storage origin pattern for plugin assets
 ced2a80 test(core-api): add storage bucket column migration tests
@@ -291,4 +306,5 @@ agent.
 | `git diff main...HEAD -- pnpm-lock.yaml` | empty |
 | `services/core-api/package.json` in diff | NOT in diff |
 | `wc -l services/core-api/src/lib/config.ts` | 200 (Rule 4) |
+| `storage-env-guard` unit tests (`src/__tests__/unit/storage-env-guard.test.ts`) | 6/6 green (canonical 14 stale keys → `STORAGE_*` replacements, `MINIO_ROOT_*` exclusion, empty-string, clean env, aggregate multi-key error) |
 | `.forge/knowledge/adr/adr-034-silo-object-storage.md` | rollout runbook + rollback runbook present (Phase-5) |
