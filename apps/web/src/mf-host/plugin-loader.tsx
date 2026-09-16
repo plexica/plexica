@@ -30,7 +30,10 @@ const ALLOWED_ORIGINS = [
   'http://127.0.0.1:4001',
 ];
 
-const STORAGE_ORIGIN_PATTERN = /^https:\/\/minio\./;
+// Allow-list fallback for the object-storage asset origin in production. The
+// exact configured origin is matched via configuredAssetOrigin above; this
+// pattern tolerates any neutral storage host (legacy vendor domains dropped).
+const STORAGE_ORIGIN_PATTERN = /^https:\/\/storage\./;
 const configuredAssetOrigin = import.meta.env.VITE_PLUGIN_ASSET_ORIGIN as string | undefined;
 
 // CI runtime contract builds serve plugin assets from a per-project object
