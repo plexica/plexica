@@ -119,6 +119,12 @@ export function loadPluginComponent(
       const mod = await loadRemote(remoteEntryUrl, remoteName, extensionPoint);
       return { default: mod };
     }
+    if (import.meta.env.DEV && remoteEntryUrl.startsWith('http')) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[PluginLoader] Remote entry origin rejected by storage origin allow-list: ${remoteEntryUrl}`
+      );
+    }
     // Fallback: placeholder for dev mode (real MF loading via dev-watcher)
     return {
       default: () =>
