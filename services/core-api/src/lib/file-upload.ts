@@ -27,7 +27,7 @@ export const LOGO_ALLOWED_MIME_TYPES: string[] = [
   'image/png',
   'image/webp',
   // SVG is stored active content: it can carry <script>, event handlers and
-  // external references, and MinIO serves it back with this Content-Type. It is
+  // external references, and the storage server serves it back with this Content-Type. It is
   // kept because logo SVG support is a declared capability (spec 003), but every
   // SVG MUST pass `assertSafeSvg` via `validateFileContent` before being stored.
   'image/svg+xml',

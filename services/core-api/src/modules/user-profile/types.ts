@@ -13,7 +13,7 @@ export interface UserProfileDto {
   email: string;
   displayName: string | null;
   avatarPath: string | null;
-  /** Presigned MinIO read URL — generated at service layer, not stored in DB. */
+  /** Presigned object-storage read URL — generated at service layer, not stored in DB. */
   avatarUrl: string | null;
   timezone: string;
   language: string;

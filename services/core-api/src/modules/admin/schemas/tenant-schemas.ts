@@ -20,7 +20,7 @@ export const TenantListQuerySchema = z.object({
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
 });
 
-// Public tenant fields only — no secrets, no config, no minio bucket name.
+// Public tenant fields only — no secrets, no config, no storage bucket name.
 export const TenantListItemSchema = z.object({
   id: z.string().uuid(),
   slug: z.string(),

@@ -1,7 +1,7 @@
 // tenant-suspend.routes.int.test.ts
 // Integration tests for POST /api/v1/admin/tenants/:id/suspend (S5-501).
 // Seeds a real tenant via provisionTenant, then exercises the suspend route
-// with optimistic-lock version checks. Real PostgreSQL + Keycloak + MinIO.
+// with optimistic-lock version checks. Real PostgreSQL + Keycloak + object storage.
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 

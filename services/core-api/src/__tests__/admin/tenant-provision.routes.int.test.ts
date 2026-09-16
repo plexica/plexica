@@ -1,7 +1,7 @@
 // tenant-provision.routes.int.test.ts
 // Integration tests for POST /api/v1/admin/tenants — tenant provisioning with
 // pre-flight conflict detection + audit logging (S5-401 / Feature 005-04).
-// Uses real PostgreSQL + Keycloak + MinIO (no mocks of core services).
+// Uses real PostgreSQL + Keycloak + object storage (no mocks of core services).
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 

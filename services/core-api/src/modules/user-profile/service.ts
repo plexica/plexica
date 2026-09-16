@@ -135,7 +135,7 @@ export async function uploadAvatar(
   // at worst (see history: this used to duplicate the constant and never
   // stayed in sync with lib/file-upload.ts).
 
-  // Buffer the stream to validate size before uploading to MinIO.
+  // Buffer the stream to validate size before uploading to object storage.
   const fileBytes = await readStream(file.file as unknown as Readable, config.AVATAR_MAX_BYTES);
 
   const avatarPath = await storageUploadAvatar(
