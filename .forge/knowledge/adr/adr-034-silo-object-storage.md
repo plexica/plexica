@@ -373,30 +373,70 @@ production relies on generated secrets (CI 24/32-byte hex rules), never on defau
   rename/copy reusing on-disk format unchanged. Recorded here so nobody
   "fixes" it later.
 
+## Rollout Runbook (prod one-time volume step; dev/CI fresh ephemeral)
+
+Apply in the maintenance window with the API STOPPED (spec edge #10 /
+US-006 — rolling mixed-version operation on the column rename is FORBIDDEN).
+
+**Pre-migration backup (mandatory before step 2):**
+
+1. Snapshot the object-storage volume data. Recommended:
+   `docker run --rm -v <project>_minio_data:/src -v "$PWD"/storage-backup:/dst
+   alpine:3.20 cp -a /src/. /dst/` (or any volume backup of
+   `minio_data`), plus a PostgreSQL dump of `core.tenants`
+   (`minio_bucket` column values) — the DB down-migration is value-
+   preserving, but the backup is the safety net.
+2. **One-time volume rename/copy** (prod): rename the named volume
+   `minio_data` → `storage_data` (`docker volume create --name
+   storage_data` + copy, or `docker compose down` + `mv` of the volume
+   directory). The on-disk format is unchanged — the existing
+   `.minio.sys` metadata is reused natively by the new server (no
+   migration of server state). `docker compose config` must be valid
+   (exit 0) for `infra/compose/docker-compose.platform-services.yml`
+   before bringing the stack up.
+3. **Dev / CI**: volumes are fresh and ephemeral — no rename/copy. CI
+   creates a fresh `storage_data` per job; dev can `docker volume rm`
+   the old `minio_data` (or leave it orphaned) and start clean.
+
+`docker compose config` stays valid (exit 0) at every rollout and
+rollback stage; any stage that renders an invalid config is a stop-and-
+inspect, not a proceed.
+
 ## Rollback Plan (≤ 5 steps, smoke-verified, incl. DB)
 
 1. Repin the storage service image to the prior
-   `minio/minio:RELEASE.2024-01-16T16-07-38Z@sha256:4c4a48…` digest.
+   `minio/minio:RELEASE.2024-01-16T16-07-38Z@sha256:4c4a4876193f030c81f57aabb22bcb9a73462010eb61fcab66908e03e5484af8`
+   digest (`docker compose config` exit 0 with the restored file).
 2. Restore/rename the volume back (`storage_data` → `minio_data`,
    reverse of the rename/copy — `.minio.sys` is readable by both).
 3. Apply the DB down-migration (`storage_bucket` → `minio_bucket`,
-   values intact) — combined into this sequence; the whole procedure
+   values intact; file
+   `services/core-api/prisma/migrations/011_rename_minio_bucket_to_storage_bucket/down-migration.sql`)
+   — combined into this sequence; the whole procedure
    stays ≤ 5 steps together with the server/volume revert
    (down-migration + repin + volume restore + revert commit + smoke
    green).
 4. Restore the pre-change compose/env/scripts/code from version control
    (single revert commit); `docker compose up -d --wait` (service name
-   per the restored file) and confirm the readiness probe passes.
+   per the restored file) and confirm the readiness probe passes
+   (`mc ready local` exit 0, or the server-native fallback probe).
 5. Run migration tests + `smoke-storage…/smoke-minio` (per restored
    tree) green → rollback complete; report which proof step triggered
    the rollback (see plan.md §8.3).
 
 Rollback trigger: any proof step in plan.md §8 fails and cannot be
-fixed forward within the implementing PR (in particular: migration-test
-failure, **post-Phase-3 `smoke-storage` re-run red** (binding per spec US-003/NFR-001 —
-smoke PLUS provisioning/lifecycle integration re-run green AFTER the readers/writers
-rename, rollback on red), provisioning/lifecycle re-run red, E2E storage-flow failure, or
-`mc ready local` + fallback probe both failing). Marketplace presigned-asset proof cites
+fixed forward within the implementing PR. Named Phase-4 gates and the
+rollback they fire:
+
+| Gate (Phase 4) | On red → rollback |
+| --- | --- |
+| Migration tests (canonical `tenant-bucket-migration.int.test.ts`) | Yes — step 3 (down-migration) is mandatory |
+| `smoke-storage` re-run post-Phase-3 (binding per spec US-003/NFR-001) | Yes — full 5-step procedure |
+| Provisioning/lifecycle integration re-run (smoke PLUS provisioning/lifecycle green AFTER readers/writers rename) | Yes — full 5-step procedure |
+| E2E storage flows (avatar/logo upload, admin 005-07/005-09) | Attempt a forward fix first; if the fix stays red, roll back |
+| `mc ready local` + fallback probe both failing | Yes — full 5-step procedure |
+
+Marketplace presigned-asset proof cites
 `apps/web/e2e/marketplace-assets.spec.ts` (absent as of 2026-09-16 — record as an explicitly
 accepted gap with rationale if uncovered, per spec US-003/NFR-001); P95 follows the minimal
 procedure in plan §8.2 step 5 (old-vs-new ΔP95 ±10% table or absolute < 200ms per endpoint).
