@@ -44,7 +44,7 @@ export interface ProvisionResult {
   slug: string;
   schemaName: string;
   realmName: string;
-  minioBucket: string;
+  storageBucket: string;
   tempPassword: string;
 }
 
@@ -65,7 +65,7 @@ export interface TenantDetail {
     version: number;
     createdAt: string;
     updatedAt: string;
-    minioBucket: string | null;
+    storageBucket: string | null;
   };
   userCount: number;
   workspaceCount: number;
