@@ -23,12 +23,17 @@ const STALE_STORAGE_KEYS: Readonly<Record<string, string>> = {
 };
 
 export function assertNoStaleStorageEnv(environment: NodeJS.ProcessEnv): void {
-  for (const [staleKey, replacement] of Object.entries(STALE_STORAGE_KEYS)) {
-    if (environment[staleKey] !== undefined) {
-      throw new Error(
-        `Stale environment variable ${staleKey} detected: rename it to ${replacement} ` +
-          `to configure object storage. ${staleKey} is no longer read.`
-      );
-    }
+  const staleEntries = Object.entries(STALE_STORAGE_KEYS).filter(
+    ([staleKey]) => environment[staleKey] !== undefined
+  );
+  if (staleEntries.length === 0) {
+    return;
   }
+  const listed = staleEntries
+    .map(([staleKey, replacement]) => `${staleKey} -> ${replacement}`)
+    .join(', ');
+  throw new Error(
+    `Stale environment variable(s) detected: ${listed}. Rename them to their ` +
+      'STORAGE_* replacements to configure object storage; the stale keys are no longer read.'
+  );
 }
