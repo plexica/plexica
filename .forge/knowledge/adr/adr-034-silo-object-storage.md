@@ -31,8 +31,8 @@ renamed" item 4). Neutral replacements govern: service `storage`, volume
 `storageBucket` DB/API rename **IN scope** (including the Prisma
 data-model migration — this amended ADR is the Rule-5 record for it).
 Prior-revision rationale for silo-naming is retained in git history only;
-this document is the authority. Status stays **Proposed** until a human
-accepts the amended decision.
+this document is the authority. Status **Accepted** (human, 2026-09-16 —
+see header); accepted by human decision 2026-09-16 and merged into PR #176.
 
 ## Context
 
@@ -411,10 +411,13 @@ inspect, not a proceed.
    reverse of the rename/copy — `.minio.sys` is readable by both).
 3. Apply the DB down-migration (`storage_bucket` → `minio_bucket`,
    values intact; file
-   `services/core-api/prisma/migrations/011_rename_minio_bucket_to_storage_bucket/down-migration.sql`)
+   `services/core-api/prisma/migrations/011_rename_minio_bucket_to_storage_bucket/down-migration.sql`),
+   then mark migration 011 as rolled back so `prisma migrate deploy/status`
+   stay clean once the 011 folder is removed by the code revert:
+   `prisma migrate resolve --rolled-back 011_rename_minio_bucket_to_storage_bucket`
    — combined into this sequence; the whole procedure
    stays ≤ 5 steps together with the server/volume revert
-   (down-migration + repin + volume restore + revert commit + smoke
+   (down-migration + resolve + repin + volume restore + revert commit + smoke
    green).
 4. Restore the pre-change compose/env/scripts/code from version control
    (single revert commit); `docker compose up -d --wait` (service name
@@ -463,14 +466,14 @@ Per spec US-005:
 | Rule 2 (green CI) | Aligned | Acceptance = migration tests + listed suites green against the new server; merge blocked otherwise. |
 | Rule 3 (one pattern) | Aligned | Single SDK client wrapper preserved under a neutral filename; no `@aws-sdk/client-s3`, no new abstraction. |
 | Rule 4 (200 lines) | Aligned with constraint | Rename is line-neutral; the dual fail-fast guard MUST NOT push `config.ts` (198/200 lines, re-verified this pass) over the limit — implemented as separate `storage-env-guard.ts` (≈30 lines; `config.ts` gains +1 call line). Phase-2 `wc -l` gate enforces. |
-| Rule 5 (ADR) | Aligned | This amended ADR *is* the Rule-5 record for BOTH the infra replacement + neutral rename AND the FR-013 data-model change (flagged in spec FR-011, closed here). No new core dep (SDK kept). Status Proposed until human accepts. |
+| Rule 5 (ADR) | Aligned | This amended ADR *is* the Rule-5 record for BOTH the infra replacement + neutral rename AND the FR-013 data-model change (flagged in spec FR-011, closed here). No new core dep (SDK kept). Status **Accepted** (human, 2026-09-16 — see header). |
 | Rule 6 (English commits) | Aligned | Process requirement on the implementing PR, unchanged. This pass makes no commits. |
 | Security | Aligned | Env-only secrets, 3600 s presigned TTL, bucket-per-tenant isolation, 1000-batch GDPR erasure — all frozen; raw `RENAME COLUMN` DDL uses static identifiers (no interpolation); guard errors carry key names only, no secret values (no-PII). |
 | Tech stack | Amended | Constitution storage row `Object Storage \| MinIO \| ^8` → neutral server + kept minio SDK via amendment entry (plan.md §6.4). |
 
 ## Follow-Up Actions
 
-- [ ] Human: **accept this amended ADR** (status stays Proposed until then).
+- [x] Human: **accepted this amended ADR** (2026-09-16 — see header); merged into PR #176.
 - [ ] Human: **sign off the breaking-API deploy ordering + maintenance window** (plan §8.5 — coordinated API + admin-frontend release, no alias; API STOPPED during column migration, no mixed-version rolling; Phases 1–4 as ONE atomic PR; Phase-3 merge blocked without sign-off).
 - [ ] Implement per `.forge/specs/011-silo-object-storage/plan.md`, phases 1-5.
 - [ ] Verify `mc ready local` + `server /data` argv against the pinned image (re-confirm tag+digest per spec Q-2); record results in the implementation report.
@@ -486,8 +489,9 @@ Per spec US-005:
 Proposed  -->  Accepted  -->  [Deprecated | Superseded by ADR-NNN]
 ```
 
-*Status stays **Proposed** until a human accepts the amended decision
-(silo-naming → agnostic supersession + DB/API rename).*
+*Status **Accepted** (human, 2026-09-16 — see header): the amended decision
+(silo-naming → agnostic supersession + DB/API rename) was accepted by human
+decision on 2026-09-16 and merged into PR #176.*
 
 *ADR numbering note: two `adr-033-*` files exist (`adr-033-f2-dev-registration-auth.md`,
 `adr-033-publish-plugin-developer-packages.md`); 034 is the next free number.*

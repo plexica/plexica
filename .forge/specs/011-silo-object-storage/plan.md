@@ -515,7 +515,7 @@ Rollback trigger: any proof step in §8.2 red without a forward fix inside the i
 
 1. Repin the storage service image to the prior `minio/minio:RELEASE.2024-01-16T16-07-38Z@sha256:4c4a…` digest.
 2. Restore/rename the volume back (`storage_data` → `minio_data`, reverse of the rename/copy — `.minio.sys` is readable by both).
-3. Apply the DB down-migration (`storage_bucket` → `minio_bucket`, values intact) — combined into this sequence; total procedure stays ≤ 5 steps (down-migration + repin + volume restore + revert commit + smoke green).
+3. Apply the DB down-migration (`storage_bucket` → `minio_bucket`, values intact), then mark migration 011 as rolled back (`prisma migrate resolve --rolled-back 011_rename_minio_bucket_to_storage_bucket`) so `prisma migrate deploy/status` stay clean once the 011 folder is removed by the code revert — combined into this sequence; total procedure stays ≤ 5 steps (down-migration + resolve + repin + volume restore + revert commit + smoke green).
 4. Restore the pre-change compose/env/scripts/code from version control (single revert commit) and `docker compose up -d --wait storage…/minio` (service name per the restored file); confirm readiness probe passes.
 5. Run migration tests + `smoke-storage…/smoke-minio` (per restored tree) green → rollback complete; report which proof step triggered the rollback.
 
