@@ -83,7 +83,7 @@ function ProvisionSuccess({ data }: { data: ProvisionResult }): JSX.Element {
         <Row label={intl.formatMessage({ id: 'admin.provision.review.slug' })} value={data.slug} />
         <Row label={intl.formatMessage({ id: 'admin.provision.review.realm' })} value={data.realmName} />
         <Row label={intl.formatMessage({ id: 'admin.provision.review.schema' })} value={data.schemaName} />
-        <Row label={intl.formatMessage({ id: 'admin.provision.review.bucket' })} value={data.minioBucket} />
+        <Row label={intl.formatMessage({ id: 'admin.provision.review.bucket' })} value={data.storageBucket} />
       </dl>
 
       <div className="rounded-md border border-amber-300 bg-amber-50 p-3">

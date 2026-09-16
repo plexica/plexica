@@ -48,7 +48,7 @@ export async function keycloakRealmExists(realmName: string): Promise<boolean> {
   throw new Error(`Keycloak realm existence check failed with status ${response.status}`);
 }
 
-export async function minioBucketExists(bucketName: string): Promise<boolean> {
+export async function storageBucketExists(bucketName: string): Promise<boolean> {
   setCoreServiceDefaults();
   const { bucketExists } = await import('../../../../services/core-api/src/lib/storage-client.js');
   return bucketExists(bucketName);
@@ -94,7 +94,7 @@ export async function readGdprResidue(
   tenant: {
     slug: string;
     name: string;
-    minioBucket: string | null;
+    storageBucket: string | null;
     deletionContext: unknown;
   } | null;
   auditMetadata: string;
@@ -109,7 +109,7 @@ export async function readGdprResidue(
     prisma.tenantConfig.count({ where: { tenantId } }),
     prisma.tenant.findUnique({
       where: { id: tenantId },
-      select: { slug: true, name: true, minioBucket: true, deletionContext: true },
+      select: { slug: true, name: true, storageBucket: true, deletionContext: true },
     }),
     prisma.platformAuditLog.findMany({ where: { tenantId }, select: { metadata: true } }),
     redis.mget(redisKeys),

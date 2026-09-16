@@ -43,7 +43,7 @@ export function TenantDetailInfoTab({ detail }: TenantDetailInfoTabProps): JSX.E
         <Field labelKey="tenant.fields.version">{t.version}</Field>
         <Field labelKey="tenant.fields.created">{formatDate(t.createdAt)}</Field>
         <Field labelKey="tenant.fields.updated">{formatDate(t.updatedAt)}</Field>
-        <Field labelKey="tenant.fields.bucket">{t.minioBucket ?? '\u2014'}</Field>
+        <Field labelKey="tenant.fields.bucket">{t.storageBucket ?? '\u2014'}</Field>
       </dl>
     </section>
   );

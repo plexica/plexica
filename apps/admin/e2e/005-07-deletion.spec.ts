@@ -16,7 +16,7 @@ import { loginAsAdmin, requireKeycloakInCI } from './helpers/admin-login.js';
 import { adminApi } from './helpers/api-client.js';
 import {
   keycloakRealmExists,
-  minioBucketExists,
+  storageBucketExists,
   postgresSchemaExists,
   readGdprResidue,
   seedTenantDeletionResidue,
@@ -112,14 +112,14 @@ test.describe('005-07 Tenant deletion saga', () => {
     // Independently verify each erased resource against its owning service.
     expect(await postgresSchemaExists(result.schemaName)).toBe(false);
     expect(await keycloakRealmExists(result.realmName)).toBe(false);
-    expect(await minioBucketExists(result.minioBucket)).toBe(false);
+    expect(await storageBucketExists(result.storageBucket)).toBe(false);
     const residue = await readGdprResidue(tenantId, redisKeys);
     expect(residue.configCount).toBe(0);
     expect(residue.redisValues).toEqual(redisKeys.map(() => null));
     expect(residue.tenant).toEqual({
       slug: `deleted-${tenantId}`,
       name: 'Deleted tenant',
-      minioBucket: null,
+      storageBucket: null,
       deletionContext: null,
     });
     expect(residue.auditMetadata).not.toContain(slug);
