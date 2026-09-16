@@ -92,7 +92,7 @@ export async function completeGdprDeletion(
         slug: `deleted-${tenantId}`,
         name: 'Deleted tenant',
         status: 'deleted',
-        minioBucket: null,
+        storageBucket: null,
         deletionContext: Prisma.DbNull,
         version: { increment: 1 },
       },

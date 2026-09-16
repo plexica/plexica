@@ -1,6 +1,6 @@
 // services/tenant-provision.service.ts
 // Extends the existing tenant provisioning pipeline with pre-flight conflict
-// detection (core row + PostgreSQL schema + Keycloak realm + MinIO bucket) and
+// detection (core row + PostgreSQL schema + Keycloak realm + storage bucket) and
 // a platform audit log entry on success (S5-400 / Feature 005-04).
 //
 // The actual schema/realm/bucket/seed orchestration is REUSED from
@@ -39,7 +39,7 @@ interface ConflictCheck {
  *   1. core.tenants row by slug        → tenant_slug_exists
  *   2. PostgreSQL schema tenant_<slug> → schema_exists
  *   3. Keycloak realm plexica-<slug>   → realm_exists
- *   4. MinIO bucket tenant-<slug>      → bucket_exists
+ *   4. Storage bucket tenant-<slug> → bucket_exists
  *
  * On success, writes a `tenant.provision` audit entry and returns the
  * provisioning result. actorId is the super-admin's Keycloak master realm sub.
@@ -52,9 +52,9 @@ export async function provisionTenantWithAudit(
   const { slug, name, adminEmail } = params;
   const schemaName = toSchemaName(slug);
   const realmName = toRealmName(slug);
-  const minioBucket = `tenant-${slug}`;
+  const storageBucket = `tenant-${slug}`;
 
-  await assertNoConflicts(prisma, { slug, schemaName, realmName, minioBucket });
+  await assertNoConflicts(prisma, { slug, schemaName, realmName, storageBucket });
 
   logger.info({ slug, actorId }, 'Conflict checks passed — provisioning tenant');
 
@@ -75,7 +75,7 @@ export async function provisionTenantWithAudit(
 
 async function assertNoConflicts(
   prisma: PrismaClient,
-  ctx: { slug: string; schemaName: string; realmName: string; minioBucket: string }
+  ctx: { slug: string; schemaName: string; realmName: string; storageBucket: string }
 ): Promise<void> {
   const checks: ConflictCheck[] = [
     {
@@ -95,8 +95,8 @@ async function assertNoConflicts(
     },
     {
       type: 'bucket_exists',
-      message: `MinIO bucket '${ctx.minioBucket}' already exists`,
-      exists: () => bucketExists(ctx.minioBucket),
+      message: `Storage bucket '${ctx.storageBucket}' already exists`,
+      exists: () => bucketExists(ctx.storageBucket),
     },
   ];
 

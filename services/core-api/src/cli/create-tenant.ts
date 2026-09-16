@@ -1,6 +1,6 @@
 // create-tenant.ts
 // CLI entrypoint for the tenant:create command.
-// Runs full tenant provisioning: PostgreSQL schema + Keycloak realm + MinIO bucket.
+// Runs full tenant provisioning: PostgreSQL schema + Keycloak realm + storage bucket.
 // Usage: pnpm --filter core-api tenant:create -- --slug <slug> [--name <name>] [--admin-email <email>]
 
 import { disconnectDatabase } from '../lib/database.js';
@@ -53,7 +53,7 @@ async function main(): Promise<void> {
   process.stdout.write(`Tenant provisioned successfully.\n`);
   process.stdout.write(`  Schema:       ${result.schemaName}\n`);
   process.stdout.write(`  Realm:        ${result.realmName}\n`);
-  process.stdout.write(`  MinIO bucket: ${result.minioBucket}\n`);
+  process.stdout.write(`  Storage bucket: ${result.storageBucket}\n`);
   process.stdout.write(`\n`);
   process.stdout.write(`Initial admin credentials:\n`);
   process.stdout.write(`  Username: ${resolvedEmail}\n`);

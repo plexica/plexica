@@ -32,7 +32,7 @@ const TENANT_SELECT = {
   version: true,
   createdAt: true,
   updatedAt: true,
-  minioBucket: true,
+  storageBucket: true,
 } as const satisfies Prisma.TenantSelect;
 
 export interface TenantDetailPluginInstallation {
@@ -50,7 +50,7 @@ export interface TenantDetailResponse {
     version: number;
     createdAt: Date;
     updatedAt: Date;
-    minioBucket: string | null;
+    storageBucket: string | null;
   };
   userCount: number;
   workspaceCount: number;
@@ -126,7 +126,7 @@ export async function getTenantDetail(
       version: tenant.version,
       createdAt: tenant.createdAt,
       updatedAt: tenant.updatedAt,
-      minioBucket: tenant.minioBucket,
+      storageBucket: tenant.storageBucket,
     },
     userCount,
     workspaceCount,

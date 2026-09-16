@@ -130,7 +130,7 @@ describe('DELETE /api/v1/admin/tenants/:id — deletion saga', () => {
     expect(residue.tenant).toMatchObject({
       slug: `deleted-${happy.tenantId}`,
       name: 'Deleted tenant',
-      minioBucket: null,
+      storageBucket: null,
       deletionContext: null,
     });
     expect(residue.auditMetadata).not.toContain(HAPPY_SLUG);

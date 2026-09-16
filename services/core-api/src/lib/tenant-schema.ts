@@ -17,14 +17,14 @@ import type { Prisma } from '@prisma/client';
 interface TenantCreationParams {
   slug: string;
   name?: string;
-  minioBucket?: string;
+  storageBucket?: string;
 }
 
 export interface TenantCreationResult {
   success: boolean;
   tenantId?: string;
   schemaName?: string;
-  minioBucket?: string;
+  storageBucket?: string;
   error?: TenantCreationError;
 }
 
@@ -32,8 +32,10 @@ export async function createTenantSchema(
   params: TenantCreationParams | string
 ): Promise<TenantCreationResult> {
   // Support legacy string argument for backwards compatibility
-  const { slug, name, minioBucket } =
-    typeof params === 'string' ? { slug: params, name: undefined, minioBucket: undefined } : params;
+  const { slug, name, storageBucket } =
+    typeof params === 'string'
+      ? { slug: params, name: undefined, storageBucket: undefined }
+      : params;
 
   // Step 1: Validate slug format
   const validation = validateSlug(slug);
@@ -77,7 +79,7 @@ export async function createTenantSchema(
           slug,
           name: name ?? slug,
           status: 'active',
-          ...(minioBucket !== undefined && { minioBucket }),
+          ...(storageBucket !== undefined && { storageBucket }),
         },
       });
 
@@ -96,8 +98,8 @@ export async function createTenantSchema(
 
     logger.info({ slug, schemaName, tenantId: result.id }, 'Tenant schema created');
     const successResult: TenantCreationResult = { success: true, tenantId: result.id, schemaName };
-    if (minioBucket !== undefined) {
-      successResult.minioBucket = minioBucket;
+    if (storageBucket !== undefined) {
+      successResult.storageBucket = storageBucket;
     }
     return successResult;
   } catch (error) {

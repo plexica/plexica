@@ -81,7 +81,7 @@ describe('Tenant provisioning', () => {
       expect(result.slug).toBe(TEST_SLUG);
       expect(result.schemaName).toBe(TEST_SCHEMA);
       expect(result.realmName).toMatch(/plexica-/);
-      expect(result.minioBucket).toBeDefined();
+      expect(result.storageBucket).toBeDefined();
       expect(elapsed).toBeLessThan(30_000);
     }
   );
