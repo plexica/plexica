@@ -11,7 +11,7 @@ interface RuntimeConfig {
   KEYCLOAK_HOST_ADMIN_BASE?: string | undefined;
   PLUGIN_CORE_API_URL: string;
   KAFKA_BROKERS: string;
-  MINIO_ENDPOINT: string;
+  STORAGE_ENDPOINT: string;
   PLUGIN_DOCKER_NETWORK?: string | undefined;
   PLUGIN_DOCKER_HOST?: string | undefined;
   PLUGIN_RUNTIME_SCOPE?: string | undefined;
@@ -108,9 +108,9 @@ function validateHostContract(config: RuntimeConfig): void {
   if (!HOST_LOOPBACK_LISTENER.test(config.KAFKA_BROKERS)) {
     throw new Error('Host CI runtime requires KAFKA_BROKERS as a strict 127.0.0.1:<port> listener');
   }
-  if (!isLoopback(config.MINIO_ENDPOINT)) {
+  if (!isLoopback(config.STORAGE_ENDPOINT)) {
     throw new Error(
-      'Host CI runtime requires MINIO_ENDPOINT as a strict http://127.0.0.1:<port> endpoint'
+      'Host CI runtime requires STORAGE_ENDPOINT as a strict http://127.0.0.1:<port> endpoint'
     );
   }
 }

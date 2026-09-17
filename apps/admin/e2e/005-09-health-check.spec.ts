@@ -1,12 +1,12 @@
 // 005-09-health-check.spec.ts — System health E2E (Feature 005-09).
 // Super admin → /health → 5 service status cards (postgres, redis, keycloak,
-// kafka, minio). Each card shows a status word + latency. Asserts all 5 render
+// kafka, storage). Each card shows a status word + latency. Asserts all 5 render
 // with a green/amber/red status and a numeric latency value.
 
 import { expect, test } from './helpers/base-fixture.js';
 import { loginAsAdmin, hasKeycloak, requireKeycloakInCI } from './helpers/admin-login.js';
 
-const EXPECTED_SERVICES = ['postgres', 'redis', 'keycloak', 'kafka', 'minio'] as const;
+const EXPECTED_SERVICES = ['postgres', 'redis', 'keycloak', 'kafka', 'storage'] as const;
 
 test.describe.configure({ mode: 'parallel' });
 

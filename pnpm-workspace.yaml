@@ -34,8 +34,10 @@ onlyBuiltDependencies:
 # These override transitive dependencies. Kept here (not in package.json) because
 # pnpm v10 ignores the `pnpm` field in package.json.
 # Dependabot #77 (stream-json 1.9.1 via minio@8.0.7): override to 3.x NOT safe —
-# 3.x is ESM-only and breaks minio CJS (jsonl/Parser.js). MinIO only uses
-# jsonl/Parser, not the vulnerable filters. Re-evaluate on MinIO upgrade.
+# 3.x is ESM-only and breaks minio CJS (jsonl/Parser.js). The minio client only
+# uses jsonl/Parser, not the vulnerable filters. Re-evaluated 2026-09-16 after
+# the object-storage server swap to the digest-pinned pgsty/silo image (client
+# SDK unchanged): still NOT fixed by the server swap. Review again by 2027-03-16.
 overrides:
   'brace-expansion@<2': 1.1.18
   'brace-expansion@>=4.0.0 <5.0.9': 5.0.9

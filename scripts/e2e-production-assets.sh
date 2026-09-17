@@ -15,8 +15,8 @@ if ! docker image inspect plexica/crm-plugin:1.0.0 >/dev/null 2>&1; then
   docker build -f examples/plugins/crm/Dockerfile -t plexica/crm-plugin:1.0.0 .
 fi
 
-minio_container=$("${COMPOSE[@]}" ps -q minio)
-MINIO_ACCESS_KEY="${MINIO_ACCESS_KEY:?MINIO_ACCESS_KEY is required}" \
-  MINIO_SECRET_KEY="${MINIO_SECRET_KEY:?MINIO_SECRET_KEY is required}" \
+storage_container=$("${COMPOSE[@]}" ps -q storage)
+STORAGE_ACCESS_KEY="${STORAGE_ACCESS_KEY:?STORAGE_ACCESS_KEY is required}" \
+  STORAGE_SECRET_KEY="${STORAGE_SECRET_KEY:?STORAGE_SECRET_KEY is required}" \
   UPLOAD_CRM_ASSET_ROOT="$ROOT/examples/plugins/crm/dist-ui/assets" \
-  bash "$ROOT/scripts/upload-crm-ui-assets.sh" "$minio_container"
+  bash "$ROOT/scripts/upload-crm-ui-assets.sh" "$storage_container"

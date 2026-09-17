@@ -40,7 +40,7 @@ export const tenantsMessages = {
   'tenant.fields.version': 'Version',
   'tenant.fields.created': 'Created',
   'tenant.fields.updated': 'Updated',
-  'tenant.fields.bucket': 'MinIO Bucket',
+  'tenant.fields.bucket': 'Storage Bucket',
   'tenant.fields.workspaceCount': 'Workspaces',
   'tenant.users.title': 'Users in {name}',
   'tenant.users.totalUsers': 'Total Users',

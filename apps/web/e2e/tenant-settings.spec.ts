@@ -105,7 +105,7 @@ test.describe('E2E-07: Tenant settings', () => {
     // packages/ui/src/components/file-upload.tsx:64 does URL.createObjectURL(file)
     // and renders <img src="blob:…">, visible even when the upload fails.
     // Reloading drops that local blob state, so the <img> can only render from
-    // data.logoUrl (tenant-branding-page.tsx:74) — a presigned MinIO URL built
+    // data.logoUrl (tenant-branding-page.tsx:74) — a presigned object-storage URL built
     // by the server. That proves the bytes were stored and are readable back.
     await page.reload();
     const preview = page.getByRole('img', { name: /preview/i });

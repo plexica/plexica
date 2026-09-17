@@ -1,6 +1,6 @@
 // health.routes.int.test.ts
 // Integration tests for GET /api/v1/admin/health (Spec 005, S5-101).
-// Requires real infrastructure (PostgreSQL, Redis, Keycloak, Kafka, MinIO).
+// Requires real infrastructure (PostgreSQL, Redis, Keycloak, Kafka, storage).
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
@@ -39,7 +39,7 @@ describe('GET /api/v1/admin/health — system health check', () => {
     expect(Array.isArray(body.services)).toBe(true);
     expect(body.services).toHaveLength(5);
     const names = body.services.map((s) => s.name).sort();
-    expect(names).toEqual(['kafka', 'keycloak', 'minio', 'postgres', 'redis']);
+    expect(names).toEqual(['kafka', 'keycloak', 'postgres', 'redis', 'storage']);
   });
 
   it('every service reports a healthy status in dev environment', async () => {

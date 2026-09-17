@@ -39,7 +39,7 @@ una UX professionale.
 | Database       | PostgreSQL       | 18+        | Schema-per-tenant per isolamento GDPR     |
 | ORM            | Prisma           | ^6         | Con escape hatch SQL raw                  |
 | Cache          | Redis (ioredis)  | ^5         | Caching, rate limiting, ABAC policy cache |
-| Object Storage | MinIO            | ^8         | S3-compatibile, bucket per tenant         |
+| Object Storage | S3-compatible server (digest-pinned `pgsty/silo`) | —        | SDK `minio` kept (E2), S3-compatibile, bucket per tenant |
 | Event Bus      | Kafka / Redpanda | `@confluentinc/kafka-javascript` 1.10.0 (exact) | Singolo nodo in dev, 3 nodi in prod       |
 | Auth           | Keycloak         | 26+        | Multi-realm (un realm per tenant)         |
 
@@ -321,9 +321,9 @@ Variabili d'ambiente richieste:
 | `KEYCLOAK_ADMIN_PASSWORD` | Credenziali admin Keycloak per provisioning    |
 | `REDIS_URL`               | Connessione Redis                              |
 | `KAFKA_BROKERS`           | Broker Kafka/Redpanda (comma-separated)        |
-| `MINIO_ENDPOINT`          | Endpoint MinIO                                 |
-| `MINIO_ACCESS_KEY`        | Access key MinIO                               |
-| `MINIO_SECRET_KEY`        | Secret key MinIO                               |
+| `STORAGE_ENDPOINT`         | Endpoint object storage                        |
+| `STORAGE_ACCESS_KEY`       | Access key object storage                      |
+| `STORAGE_SECRET_KEY`       | Secret key object storage                      |
 | `SMTP_HOST`               | SMTP per notifiche email (Mailpit in dev)      |
 | `GITHUB_TOKEN`            | GitHub personal access token (MCP integration) |
 

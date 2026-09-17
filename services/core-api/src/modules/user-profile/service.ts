@@ -10,7 +10,7 @@ import { UserNotFoundError } from '../../lib/app-error.js';
 import { config } from '../../lib/config.js';
 import { readStream } from '../../lib/file-upload.js';
 import { logger } from '../../lib/logger.js';
-import { uploadAvatar as minioUploadAvatar, getPresignedReadUrl } from '../../lib/minio-client.js';
+import { uploadAvatar as storageUploadAvatar, getPresignedReadUrl } from '../../lib/storage-client.js';
 import { syncDisplayName } from '../../lib/keycloak-admin-users.js';
 import { writeAuditLog } from '../audit-log/writer.js';
 
@@ -135,10 +135,10 @@ export async function uploadAvatar(
   // at worst (see history: this used to duplicate the constant and never
   // stayed in sync with lib/file-upload.ts).
 
-  // Buffer the stream to validate size before uploading to MinIO.
+  // Buffer the stream to validate size before uploading to object storage.
   const fileBytes = await readStream(file.file as unknown as Readable, config.AVATAR_MAX_BYTES);
 
-  const avatarPath = await minioUploadAvatar(
+  const avatarPath = await storageUploadAvatar(
     tenantContext.slug,
     profile.userId,
     Readable.from(fileBytes),

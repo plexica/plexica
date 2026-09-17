@@ -15,7 +15,7 @@ export function setCoreServiceDefaults(): void {
     setCiValue('DATABASE_URL', runtime.POSTGRES_HOST_URL);
     setCiValue('KEYCLOAK_URL', runtime.KEYCLOAK_HOST_ADMIN_BASE);
     setCiValue('REDIS_URL', runtime.REDIS_HOST_URL);
-    setCiValue('MINIO_ENDPOINT', runtime.MINIO_HOST_URL);
+    setCiValue('STORAGE_ENDPOINT', runtime.STORAGE_HOST_URL);
     setCiValue('KAFKA_BROKERS', runtime.KAFKA_BROKERS);
     return;
   }
@@ -25,9 +25,9 @@ export function setCoreServiceDefaults(): void {
   process.env['KEYCLOAK_ADMIN_USER'] ??= 'admin';
   process.env['KEYCLOAK_ADMIN_PASSWORD'] ??= 'changeme';
   process.env['REDIS_URL'] ??= 'redis://localhost:6379';
-  process.env['MINIO_ENDPOINT'] ??= 'http://localhost:9000';
-  process.env['MINIO_ACCESS_KEY'] ??= 'minioadmin';
-  process.env['MINIO_SECRET_KEY'] ??= 'changeme';
+  process.env['STORAGE_ENDPOINT'] ??= 'http://localhost:9000';
+  process.env['STORAGE_ACCESS_KEY'] ??= 'storageadmin';
+  process.env['STORAGE_SECRET_KEY'] ??= 'changeme';
   process.env['KAFKA_BROKERS'] ??= 'localhost:19092';
 }
 
@@ -48,9 +48,9 @@ export async function keycloakRealmExists(realmName: string): Promise<boolean> {
   throw new Error(`Keycloak realm existence check failed with status ${response.status}`);
 }
 
-export async function minioBucketExists(bucketName: string): Promise<boolean> {
+export async function storageBucketExists(bucketName: string): Promise<boolean> {
   setCoreServiceDefaults();
-  const { bucketExists } = await import('../../../../services/core-api/src/lib/minio-client.js');
+  const { bucketExists } = await import('../../../../services/core-api/src/lib/storage-client.js');
   return bucketExists(bucketName);
 }
 
@@ -94,7 +94,7 @@ export async function readGdprResidue(
   tenant: {
     slug: string;
     name: string;
-    minioBucket: string | null;
+    storageBucket: string | null;
     deletionContext: unknown;
   } | null;
   auditMetadata: string;
@@ -109,7 +109,7 @@ export async function readGdprResidue(
     prisma.tenantConfig.count({ where: { tenantId } }),
     prisma.tenant.findUnique({
       where: { id: tenantId },
-      select: { slug: true, name: true, minioBucket: true, deletionContext: true },
+      select: { slug: true, name: true, storageBucket: true, deletionContext: true },
     }),
     prisma.platformAuditLog.findMany({ where: { tenantId }, select: { metadata: true } }),
     redis.mget(redisKeys),

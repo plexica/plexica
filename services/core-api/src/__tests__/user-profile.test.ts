@@ -12,7 +12,7 @@ import {
   createTestServer,
   makeFullStub,
   isDbReachable,
-  isMinioReachable,
+  isStorageReachable,
 } from './helpers/server.helpers.js';
 import {
   seedTenant,
@@ -32,7 +32,7 @@ const SLUG = 'ws-int05-profile';
 const USER_ID = 'user-int05';
 
 const skipIfNoDb = it.skipIf(!(await isDbReachable()));
-const skipIfNoMinio = it.skipIf(!(await isMinioReachable()));
+const skipIfNoStorage = it.skipIf(!(await isStorageReachable()));
 
 let server: FastifyInstance;
 let ctx: TenantContext;
@@ -98,7 +98,7 @@ describe('INT-05 Update profile', () => {
 });
 
 describe('INT-05 Avatar upload', () => {
-  skipIfNoMinio('rejects avatar > 1MB (413 FILE_TOO_LARGE)', async () => {
+  skipIfNoStorage('rejects avatar > 1MB (413 FILE_TOO_LARGE)', async () => {
     const oversize = Buffer.alloc(config.AVATAR_MAX_BYTES + 1, 'a');
     const boundary = '----TestBoundaryAvatarLimit';
     const body = Buffer.concat([
@@ -120,7 +120,7 @@ describe('INT-05 Avatar upload', () => {
     expect(res.statusCode).toBe(413);
   });
 
-  skipIfNoMinio('rejects avatar with invalid MIME type (415)', async () => {
+  skipIfNoStorage('rejects avatar with invalid MIME type (415)', async () => {
     const boundary = '----TestBoundaryAvatarMime';
     const body = Buffer.concat([
       Buffer.from(
@@ -141,7 +141,7 @@ describe('INT-05 Avatar upload', () => {
     expect(res.statusCode).toBe(415);
   });
 
-  skipIfNoMinio('accepts valid avatar upload < 1MB → 200, avatarUrl returned', async () => {
+  skipIfNoStorage('accepts valid avatar upload < 1MB → 200, avatarUrl returned', async () => {
     // Real JPEG SOI + APP0/JFIF header: the route now sniffs magic bytes, so a
     // buffer of 0xff declared as image/jpeg is rejected with 415 (which is the
     // point of the sniffing — a client-supplied Content-Type is not evidence).

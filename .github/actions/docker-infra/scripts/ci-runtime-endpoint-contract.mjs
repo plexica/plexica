@@ -12,14 +12,14 @@ const containerHosts = {
   KEYCLOAK_URL: ['keycloak', '8080', 'http:'],
   KEYCLOAK_CONTAINER_ADMIN_JWKS_BASE: ['keycloak', '8080', 'http:'],
   REDIS_URL: ['redis', '6379', 'redis:'],
-  MINIO_ENDPOINT: ['minio', '9000', 'http:'],
+  STORAGE_ENDPOINT: ['storage', '9000', 'http:'],
   LOKI_URL: ['loki', '3100', 'http:'],
   PLUGIN_CORE_API_URL: ['core-api-e2e', '3001', 'http:'],
 };
 const hostProtocols = {
   POSTGRES_HOST_URL: 'postgresql:',
   REDIS_HOST_URL: 'redis:',
-  MINIO_HOST_URL: 'http:',
+  STORAGE_HOST_URL: 'http:',
   LOKI_HOST_URL: 'http:',
   MAILPIT_SMTP_URL: 'smtp:',
   MAILPIT_UI_BASE: 'http:',
@@ -44,8 +44,8 @@ const containerScalars = {
   KEYCLOAK_ADMIN_USER: (input) => /^[^\s]+$/.test(input),
   KEYCLOAK_ADMIN_PASSWORD: (input) => input.length > 0,
   KEYCLOAK_E2E_CLIENT_SECRET: (input) => /^[A-Za-z0-9_-]{43}$/.test(input),
-  MINIO_ACCESS_KEY: (input) => /^[^\s]+$/.test(input),
-  MINIO_SECRET_KEY: (input) => input.length > 0,
+  STORAGE_ACCESS_KEY: (input) => /^[^\s]+$/.test(input),
+  STORAGE_SECRET_KEY: (input) => input.length > 0,
   EVENT_KEY_ENCRYPTION_KEY: (input) => /^[A-Za-z0-9_-]{43}$/.test(input),
   PLUGIN_DB_ENCRYPTION_KEY: (input) => /^[a-f0-9]{64}$/i.test(input),
   PLUGIN_CREDENTIAL_PEPPER: (input) => input.length >= 32 && !/\s/.test(input),
@@ -90,8 +90,8 @@ function validateHost() {
       'KEYCLOAK_ADMIN_USER',
       'KEYCLOAK_ADMIN_PASSWORD',
       'KEYCLOAK_E2E_CLIENT_SECRET',
-      'MINIO_ACCESS_KEY',
-      'MINIO_SECRET_KEY',
+      'STORAGE_ACCESS_KEY',
+      'STORAGE_SECRET_KEY',
     ].includes(key)
   ) {
     if (!containerScalars[key](value)) fail(`${key} has an invalid CI credential value`);
@@ -124,12 +124,12 @@ function validateHost() {
 }
 
 function validateContainer() {
-  // Browser-facing MinIO for presigned plugin-asset URLs: must be the strict
-  // loopback mapping discovered from the manifest (dynamic port), never a
-  // container-internal DNS name — browsers fetch these URLs from the runner.
-  if (key === 'MINIO_PUBLIC_ENDPOINT') {
+  // Browser-facing object storage for presigned plugin-asset URLs: must be the
+  // strict loopback mapping discovered from the manifest (dynamic port), never
+  // a container-internal DNS name — browsers fetch these URLs from the runner.
+  if (key === 'STORAGE_PUBLIC_ENDPOINT') {
     if (!/^http:\/\/127\.0\.0\.1:[1-9][0-9]*$/.test(value))
-      fail('MINIO_PUBLIC_ENDPOINT must be an inspected loopback endpoint');
+      fail('STORAGE_PUBLIC_ENDPOINT must be an inspected loopback endpoint');
     return;
   }
   if (containerScalars[key]) {

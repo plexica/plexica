@@ -15,7 +15,7 @@ export const lifecycleMessages = {
   'tenants.reactivate.error.generic': 'Failed to reactivate the tenant. Please retry.',
 
   'tenants.delete.title': 'Delete tenant: {name}',
-  'tenants.delete.warning': 'This will permanently DROP the PostgreSQL schema, DELETE the Keycloak realm, and DELETE the MinIO bucket. This action is irreversible and performed for GDPR compliance.',
+  'tenants.delete.warning': 'This will permanently DROP the PostgreSQL schema, DELETE the Keycloak realm, and DELETE the storage bucket. This action is irreversible and performed for GDPR compliance.',
   'tenants.delete.confirmPrompt': 'Type the tenant slug to confirm',
   'tenants.delete.confirmButton': 'Delete Permanently',
   'tenants.delete.typeSlug': "Type the tenant slug '{slug}' to confirm",
@@ -28,7 +28,7 @@ export const lifecycleMessages = {
   'tenants.deletion.step.eventDataPurge': 'Erase event data and credentials',
   'tenants.deletion.step.schemaDrop': 'Drop PostgreSQL schema',
   'tenants.deletion.step.realmDelete': 'Delete Keycloak realm',
-  'tenants.deletion.step.bucketDelete': 'Delete MinIO bucket',
+  'tenants.deletion.step.bucketDelete': 'Delete storage bucket',
   'tenants.deletion.status.pending': 'Pending',
   'tenants.deletion.status.inProgress': 'In progress',
   'tenants.deletion.status.done': 'Done',

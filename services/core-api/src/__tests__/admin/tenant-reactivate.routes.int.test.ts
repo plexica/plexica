@@ -1,12 +1,12 @@
 // tenant-reactivate.routes.int.test.ts
 // Integration tests for POST /api/v1/admin/tenants/:id/reactivate (S5-601).
 // Seeds a real tenant, suspends it directly via the service, then exercises
-// the reactivate route. Real PostgreSQL + Keycloak + MinIO.
+// the reactivate route. Real PostgreSQL + Keycloak + object storage.
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { prisma } from '../../lib/database.js';
-import { deleteBucket } from '../../lib/minio-client.js';
+import { deleteBucket } from '../../lib/storage-client.js';
 import { deleteRealm } from '../../lib/keycloak-admin.js';
 import { toSchemaName } from '../../lib/tenant-schema-helpers.js';
 import { provisionTenant } from '../../modules/tenant/tenant-provisioning.js';

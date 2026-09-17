@@ -14,9 +14,9 @@ const BASE_ENV: NodeJS.ProcessEnv = {
   KEYCLOAK_ADMIN_USER: 'admin',
   KEYCLOAK_ADMIN_PASSWORD: 'password',
   REDIS_URL: 'redis://localhost:6379',
-  MINIO_ENDPOINT: 'http://localhost:9000',
-  MINIO_ACCESS_KEY: 'access',
-  MINIO_SECRET_KEY: 'secret',
+  STORAGE_ENDPOINT: 'http://localhost:9000',
+  STORAGE_ACCESS_KEY: 'access',
+  STORAGE_SECRET_KEY: 'secret',
   KAFKA_BROKERS: 'localhost:19092',
 };
 

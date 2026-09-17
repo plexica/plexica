@@ -1,5 +1,5 @@
 // tenant-provisioning.ts
-// Orchestrates full tenant provisioning: PostgreSQL schema + Keycloak realm + MinIO bucket + seed data.
+// Orchestrates full tenant provisioning: PostgreSQL schema + Keycloak realm + storage bucket + seed data.
 // Implements tracked rollback — compensates completed steps in reverse order on failure.
 
 import { PrismaClient as TenantPrismaClient } from '../../../prisma/generated/tenant-client/index.js';
@@ -9,7 +9,7 @@ import { ProvisioningFailedError } from '../../lib/app-error.js';
 import { invalidateTenantDbClient } from '../../lib/tenant-database.js';
 import { createTenantSchema } from '../../lib/tenant-schema.js';
 import { createRealm, deleteRealm } from '../../lib/keycloak-admin.js';
-import { createBucket, deleteBucket } from '../../lib/minio-client.js';
+import { createBucket, deleteBucket } from '../../lib/storage-client.js';
 import { migrateTenantSchema } from '../../lib/multi-schema-migrate.js';
 import { toRealmName, toSchemaName } from '../../lib/tenant-schema-helpers.js';
 
@@ -27,7 +27,7 @@ export interface ProvisioningResult {
   slug: string;
   schemaName: string;
   realmName: string;
-  minioBucket: string;
+  storageBucket: string;
   /** Temporary password for the initial admin user. Must be changed on first login. */
   tempPassword: string;
 }
@@ -36,15 +36,15 @@ type CompletedStep = 'schema' | 'realm' | 'bucket';
 
 async function rollback(
   completedSteps: CompletedStep[],
-  params: { slug: string; schemaName: string; realmName: string; minioBucket: string }
+  params: { slug: string; schemaName: string; realmName: string; storageBucket: string }
 ): Promise<void> {
-  const { slug, schemaName, realmName, minioBucket } = params;
+  const { slug, schemaName, realmName, storageBucket } = params;
 
   for (const step of [...completedSteps].reverse()) {
     try {
       if (step === 'bucket') {
-        await deleteBucket(minioBucket);
-        logger.info({ minioBucket }, 'Rollback: MinIO bucket deleted');
+        await deleteBucket(storageBucket);
+        logger.info({ storageBucket }, 'Rollback: storage bucket deleted');
       } else if (step === 'realm') {
         await deleteRealm(realmName);
         logger.info({ realmName }, 'Rollback: Keycloak realm deleted');
@@ -68,7 +68,7 @@ export async function provisionTenant(params: ProvisioningParams): Promise<Provi
   const { slug, name, adminEmail } = params;
   const schemaName = toSchemaName(slug);
   const realmName = toRealmName(slug);
-  const minioBucket = `tenant-${slug}`;
+  const storageBucket = `tenant-${slug}`;
   const completedSteps: CompletedStep[] = [];
 
   try {
@@ -87,12 +87,12 @@ export async function provisionTenant(params: ProvisioningParams): Promise<Provi
     const { tempPassword } = await createRealm({ realmName, adminEmail, tenantSlug: slug });
     completedSteps.push('realm');
 
-    // Step 3: Create MinIO bucket + update tenant record
-    await createBucket(minioBucket);
-    // minioBucket is a first-class column on the generated core client
+    // Step 3: Create storage bucket + update tenant record
+    await createBucket(storageBucket);
+    // storageBucket is a first-class column on the generated core client
     // (schema.prisma Tenant model) — the typed update replaces the former raw
     // SQL workaround, which predated ADR-028 (generated types always present).
-    await prisma.tenant.update({ where: { slug }, data: { minioBucket } });
+    await prisma.tenant.update({ where: { slug }, data: { storageBucket } });
     completedSteps.push('bucket');
 
     // Step 4: Seed initial tenant data (built-in templates + default branding).
@@ -114,18 +114,18 @@ export async function provisionTenant(params: ProvisioningParams): Promise<Provi
       await tenantDb.$disconnect();
     }
 
-    logger.info({ slug, realmName, minioBucket }, 'Tenant provisioned successfully');
+    logger.info({ slug, realmName, storageBucket }, 'Tenant provisioned successfully');
     return {
       tenantId: schemaResult.tenantId,
       slug,
       schemaName,
       realmName,
-      minioBucket,
+      storageBucket,
       tempPassword,
     };
   } catch (err) {
     logger.error({ slug, completedSteps, err: String(err) }, 'Provisioning failed — rolling back');
-    await rollback(completedSteps, { slug, schemaName, realmName, minioBucket });
+    await rollback(completedSteps, { slug, schemaName, realmName, storageBucket });
 
     if (err instanceof ProvisioningFailedError) throw err;
     throw new ProvisioningFailedError(

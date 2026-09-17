@@ -22,7 +22,7 @@ git clone https://github.com/plexica/plexica.git && cd plexica
 # 2. Configure environment
 cp .env.example .env
 
-# 3. Start infrastructure services (PostgreSQL, Keycloak, Redis, MinIO, Redpanda, Mailpit)
+# 3. Start infrastructure services (PostgreSQL, Keycloak, Redis, object storage, Redpanda, Mailpit)
 docker compose up -d
 
 # 4. Install dependencies
@@ -43,7 +43,7 @@ pnpm --filter web dev
 # pnpm --filter admin dev
 
 # 7. Create a demo tenant (required before opening the web UI)
-#    Provisions PostgreSQL schema + Keycloak realm + MinIO bucket.
+#    Provisions PostgreSQL schema + Keycloak realm + storage bucket.
 #    --name and --admin-email are optional (default to slug and admin@<slug>.local)
 pnpm --filter core-api tenant:create -- --slug demo --name "Demo" --admin-email admin@demo.local
 ```
@@ -57,7 +57,7 @@ docker compose down
 ```
 
 To stop everything **and delete all Docker volumes** (PostgreSQL data, Keycloak configuration,
-Redis cache, MinIO buckets, Redpanda topics):
+Redis cache, storage buckets, Redpanda topics):
 
 ```bash
 docker compose down -v
@@ -103,7 +103,7 @@ pnpm --filter @plexica/ui build-storybook
 | PostgreSQL   | 5432         | —                                  |
 | Keycloak     | 8080         | `http://localhost:8080/admin`      |
 | Redis        | 6379         | —                                  |
-| MinIO        | 9000 / 9001  | Console at `http://localhost:9001` |
+| Storage      | 9000 / 9001  | Console at `http://localhost:9001` |
 | Redpanda     | 19092        | Kafka-compatible broker            |
 | Mailpit      | 1025 / 8025  | SMTP UI at `http://localhost:8025` |
 
@@ -115,17 +115,17 @@ commands, the same environment variables.
 ### Prerequisites
 
 Infrastructure must be running before any test that touches the database,
-Keycloak, Redis, MinIO, or Redpanda. The root `.env` file (copied from
+Keycloak, Redis, object storage, or Redpanda. The root `.env` file (copied from
 `.env.example` during Quick Start) provides the credentials.
 
 ### Unit and Integration Tests (Core API)
 
-These tests run against real services — Keycloak, PostgreSQL, Redis, MinIO, and
-Redpanda. No mocks.
+These tests run against real services — Keycloak, PostgreSQL, Redis, object
+storage, and Redpanda. No mocks.
 
 ```bash
 # 1. Start the full infrastructure stack (same as CI)
-docker compose up -d --wait postgres keycloak redis minio redpanda mailpit
+docker compose up -d --wait postgres keycloak redis storage redpanda mailpit
 
 # 2. Apply migrations
 pnpm --filter core-api db:migrate
@@ -155,7 +155,7 @@ opt-in.
 
 ```bash
 # 1. Start the full infrastructure stack
-docker compose up -d --wait postgres keycloak redis minio redpanda mailpit
+docker compose up -d --wait postgres keycloak redis storage redpanda mailpit
 
 # 2. Apply migrations (required if running E2E without having run integration tests first)
 pnpm --filter core-api db:migrate
@@ -186,7 +186,7 @@ After wiping all volumes the provisioning state is gone. Run the full
 sequence to restore a working test environment:
 
 ```bash
-docker compose up -d --wait postgres keycloak redis minio redpanda mailpit
+docker compose up -d --wait postgres keycloak redis storage redpanda mailpit
 pnpm --filter core-api db:migrate
 pnpm --filter web test:e2e   # global-setup re-provisions tenants and users
 ```

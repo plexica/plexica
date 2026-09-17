@@ -8,7 +8,7 @@
 //   - shared `use` options (trace/screenshot/video/timeouts)
 //   - PLAYWRIGHT_BROWSER_CHANNEL handling for the chromium project
 //   - coreApiEnv(): infra env forwarded to the core-api webServer
-//     (DATABASE_URL, Keycloak, Redis, MinIO, Kafka)
+//     (DATABASE_URL, Keycloak, Redis, object storage, Kafka)
 //
 // INTENTIONALLY PER-APP (defined in each app's playwright.config.ts):
 //   - apps/web runs the PRODUCTION build (vite build + preview,
@@ -110,9 +110,9 @@ export function coreApiEnv(overrides: Record<string, string>): Record<string, st
     KEYCLOAK_ADMIN_USER: process.env['KEYCLOAK_ADMIN_USER'] ?? 'admin',
     KEYCLOAK_ADMIN_PASSWORD: process.env['KEYCLOAK_ADMIN_PASSWORD'] ?? 'changeme',
     REDIS_URL: process.env['REDIS_URL'] ?? 'redis://localhost:6379',
-    MINIO_ENDPOINT: process.env['MINIO_ENDPOINT'] ?? 'http://localhost:9000',
-    MINIO_ACCESS_KEY: process.env['MINIO_ACCESS_KEY'] ?? 'minioadmin',
-    MINIO_SECRET_KEY: process.env['MINIO_SECRET_KEY'] ?? 'changeme',
+    STORAGE_ENDPOINT: process.env['STORAGE_ENDPOINT'] ?? 'http://localhost:9000',
+    STORAGE_ACCESS_KEY: process.env['STORAGE_ACCESS_KEY'] ?? 'storageadmin',
+    STORAGE_SECRET_KEY: process.env['STORAGE_SECRET_KEY'] ?? 'changeme',
     KAFKA_BROKERS: process.env['KAFKA_BROKERS'] ?? 'localhost:19092',
     ...overrides,
   };

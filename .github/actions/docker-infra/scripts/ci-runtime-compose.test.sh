@@ -7,8 +7,8 @@ export RUNNER_TEMP="$temp" CI_COMPOSE_PROJECT=plexica-ci-compose-123456
 export EVENT_KEY_ENCRYPTION_KEY=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
 export PLUGIN_DB_ENCRYPTION_KEY=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 export PLUGIN_CREDENTIAL_PEPPER=0123456789abcdef0123456789abcdef
-export MINIO_ACCESS_KEY=00112233445566778899aabb
-export MINIO_SECRET_KEY=00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff
+export STORAGE_ACCESS_KEY=00112233445566778899aabb
+export STORAGE_SECRET_KEY=00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff
 export CI_RUNTIME_DIR="$(bash "$(dirname "$0")/ci-runtime-env.sh" init "$CI_COMPOSE_PROJECT")"
 mkdir "$temp/bin"
 cat > "$temp/bin/docker" <<'EOF'
@@ -16,7 +16,7 @@ cat > "$temp/bin/docker" <<'EOF'
 case "$*" in
   *' port postgres 5432'*) printf '127.0.0.1:32001\n' ;;
   *' port redis 6379'*) printf '127.0.0.1:32002\n' ;;
-  *' port minio 9000'*) printf '127.0.0.1:32003\n' ;;
+  *' port storage 9000'*) printf '127.0.0.1:32003\n' ;;
   *' port keycloak 8080'*) printf '127.0.0.1:32004\n' ;;
   *' port redpanda 19092'*) printf '127.0.0.1:32005\n' ;;
   *' port core-api-e2e 3001'*) printf '127.0.0.1:32006\n' ;;
@@ -47,7 +47,7 @@ grep -Fxe 'MAILPIT_UI_BASE=http://127.0.0.1:32011' -e 'MAILPIT_SMTP_URL=smtp://1
 grep -Fxe 'SMTP_HOST=mailpit' -e 'LOKI_URL=http://loki:3100' -e 'NODE_ENV=production' "$CI_RUNTIME_DIR/container.env" >/dev/null
 # Presigned plugin-asset URLs must target the browser-reachable loopback
 # mapping while storage ops keep the container-internal endpoint.
-grep -Fxe 'MINIO_ENDPOINT=http://minio:9000' -e 'MINIO_PUBLIC_ENDPOINT=http://127.0.0.1:32003' "$CI_RUNTIME_DIR/container.env" >/dev/null
+grep -Fxe 'STORAGE_ENDPOINT=http://storage:9000' -e 'STORAGE_PUBLIC_ENDPOINT=http://127.0.0.1:32003' "$CI_RUNTIME_DIR/container.env" >/dev/null
 # Canonical E2E rate-limit tuning must reach the contract Core container: the
 # host-run suite raises RATE_LIMIT_MAX/ADMIN_RATE_LIMIT_MAX via coreApiEnv,
 # and rate-limit.spec requires XFF isolation through a trusted proxy hop.
@@ -79,21 +79,21 @@ for cwd in / /tmp "$PWD"; do
 done
 grep -Fx 'POSTGRES_HOST_URL=postgresql://plexica:changeme@127.0.0.1:32001/plexica' "$CI_RUNTIME_DIR/host.env" >/dev/null
 grep -Fx 'PLUGIN_DB_SSL_MODE=disable' "$CI_RUNTIME_DIR/host.env" >/dev/null && ! grep -q '^PLUGIN_DB_SSL_ROOT_CERT_PATH=' "$CI_RUNTIME_DIR/host.env" # dev/test host CLIs: TLS disabled, no container-only CA path
-# MinIO credentials must reach BOTH manifests fail-closed; no insecure default may appear.
+# Storage credentials must reach BOTH manifests fail-closed; no insecure default may appear.
 for manifest in host container; do
-  grep -Fx "MINIO_ACCESS_KEY=$MINIO_ACCESS_KEY" "$CI_RUNTIME_DIR/$manifest.env" >/dev/null
-  grep -Fx "MINIO_SECRET_KEY=$MINIO_SECRET_KEY" "$CI_RUNTIME_DIR/$manifest.env" >/dev/null
+  grep -Fx "STORAGE_ACCESS_KEY=$STORAGE_ACCESS_KEY" "$CI_RUNTIME_DIR/$manifest.env" >/dev/null
+  grep -Fx "STORAGE_SECRET_KEY=$STORAGE_SECRET_KEY" "$CI_RUNTIME_DIR/$manifest.env" >/dev/null
 done
-if grep -Eq 'MINIO_(ACCESS_KEY|SECRET_KEY)=(minioadmin|changeme)' "$CI_RUNTIME_DIR/host.env" "$CI_RUNTIME_DIR/container.env"; then
-  echo 'CI manifests substituted an insecure MinIO default' >&2; exit 1
+if grep -Eq 'STORAGE_(ACCESS_KEY|SECRET_KEY)=(storageadmin|changeme)' "$CI_RUNTIME_DIR/host.env" "$CI_RUNTIME_DIR/container.env"; then
+  echo 'CI manifests substituted an insecure storage default' >&2; exit 1
 fi
-for unset in MINIO_ACCESS_KEY MINIO_SECRET_KEY; do
-  other=MINIO_SECRET_KEY; [[ "$unset" == "$other" ]] && other=MINIO_ACCESS_KEY
-  label=${unset#MINIO_}; label=${label%_KEY}; printf -v label 'MinIO %s key is required' "${label,,}"
-  if env -u "$unset" "$other=${!other}" PATH="$temp/bin:$PATH" bash "$script" write-infra 2>"$temp/minio.err"; then
+for unset in STORAGE_ACCESS_KEY STORAGE_SECRET_KEY; do
+  other=STORAGE_SECRET_KEY; [[ "$unset" == "$other" ]] && other=STORAGE_ACCESS_KEY
+  label=${unset#STORAGE_}; label=${label%_KEY}; printf -v label 'Storage %s key is required' "${label,,}"
+  if env -u "$unset" "$other=${!other}" PATH="$temp/bin:$PATH" bash "$script" write-infra 2>"$temp/storage.err"; then
     echo "write-infra accepted a missing $unset" >&2; exit 1
   fi
-  grep -q "$label" "$temp/minio.err" || {
+  grep -q "$label" "$temp/storage.err" || {
     echo "Missing $unset did not fail closed with an actionable error" >&2; exit 1;
   }
 done

@@ -118,19 +118,19 @@ describe('CI runtime contract — R9 KAFKA_BROKERS is strict loopback on host, C
   });
 });
 
-describe('CI runtime contract — R10 MINIO_ENDPOINT is strict loopback on host, Compose DNS in containers', () => {
+describe('CI runtime contract — R10 STORAGE_ENDPOINT is strict loopback on host, Compose DNS in containers', () => {
   it('host mode accepts an inspected loopback endpoint', () => {
-    expect(parseConfig(hostBase).MINIO_ENDPOINT).toBe('http://127.0.0.1:9000');
+    expect(parseConfig(hostBase).STORAGE_ENDPOINT).toBe('http://127.0.0.1:9000');
   });
   it.each([
-    ['http://minio:9000', 'DNS name'],
+    ['http://storage:9000', 'DNS name'],
     ['http://127.0.0.1', 'missing port'],
     ['https://127.0.0.1:9000', 'non-http scheme'],
   ])('host mode rejects %s (%s)', (endpoint) => {
-    expect(() => parseConfig({ ...hostBase, MINIO_ENDPOINT: endpoint })).toThrow('MINIO_ENDPOINT');
+    expect(() => parseConfig({ ...hostBase, STORAGE_ENDPOINT: endpoint })).toThrow('STORAGE_ENDPOINT');
   });
   it('container mode accepts the Compose DNS endpoint', () => {
-    expect(parseConfig(containerBase).MINIO_ENDPOINT).toBe('http://minio:9000');
+    expect(parseConfig(containerBase).STORAGE_ENDPOINT).toBe('http://storage:9000');
   });
 });
 

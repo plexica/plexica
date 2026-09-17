@@ -11,7 +11,7 @@ root=$(cd -- "$script_dir/../../../.." && pwd)
 mapfile -t _overlay_files < <(ci_compose_overlay_files "$root")
 compose=(docker compose --project-name "$project" -f "$root/docker-compose.yml" -f "$root/docker-compose.ci.yml" ${_overlay_files[@]/#/-f})
 validate_ci_runtime "$project" "$runtime"
-required=(postgres keycloak redis minio redpanda mailpit loki core-api-e2e web-e2e admin-e2e)
+required=(postgres keycloak redis storage redpanda mailpit loki core-api-e2e web-e2e admin-e2e)
 for service in "${required[@]}"; do
   container=$("${compose[@]}" ps -q "$service")
   [[ -n "$container" ]] || { echo "$service is not running" >&2; exit 1; }

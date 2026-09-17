@@ -1,6 +1,6 @@
-// smoke-minio.test.ts
-// Integration smoke test: MinIO bucket CRUD operations.
-// Connects to real Docker MinIO — no mock client.
+// smoke-storage.test.ts
+// Integration smoke test: object-storage bucket CRUD operations.
+// Connects to real Docker storage server — no mock client.
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import * as Minio from 'minio';
@@ -11,17 +11,17 @@ const TEST_BUCKET = 'plexica-smoke-test';
 const TEST_OBJECT = 'smoke.txt';
 const TEST_CONTENT = 'Plexica smoke test content';
 
-describe('MinIO smoke test', () => {
+describe('object storage smoke test', () => {
   let client: Minio.Client;
 
   beforeAll(() => {
-    const endpoint = new URL(config.MINIO_ENDPOINT);
+    const endpoint = new URL(config.STORAGE_ENDPOINT);
     client = new Minio.Client({
       endPoint: endpoint.hostname,
       port: endpoint.port !== '' ? parseInt(endpoint.port, 10) : 9000,
       useSSL: endpoint.protocol === 'https:',
-      accessKey: config.MINIO_ACCESS_KEY,
-      secretKey: config.MINIO_SECRET_KEY,
+      accessKey: config.STORAGE_ACCESS_KEY,
+      secretKey: config.STORAGE_SECRET_KEY,
     });
   });
 

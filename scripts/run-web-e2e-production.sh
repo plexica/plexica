@@ -58,8 +58,8 @@ export NODE_ENV=production
 export POSTGRES_PORT=${POSTGRES_PORT:-15432}
 export REDIS_PORT=${REDIS_PORT:-16379}
 export KEYCLOAK_PORT=${KEYCLOAK_PORT:-18080}
-export MINIO_PORT=${MINIO_PORT:-19000}
-export MINIO_CONSOLE_PORT=${MINIO_CONSOLE_PORT:-19001}
+export STORAGE_PORT=${STORAGE_PORT:-19000}
+export STORAGE_CONSOLE_PORT=${STORAGE_CONSOLE_PORT:-19001}
 export REDPANDA_KAFKA_PORT=${REDPANDA_KAFKA_PORT:-29092}
 export REDPANDA_ADMIN_PORT=${REDPANDA_ADMIN_PORT:-19644}
 export SMTP_PORT=${SMTP_PORT:-11025}
@@ -71,9 +71,9 @@ export KEYCLOAK_URL="http://localhost:$KEYCLOAK_PORT"
 export KEYCLOAK_ADMIN_USER=admin
 export KEYCLOAK_ADMIN_PASSWORD=changeme
 export REDIS_URL="redis://localhost:$REDIS_PORT"
-export MINIO_ENDPOINT="http://localhost:$MINIO_PORT"
-export MINIO_ACCESS_KEY=minioadmin
-export MINIO_SECRET_KEY=changeme
+export STORAGE_ENDPOINT="http://localhost:$STORAGE_PORT"
+export STORAGE_ACCESS_KEY=storageadmin
+export STORAGE_SECRET_KEY=changeme
 export KAFKA_BROKERS="localhost:$REDPANDA_KAFKA_PORT"
 export LOKI_URL="http://localhost:$LOKI_PORT"
 export PLUGIN_DB_SSL_MODE=verify-full
@@ -87,7 +87,7 @@ export PLAYWRIGHT_KEYCLOAK_URL="$KEYCLOAK_URL"
 export PLAYWRIGHT_MAILPIT_URL="http://localhost:${SMTP_UI_PORT}"
 export PLAYWRIGHT_BASE_URL=http://e2e.localhost:3000
 export PLAYWRIGHT_API_URL=http://e2e.localhost:3001
-export VITE_PLUGIN_ASSET_ORIGIN="$MINIO_ENDPOINT"
+export VITE_PLUGIN_ASSET_ORIGIN="$STORAGE_ENDPOINT"
 
 readonly COMPOSE=(docker compose -p "$COMPOSE_PROJECT_NAME" -f docker-compose.yml -f docker-compose.ci.yml -f infra/compose/docker-compose.e2e-production.yml)
 cleanup() {
@@ -104,7 +104,7 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-"${COMPOSE[@]}" up -d --wait --wait-timeout 300 postgres keycloak redis minio redpanda mailpit loki
+"${COMPOSE[@]}" up -d --wait --wait-timeout 300 postgres keycloak redis storage redpanda mailpit loki
 for service in postgres-tls-verify redpanda-init keycloak-init; do
   "${COMPOSE[@]}" up --abort-on-container-exit --exit-code-from "$service" "$service"
 done

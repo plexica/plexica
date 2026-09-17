@@ -9,7 +9,7 @@ scope="ci-$(printf '%s' "$project" | sha256sum | cut -c1-28)"
 export RUNNER_TEMP="$temp"; runtime="$(bash "$dir/ci-runtime-env.sh" init "$project")"; mkdir -p "$temp/bin"
 log="$temp/log"
 export COMMAND_LOG="$log"
-printf 'MINIO_SECRET_KEY=super-secret\nDATABASE_URL=postgresql://user:database-secret@postgres:5432/plexica\n' > "$runtime/container.env"
+printf 'STORAGE_SECRET_KEY=super-secret\nDATABASE_URL=postgresql://user:database-secret@postgres:5432/plexica\n' > "$runtime/container.env"
 printf 'POSTGRES_HOST_URL=postgresql://user:database-secret@127.0.0.1:32000/plexica\n' > "$runtime/host.env"
 printf 'postgres owned 32000:5432/tcp\n' > "$runtime/prior-port-sentinel.txt"
 cat > "$temp/bin/docker" <<EOF

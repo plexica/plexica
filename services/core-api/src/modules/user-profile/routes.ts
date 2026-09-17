@@ -73,7 +73,7 @@ export async function userProfileRoutes(fastify: FastifyInstance): Promise<void>
       validateFileContent(content, file.mimetype, AVATAR_ALLOWED_MIME_TYPES);
 
       // toBuffer() drains the part stream; hand the service an equivalent
-      // readable so its own size guard and the MinIO streaming path are unchanged.
+      // readable so its own size guard and the storage streaming path are unchanged.
       const validated = {
         ...file,
         file: Readable.from(content) as unknown as MultipartFile['file'],

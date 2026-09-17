@@ -88,7 +88,7 @@ export_host() {
     $(stat -c %a -- "$dir/host.env") == 600 ]] || fail 'Unsafe host manifest'
   # This manifest is written atomically by this script; consumers source only this host-only file.
   source "$dir/host.env"
-  local keys=(POSTGRES_HOST_URL REDIS_HOST_URL MINIO_HOST_URL MINIO_ACCESS_KEY MINIO_SECRET_KEY LOKI_HOST_URL MAILPIT_SMTP_URL MAILPIT_UI_BASE KEYCLOAK_HOST_ADMIN_BASE KEYCLOAK_PUBLIC_ISSUER_BASE KEYCLOAK_ADMIN_USER KEYCLOAK_ADMIN_PASSWORD KEYCLOAK_E2E_CLIENT_SECRET KAFKA_BROKERS PLUGIN_DB_SSL_MODE)
+  local keys=(POSTGRES_HOST_URL REDIS_HOST_URL STORAGE_HOST_URL STORAGE_ACCESS_KEY STORAGE_SECRET_KEY LOKI_HOST_URL MAILPIT_SMTP_URL MAILPIT_UI_BASE KEYCLOAK_HOST_ADMIN_BASE KEYCLOAK_PUBLIC_ISSUER_BASE KEYCLOAK_ADMIN_USER KEYCLOAK_ADMIN_PASSWORD KEYCLOAK_E2E_CLIENT_SECRET KAFKA_BROKERS PLUGIN_DB_SSL_MODE)
   [[ "$stage" == infra || "$stage" == complete ]] || fail 'Host manifest stage must be infra or complete'
   [[ "$stage" == infra ]] || keys+=(CORE_API_PUBLIC_BASE WEB_E2E_PUBLIC_BASE ADMIN_E2E_PUBLIC_BASE)
   for key in "${keys[@]}"; do
@@ -96,8 +96,8 @@ export_host() {
     assert_host "$key" "${!key}"
   done
   for key in "${keys[@]}"; do printf 'export %s=%q\n' "$key" "${!key}"; done
-  printf 'export DATABASE_URL=%q\nexport KEYCLOAK_URL=%q\nexport REDIS_URL=%q\nexport MINIO_ENDPOINT=%q\n' \
-    "$POSTGRES_HOST_URL" "$KEYCLOAK_HOST_ADMIN_BASE" "$REDIS_HOST_URL" "$MINIO_HOST_URL"
+  printf 'export DATABASE_URL=%q\nexport KEYCLOAK_URL=%q\nexport REDIS_URL=%q\nexport STORAGE_ENDPOINT=%q\n' \
+    "$POSTGRES_HOST_URL" "$KEYCLOAK_HOST_ADMIN_BASE" "$REDIS_HOST_URL" "$STORAGE_HOST_URL"
   # E2E Postgres CA trust for host processes (Node via NODE_EXTRA_CA_CERTS,
   # OpenSSL-based tools like prisma via SSL_CERT_FILE): derived from the
   # admission-provisioned CA directory, staged inside the runner-owned runtime

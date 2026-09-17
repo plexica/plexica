@@ -15,7 +15,7 @@
 
 import { probeKafka } from './health-check-kafka.js';
 import { probeKeycloak } from './health-check-keycloak.js';
-import { probeMinio } from './health-check-minio.js';
+import { probeStorage } from './health-check-storage.js';
 import { probePostgres } from './health-check-postgres.js';
 import { probeRedis } from './health-check-redis.js';
 
@@ -124,7 +124,7 @@ export async function checkHealth(): Promise<HealthResponse> {
     { name: 'redis', run: probeRedis },
     { name: 'keycloak', run: probeKeycloak },
     { name: 'kafka', run: probeKafka },
-    { name: 'minio', run: probeMinio },
+    { name: 'storage', run: probeStorage },
   ];
 
   const settled = await Promise.allSettled(probes.map((entry) => entry.run()));

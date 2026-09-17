@@ -12,7 +12,7 @@ const endpoint = 'http://127.0.0.1:32000';
 function manifest(dir: string): void {
   writeFileSync(path.join(dir, 'host.env'), [
     'POSTGRES_HOST_URL=postgresql://user:password@127.0.0.1:32001/plexica',
-    'REDIS_HOST_URL=redis://127.0.0.1:32002', 'MINIO_HOST_URL=http://127.0.0.1:32003',
+    'REDIS_HOST_URL=redis://127.0.0.1:32002', 'STORAGE_HOST_URL=http://127.0.0.1:32003',
     'LOKI_HOST_URL=http://127.0.0.1:32004', 'MAILPIT_SMTP_URL=smtp://127.0.0.1:32005',
     'MAILPIT_UI_BASE=http://127.0.0.1:32006', `KEYCLOAK_HOST_ADMIN_BASE=${endpoint}`,
     `KEYCLOAK_PUBLIC_ISSUER_BASE=${endpoint}`, 'KEYCLOAK_ADMIN_USER=ci-admin-0123456789abcdef',

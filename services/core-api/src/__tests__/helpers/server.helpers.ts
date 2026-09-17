@@ -19,7 +19,7 @@ export {
   isDbReachable,
   isKeycloakReachable,
   isRedisReachable,
-  isMinioReachable,
+  isStorageReachable,
   requireInfra,
 } from './reachability.helpers.js';
 

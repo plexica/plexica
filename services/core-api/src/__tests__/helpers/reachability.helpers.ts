@@ -39,10 +39,10 @@ export async function isRedisReachable(): Promise<boolean> {
   }
 }
 
-/** Returns true when MinIO is reachable. */
-export async function isMinioReachable(): Promise<boolean> {
+/** Returns true when object storage is reachable. */
+export async function isStorageReachable(): Promise<boolean> {
   try {
-    const url = new URL('/minio/health/live', config.MINIO_ENDPOINT).toString();
+    const url = new URL('/minio/health/live', config.STORAGE_ENDPOINT).toString();
     const res = await fetch(url, { signal: AbortSignal.timeout(3000) });
     return res.ok;
   } catch {
@@ -51,17 +51,17 @@ export async function isMinioReachable(): Promise<boolean> {
 }
 
 /**
- * Throws unless PostgreSQL + Keycloak + MinIO are all reachable — the shared
+ * Throws unless PostgreSQL + Keycloak + object storage are all reachable — the shared
  * pre-flight guard of the tenant lifecycle integration suites. `suiteName`
  * completes the error message: "...must all be reachable for <suiteName>."
  */
 export async function requireInfra(suiteName: string): Promise<void> {
-  const [dbOk, kcOk, minioOk] = await Promise.all([
+  const [dbOk, kcOk, storageOk] = await Promise.all([
     isDbReachable(),
     isKeycloakReachable(),
-    isMinioReachable(),
+    isStorageReachable(),
   ]);
-  if (!dbOk || !kcOk || !minioOk) {
-    throw new Error(`PostgreSQL + Keycloak + MinIO must all be reachable for ${suiteName}.`);
+  if (!dbOk || !kcOk || !storageOk) {
+    throw new Error(`PostgreSQL + Keycloak + object storage must all be reachable for ${suiteName}.`);
   }
 }

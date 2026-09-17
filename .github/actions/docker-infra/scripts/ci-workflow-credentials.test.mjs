@@ -24,7 +24,7 @@ if (action.indexOf('Start project runtime') < action.indexOf('Admit concurrent E
 }
 // Encryption/credential material generation lives in a shared script: the
 // contract job needs only the base set, `ci` additionally needs
-// Postgres/MinIO via --full.
+// Postgres/storage via --full.
 if (!contract?.includes('run: bash .github/actions/docker-infra/scripts/generate-ci-runtime-secrets.sh >> "$GITHUB_ENV"'))
   throw new Error('Contract job does not generate its run-scoped encryption material');
 if (!ci?.includes('run: bash .github/actions/docker-infra/scripts/generate-ci-runtime-secrets.sh --full >> "$GITHUB_ENV"'))
@@ -41,9 +41,9 @@ if (/postgres-password:\n\s+default:/.test(action)) {
 if (!/POSTGRES_PASSWORD=%s/.test(secrets) || !secrets.includes('openssl rand -hex 24')) {
   throw new Error('generate-ci-runtime-secrets.sh does not generate a per-run PostgreSQL password');
 }
-// MinIO credentials follow the identical contract: generated per run, no
+// Storage credentials follow the identical contract: generated per run, no
 // insecure default in the composite action, passed to every invocation.
-for (const input of ['minio-access-key', 'minio-secret-key']) {
+for (const input of ['storage-access-key', 'storage-secret-key']) {
   if (!new RegExp(`${input}:\\n\\s+description:[^\\n]*\\n\\s+required: true`).test(action)) {
     throw new Error(`docker-infra action does not require a per-run ${input}`);
   }
@@ -51,13 +51,13 @@ for (const input of ['minio-access-key', 'minio-secret-key']) {
     throw new Error(`docker-infra action keeps an insecure ${input} default`);
   }
 }
-if (!/MINIO_ACCESS_KEY=%s\\nMINIO_SECRET_KEY=%s/.test(secrets)) {
-  throw new Error('generate-ci-runtime-secrets.sh does not generate per-run MinIO credentials');
+if (!/STORAGE_ACCESS_KEY=%s\\nSTORAGE_SECRET_KEY=%s/.test(secrets)) {
+  throw new Error('generate-ci-runtime-secrets.sh does not generate per-run storage credentials');
 }
 const runtimeInvocations = ci.split('uses: ./.github/actions/docker-infra').length - 1;
 const passedPasswords = ci.match(/postgres-password: \$\{\{ env\.POSTGRES_PASSWORD \}\}/g)?.length ?? 0;
-const passedAccessKeys = ci.match(/minio-access-key: \$\{\{ env\.MINIO_ACCESS_KEY \}\}/g)?.length ?? 0;
-const passedSecretKeys = ci.match(/minio-secret-key: \$\{\{ env\.MINIO_SECRET_KEY \}\}/g)?.length ?? 0;
+const passedAccessKeys = ci.match(/storage-access-key: \$\{\{ env\.STORAGE_ACCESS_KEY \}\}/g)?.length ?? 0;
+const passedSecretKeys = ci.match(/storage-secret-key: \$\{\{ env\.STORAGE_SECRET_KEY \}\}/g)?.length ?? 0;
 if (runtimeInvocations !== 3 || passedPasswords !== 3 || passedAccessKeys !== 3 || passedSecretKeys !== 3) {
   throw new Error(
     `CI must pass the generated credentials to all three runtime invocations ` +

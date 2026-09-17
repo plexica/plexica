@@ -139,8 +139,8 @@ jobs:
           project: ${{ env.CI_COMPOSE_PROJECT }}
           runtime-dir: ${{ env.CI_RUNTIME_DIR }}
           postgres-password: ${{ env.POSTGRES_PASSWORD }}
-          minio-access-key: ${{ env.MINIO_ACCESS_KEY }}
-          minio-secret-key: ${{ env.MINIO_SECRET_KEY }}
+          storage-access-key: ${{ env.STORAGE_ACCESS_KEY }}
+          storage-secret-key: ${{ env.STORAGE_SECRET_KEY }}
           phase: full
       - name: Migrate through the host manifest
         run: test -f "$CI_RUNTIME_DIR/host.env"
@@ -169,8 +169,8 @@ jobs:
           project: ${{ env.CI_COMPOSE_PROJECT }}
           runtime-dir: ${{ env.CI_RUNTIME_DIR }}
           postgres-password: ${{ env.POSTGRES_PASSWORD }}
-          minio-access-key: ${{ env.MINIO_ACCESS_KEY }}
-          minio-secret-key: ${{ env.MINIO_SECRET_KEY }}
+          storage-access-key: ${{ env.STORAGE_ACCESS_KEY }}
+          storage-secret-key: ${{ env.STORAGE_SECRET_KEY }}
           phase: diagnostics
       - name: Upload runtime diagnostics
         if: always()
@@ -189,6 +189,6 @@ jobs:
           project: ${{ env.CI_COMPOSE_PROJECT }}
           runtime-dir: ${{ env.CI_RUNTIME_DIR }}
           postgres-password: ${{ env.POSTGRES_PASSWORD }}
-          minio-access-key: ${{ env.MINIO_ACCESS_KEY }}
-          minio-secret-key: ${{ env.MINIO_SECRET_KEY }}
+          storage-access-key: ${{ env.STORAGE_ACCESS_KEY }}
+          storage-secret-key: ${{ env.STORAGE_SECRET_KEY }}
           phase: down

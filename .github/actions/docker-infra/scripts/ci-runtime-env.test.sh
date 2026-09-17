@@ -16,9 +16,9 @@ dir=$(bash "$script" init plexica-ci-contract-123456)
 bash "$script" write-host "$dir" KEYCLOAK_HOST_ADMIN_BASE http://127.0.0.1:32000
 bash "$script" write-host "$dir" POSTGRES_HOST_URL postgresql://plexica:changeme@127.0.0.1:32001/plexica
 bash "$script" write-host "$dir" REDIS_HOST_URL redis://127.0.0.1:32002
-bash "$script" write-host "$dir" MINIO_HOST_URL http://127.0.0.1:32003
-bash "$script" write-host "$dir" MINIO_ACCESS_KEY 00112233445566778899aabb
-bash "$script" write-host "$dir" MINIO_SECRET_KEY 00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff
+bash "$script" write-host "$dir" STORAGE_HOST_URL http://127.0.0.1:32003
+bash "$script" write-host "$dir" STORAGE_ACCESS_KEY 00112233445566778899aabb
+bash "$script" write-host "$dir" STORAGE_SECRET_KEY 00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff
 bash "$script" write-host "$dir" LOKI_HOST_URL http://127.0.0.1:32008
 bash "$script" write-host "$dir" MAILPIT_SMTP_URL smtp://127.0.0.1:32009
 bash "$script" write-host "$dir" MAILPIT_UI_BASE http://127.0.0.1:32010
@@ -80,10 +80,10 @@ done
 if bash "$script" write-host "$dir" PLUGIN_DB_SSL_ROOT_CERT_PATH /etc/ssl/certs/evil.pem; then exit 1; fi
 if bash "$script" write-host "$dir" PLUGIN_DB_SSL_ROOT_CERT_PATH /etc/ssl/certs/ca-certificates.crt; then exit 1; fi
 host_source="$(dirname "$script")/source-ci-runtime-host.sh"
-environment=$(env -u E2E_POSTGRES_TLS_SOURCE CI_RUNTIME_DIR="$dir" bash -c 'source "$1"; printf "%s|%s|%s|%s|%s" "$DATABASE_URL" "$KEYCLOAK_URL" "$REDIS_URL" "$MINIO_ENDPOINT" "$KAFKA_BROKERS"' _ "$host_source")
+environment=$(env -u E2E_POSTGRES_TLS_SOURCE CI_RUNTIME_DIR="$dir" bash -c 'source "$1"; printf "%s|%s|%s|%s|%s" "$DATABASE_URL" "$KEYCLOAK_URL" "$REDIS_URL" "$STORAGE_ENDPOINT" "$KAFKA_BROKERS"' _ "$host_source")
 [[ "$environment" == 'postgresql://plexica:changeme@127.0.0.1:32001/plexica|http://127.0.0.1:32000|redis://127.0.0.1:32002|http://127.0.0.1:32003|127.0.0.1:32004' ]]
-minio_environment=$(env -u E2E_POSTGRES_TLS_SOURCE CI_RUNTIME_DIR="$dir" bash -c 'source "$1"; printf "%s|%s" "$MINIO_ACCESS_KEY" "$MINIO_SECRET_KEY"' _ "$host_source")
-[[ "$minio_environment" == '00112233445566778899aabb|00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff' ]]
+storage_environment=$(env -u E2E_POSTGRES_TLS_SOURCE CI_RUNTIME_DIR="$dir" bash -c 'source "$1"; printf "%s|%s" "$STORAGE_ACCESS_KEY" "$STORAGE_SECRET_KEY"' _ "$host_source")
+[[ "$storage_environment" == '00112233445566778899aabb|00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff' ]]
 tls_environment=$(env -u E2E_POSTGRES_TLS_SOURCE CI_RUNTIME_DIR="$dir" bash -c 'source "$1"; printf "%s|%s" "$PLUGIN_DB_SSL_MODE" "${PLUGIN_DB_SSL_ROOT_CERT_PATH:-}"' _ "$host_source")
 [[ "$tls_environment" == 'disable|' ]]
 # E2E Postgres CA trust env: derived from E2E_POSTGRES_TLS_SOURCE and exported

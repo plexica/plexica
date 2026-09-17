@@ -1,10 +1,10 @@
 // tenant-provisioning.test.ts
 // Integration tests for full tenant provisioning with rollback.
-// Skips when Keycloak or MinIO are not reachable.
+// Skips when Keycloak or object storage are not reachable.
 //
-// M-4 fix: added EC-04 test — MinIO bucket creation fails after schema + realm
+// M-4 fix: added EC-04 test — storage bucket creation fails after schema + realm
 // succeed → both realm and schema must be rolled back. Uses vi.spyOn to inject
-// a MinIO failure without needing MinIO to be down while Keycloak is up.
+// a storage failure without needing storage to be down while Keycloak is up.
 
 import { afterAll, describe, expect, it, vi } from 'vitest';
 
@@ -12,7 +12,7 @@ import { config } from '../lib/config.js';
 import { prisma } from '../lib/database.js';
 import { provisionTenant } from '../modules/tenant/tenant-provisioning.js';
 import * as keycloakAdmin from '../lib/keycloak-admin.js';
-import * as minioClient from '../lib/minio-client.js';
+import * as storageClient from '../lib/storage-client.js';
 
 const TEST_SLUG = 'provision-test-org';
 const TEST_SCHEMA = 'tenant_provision_test_org';
@@ -28,11 +28,11 @@ async function isKeycloakReachable(): Promise<boolean> {
   }
 }
 
-async function isMinioReachable(): Promise<boolean> {
+async function isStorageReachable(): Promise<boolean> {
   try {
     // Use new URL() to correctly join base + path, avoiding the double-protocol
-    // bug that occurred when MINIO_ENDPOINT was already a full URL (http://...).
-    const url = new URL('/minio/health/live', config.MINIO_ENDPOINT).toString();
+    // bug that occurred when STORAGE_ENDPOINT was already a full URL (http://...).
+    const url = new URL('/minio/health/live', config.STORAGE_ENDPOINT).toString();
     const res = await fetch(url, { signal: AbortSignal.timeout(3000) });
     return res.ok || res.status === 200;
   } catch {
@@ -50,8 +50,8 @@ async function isDbReachable(): Promise<boolean> {
 }
 
 const keycloakOk = await isKeycloakReachable();
-const minioOk = await isMinioReachable();
-const allServicesOk = keycloakOk && minioOk;
+const storageOk = await isStorageReachable();
+const allServicesOk = keycloakOk && storageOk;
 const dbOk = await isDbReachable();
 
 afterAll(async () => {
@@ -81,7 +81,7 @@ describe('Tenant provisioning', () => {
       expect(result.slug).toBe(TEST_SLUG);
       expect(result.schemaName).toBe(TEST_SCHEMA);
       expect(result.realmName).toMatch(/plexica-/);
-      expect(result.minioBucket).toBeDefined();
+      expect(result.storageBucket).toBeDefined();
       expect(elapsed).toBeLessThan(30_000);
     }
   );
@@ -124,24 +124,24 @@ describe('Tenant provisioning', () => {
     }
   );
 
-  // M-4 / EC-04: MinIO bucket creation fails after schema + realm succeed.
+  // M-4 / EC-04: storage bucket creation fails after schema + realm succeed.
   // All three rollback steps (bucket → realm → schema) must execute in reverse order.
-  // Uses vi.spyOn to inject MinIO failure without taking MinIO offline.
+  // Uses vi.spyOn to inject a storage failure without taking storage offline.
   it.skipIf(!keycloakOk || !dbOk)(
-    'rollback EC-04: realm and schema dropped when MinIO bucket creation fails',
+    'rollback EC-04: realm and schema dropped when storage bucket creation fails',
     async () => {
-      const slug = 'rollback-test-no-minio';
-      const schema = 'tenant_rollback_test_no_minio';
+      const slug = 'rollback-test-no-storage';
+      const schema = 'tenant_rollback_test_no_storage';
       const realmName = `plexica-${slug}`;
 
-      // Inject MinIO failure for this test only
+      // Inject storage failure for this test only
       const createBucketSpy = vi
-        .spyOn(minioClient, 'createBucket')
-        .mockRejectedValueOnce(new Error('MinIO connection refused (injected for EC-04 test)'));
+        .spyOn(storageClient, 'createBucket')
+        .mockRejectedValueOnce(new Error('object storage connection refused (injected for EC-04 test)'));
 
       try {
         await expect(
-          provisionTenant({ slug, name: 'No MinIO', adminEmail: 'x@x.com' })
+          provisionTenant({ slug, name: 'No Storage', adminEmail: 'x@x.com' })
         ).rejects.toThrow();
 
         // Verify PostgreSQL schema was dropped (schema rollback)

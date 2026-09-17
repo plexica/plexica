@@ -1,6 +1,6 @@
 // extension-slots/sidebar-slot.tsx
 // Renders plugins at the sidebar:admin extension point.
-// Plugins are loaded from MinIO (prod) or dev server (dev) via the plugin loader.
+// Plugins are loaded from object storage (prod) or dev server (dev) via the plugin loader.
 
 import { PluginSlot } from './plugin-slot.js';
 

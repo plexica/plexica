@@ -140,7 +140,7 @@ test.describe('E2E-08: User profile', () => {
     // packages/ui/src/components/file-upload.tsx:64 does URL.createObjectURL(file)
     // and renders <img src="blob:…">, which appears even when the upload fails.
     // Reloading drops that local blob state, so the <img> can only render from
-    // data.avatarUrl (profile-page.tsx:131) — a presigned MinIO URL produced by
+    // data.avatarUrl (profile-page.tsx:131) — a presigned object-storage URL produced by
     // the server. That proves the bytes were really stored and are readable.
     await page.reload();
     const preview = page.getByRole('img', { name: /preview/i });

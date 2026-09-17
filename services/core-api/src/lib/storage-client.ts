@@ -1,5 +1,5 @@
-// minio-client.ts
-// Thin MinIO client wrapper for tenant bucket lifecycle management.
+// storage-client.ts
+// Thin object-storage client wrapper for tenant bucket lifecycle management.
 // Bucket-per-tenant: private policy, isolated object storage.
 
 
@@ -10,11 +10,11 @@ import { logger } from './logger.js';
 
 import type { Readable } from 'node:stream';
 
-function createMinioClient(): MinioClient {
+function createStorageClient(): MinioClient {
   // Parse the full URL (e.g. "http://localhost:9000") so that the scheme,
   // host and port are extracted correctly. A naive split(':') would break
   // on the "http:" prefix, turning "http" into the hostname.
-  const url = new URL(config.MINIO_ENDPOINT);
+  const url = new URL(config.STORAGE_ENDPOINT);
   const host = url.hostname;
   const port = url.port !== '' ? parseInt(url.port, 10) : url.protocol === 'https:' ? 443 : 80;
   const useSSL = url.protocol === 'https:';
@@ -23,20 +23,20 @@ function createMinioClient(): MinioClient {
     endPoint: host,
     port,
     useSSL,
-    accessKey: config.MINIO_ACCESS_KEY,
-    secretKey: config.MINIO_SECRET_KEY,
+    accessKey: config.STORAGE_ACCESS_KEY,
+    secretKey: config.STORAGE_SECRET_KEY,
   });
 }
 
 // Singleton client instance
-const minio = createMinioClient();
+const storage = createStorageClient();
 
 /**
- * Checks whether a MinIO bucket exists.
+ * Checks whether a storage bucket exists.
  * Used by tenant provisioning conflict detection before attempting creation.
  */
 export async function bucketExists(bucketName: string): Promise<boolean> {
-  return minio.bucketExists(bucketName);
+  return storage.bucketExists(bucketName);
 }
 
 /**
@@ -44,14 +44,14 @@ export async function bucketExists(bucketName: string): Promise<boolean> {
  * Idempotent — succeeds if bucket already exists.
  */
 export async function createBucket(bucketName: string): Promise<void> {
-  const exists = await minio.bucketExists(bucketName);
+  const exists = await storage.bucketExists(bucketName);
   if (exists) {
-    logger.debug({ bucketName }, 'MinIO bucket already exists');
+    logger.debug({ bucketName }, 'Storage bucket already exists');
     return;
   }
 
-  await minio.makeBucket(bucketName);
-  logger.info({ bucketName }, 'MinIO bucket created');
+  await storage.makeBucket(bucketName);
+  logger.info({ bucketName }, 'Storage bucket created');
 }
 
 /**
@@ -59,18 +59,18 @@ export async function createBucket(bucketName: string): Promise<void> {
  * Used during tenant provisioning rollback.
  */
 export async function deleteBucket(bucketName: string): Promise<void> {
-  const exists = await minio.bucketExists(bucketName);
+  const exists = await storage.bucketExists(bucketName);
   if (!exists) {
-    logger.debug({ bucketName }, 'MinIO bucket does not exist — skip delete');
+    logger.debug({ bucketName }, 'Storage bucket does not exist — skip delete');
     return;
   }
 
   // Remove all objects before deleting the bucket.
-  // MinIO removeObjects accepts max 1000 entries per call — batch to avoid
+  // The SDK's removeObjects accepts max 1000 entries per call — batch to avoid
   // silent truncation on large buckets (GDPR full erasure requirement).
   const objectsList: string[] = [];
   await new Promise<void>((resolve, reject) => {
-    const stream = minio.listObjects(bucketName, '', true);
+    const stream = storage.listObjects(bucketName, '', true);
     stream.on('data', (obj) => {
       if (obj.name !== undefined) objectsList.push(obj.name);
     });
@@ -81,11 +81,11 @@ export async function deleteBucket(bucketName: string): Promise<void> {
   const BATCH_SIZE = 1000;
   for (let i = 0; i < objectsList.length; i += BATCH_SIZE) {
     const batch = objectsList.slice(i, i + BATCH_SIZE);
-    await minio.removeObjects(bucketName, batch);
+    await storage.removeObjects(bucketName, batch);
   }
 
-  await minio.removeBucket(bucketName);
-  logger.info({ bucketName }, 'MinIO bucket deleted');
+  await storage.removeBucket(bucketName);
+  logger.info({ bucketName }, 'Storage bucket deleted');
 }
 
 /**
@@ -102,8 +102,8 @@ export async function uploadAvatar(
 ): Promise<string> {
   const bucketName = `tenant-${tenantSlug}`;
   const objectKey = `avatars/${userId}`;
-  await minio.putObject(bucketName, objectKey, stream, size, { 'Content-Type': mimeType });
-  logger.info({ bucketName, objectKey }, 'Avatar uploaded to MinIO');
+  await storage.putObject(bucketName, objectKey, stream, size, { 'Content-Type': mimeType });
+  logger.info({ bucketName, objectKey }, 'Avatar uploaded to object storage');
   return objectKey;
 }
 
@@ -120,8 +120,8 @@ export async function uploadLogo(
 ): Promise<string> {
   const bucketName = `tenant-${tenantSlug}`;
   const objectKey = 'logo';
-  await minio.putObject(bucketName, objectKey, stream, size, { 'Content-Type': mimeType });
-  logger.info({ bucketName, objectKey }, 'Logo uploaded to MinIO');
+  await storage.putObject(bucketName, objectKey, stream, size, { 'Content-Type': mimeType });
+  logger.info({ bucketName, objectKey }, 'Logo uploaded to object storage');
   return objectKey;
 }
 
@@ -132,22 +132,22 @@ export async function uploadLogo(
  * no public endpoint override is configured (host-run processes share one
  * origin between storage ops and browser fetches).
  */
-const publicMinio = config.MINIO_PUBLIC_ENDPOINT
+const publicStorage = config.STORAGE_PUBLIC_ENDPOINT
   ? (() => {
-      const url = new URL(config.MINIO_PUBLIC_ENDPOINT as string);
+      const url = new URL(config.STORAGE_PUBLIC_ENDPOINT as string);
       return new MinioClient({
         endPoint: url.hostname,
         port: url.port !== '' ? parseInt(url.port, 10) : url.protocol === 'https:' ? 443 : 80,
         useSSL: url.protocol === 'https:',
-        accessKey: config.MINIO_ACCESS_KEY,
-        secretKey: config.MINIO_SECRET_KEY,
+        accessKey: config.STORAGE_ACCESS_KEY,
+        secretKey: config.STORAGE_SECRET_KEY,
         // Pin the region: presignedGetObject resolves the bucket region over
         // the network BEFORE signing, and this client points at the
         // browser-facing endpoint, which a containerized API cannot reach
         // (loopback host port). SigV4 validation derives the region from the
-        // request's credential scope itself, so pinning MinIO's default
-        // region changes nothing about signature validity — it only removes
-        // the impossible pre-sign network round trip.
+        // request's credential scope itself, so pinning the object storage
+        // server's default region changes nothing about signature validity —
+        // it only removes the impossible pre-sign network round trip.
         region: 'us-east-1',
       });
     })()
@@ -157,7 +157,7 @@ const publicMinio = config.MINIO_PUBLIC_ENDPOINT
  * Returns a presigned GET URL valid for 1 hour (3600 seconds).
  */
 export async function getPresignedReadUrl(bucketName: string, objectKey: string): Promise<string> {
-  const client = publicMinio ?? minio;
+  const client = publicStorage ?? storage;
   return client.presignedGetObject(bucketName, objectKey, 3600);
 }
 
@@ -165,6 +165,6 @@ export async function getPresignedReadUrl(bucketName: string, objectKey: string)
  * Lightweight connectivity probe — lists buckets.
  * Used by the admin health checker. Throws on unreachable / auth failure.
  */
-export async function pingMinio(): Promise<void> {
-  await minio.listBuckets();
+export async function pingStorage(): Promise<void> {
+  await storage.listBuckets();
 }

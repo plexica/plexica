@@ -9,14 +9,14 @@ strict=false
 env_file="$(dirname "$0")/../../.env"
 if ! $strict && [[ -f "$env_file" ]]; then
   # shellcheck disable=SC1090
-  source <(grep -E '^(DATABASE_URL|POSTGRES_|REDIS_|KEYCLOAK_|MINIO_|KAFKA_|SMTP_|LOKI_)' \
+  source <(grep -E '^(DATABASE_URL|POSTGRES_|REDIS_|KEYCLOAK_|STORAGE_|KAFKA_|SMTP_|LOKI_)' \
     "$env_file" | sed 's/^/export /' 2>/dev/null || true)
 fi
 
 if $strict; then
   required_env=(
     DATABASE_URL KEYCLOAK_URL KEYCLOAK_ADMIN_USER KEYCLOAK_ADMIN_PASSWORD
-    REDIS_URL MINIO_ENDPOINT MINIO_ACCESS_KEY MINIO_SECRET_KEY KAFKA_BROKERS LOKI_URL
+    REDIS_URL STORAGE_ENDPOINT STORAGE_ACCESS_KEY STORAGE_SECRET_KEY KAFKA_BROKERS LOKI_URL
   )
   for name in "${required_env[@]}"; do
     if [[ -z "${!name:-}" ]]; then
@@ -45,7 +45,7 @@ if [[ -n "${DATABASE_URL:-}" ]]; then
   fi
 fi
 keycloak_url="${KEYCLOAK_URL:-http://localhost:8080}"
-minio_endpoint="${MINIO_ENDPOINT:-http://localhost:9000}"
+storage_endpoint="${STORAGE_ENDPOINT:-http://localhost:9000}"
 kafka_brokers="${KAFKA_BROKERS:-localhost:19092}"
 loki_url="${LOKI_URL:-http://localhost:3100}"
 redis_url="${REDIS_URL:-redis://localhost:6379}"
@@ -123,9 +123,9 @@ info "Keycloak ${keycloak_url}"
 check_http "${keycloak_url}/realms/master" && ok 'Keycloak reachable' \
   || unavailable 'Keycloak unavailable'
 
-info "MinIO ${minio_endpoint}"
-check_http "${minio_endpoint}/minio/health/live" && ok 'MinIO reachable' \
-  || unavailable 'MinIO unavailable'
+info "Storage ${storage_endpoint}"
+check_http "${storage_endpoint}/minio/health/live" && ok 'storage reachable' \
+  || unavailable 'storage unavailable'
 
 info "Redpanda ${kafka_host}:${kafka_port}"
 check_tcp "$kafka_host" "$kafka_port" && ok 'Redpanda reachable' \

@@ -39,7 +39,7 @@ export async function captureDeletionContext(
 ): Promise<DeletionContext> {
   const tenant = await prisma.tenant.findUnique({
     where: { id: tenantId },
-    select: { slug: true, minioBucket: true, config: { select: { keycloakRealm: true } } },
+    select: { slug: true, storageBucket: true, config: { select: { keycloakRealm: true } } },
   });
   if (tenant === null) throw new Error('Tenant not found while capturing deletion context');
 
@@ -50,7 +50,7 @@ export async function captureDeletionContext(
     tenantSlug: tenant.slug,
     schemaName,
     realmName: tenant.config?.keycloakRealm ?? toRealmName(tenant.slug),
-    bucketName: tenant.minioBucket ?? `tenant-${tenant.slug}`,
+    bucketName: tenant.storageBucket ?? `tenant-${tenant.slug}`,
     pluginInstallIds: await readPluginInstallIds(prisma, schemaName),
   };
 }

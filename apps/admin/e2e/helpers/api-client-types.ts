@@ -17,7 +17,7 @@ export interface TenantListResponse {
 export interface TenantDetailResponse {
   tenant: TenantRow & {
     updatedAt: string;
-    minioBucket: string | null;
+    storageBucket: string | null;
   };
   userCount: number;
   workspaceCount: number;
@@ -30,7 +30,7 @@ export interface ProvisionResult {
   slug: string;
   schemaName: string;
   realmName: string;
-  minioBucket: string;
+  storageBucket: string;
   tempPassword: string;
 }
 

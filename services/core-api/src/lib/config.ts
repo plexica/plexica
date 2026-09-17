@@ -5,6 +5,7 @@ import { z } from 'zod';
 
 import { validateCiRuntimeContract } from './ci-runtime-contract.js';
 import { ciRuntimeEnvSchema } from './ci-runtime-env-config.js';
+import { assertNoStaleStorageEnv } from './storage-env-guard.js';
 
 const configSchema = z
   .object({
@@ -41,16 +42,16 @@ const configSchema = z
     // Redis
     REDIS_URL: z.string().min(1),
 
-    // MinIO
-    MINIO_ENDPOINT: z.string().min(1),
+    // Object Storage
+    STORAGE_ENDPOINT: z.string().min(1),
     // Browser-facing endpoint for presigned object URLs. Defaults to the
     // operational endpoint (host-run processes share one origin). Set when
     // storage ops use a container-internal endpoint but clients (browsers)
     // must fetch objects through a different, reachable host — e.g. the CI
     // runtime contract where core runs in the compose network.
-    MINIO_PUBLIC_ENDPOINT: z.string().min(1).optional(),
-    MINIO_ACCESS_KEY: z.string().min(1),
-    MINIO_SECRET_KEY: z.string().min(1),
+    STORAGE_PUBLIC_ENDPOINT: z.string().min(1).optional(),
+    STORAGE_ACCESS_KEY: z.string().min(1),
+    STORAGE_SECRET_KEY: z.string().min(1),
 
     // Kafka / Redpanda
     KAFKA_BROKERS: z.string().min(1),
@@ -184,6 +185,7 @@ const configSchema = z
 export type Config = z.infer<typeof configSchema>;
 
 export function parseConfig(environment: NodeJS.ProcessEnv): Config {
+  assertNoStaleStorageEnv(environment);
   const result = configSchema.safeParse(environment);
   if (!result.success) {
     const issues = result.error.issues
