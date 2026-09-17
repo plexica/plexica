@@ -11,6 +11,8 @@ import { describe, expect, it } from 'vitest';
 import { InvalidFileTypeError } from '../../lib/app-error.js';
 import { assertSafeSvg } from '../../lib/svg-safety.js';
 
+import { assertLinearScaling, assertRejectFast } from './helpers/svg-timing.js';
+
 const LEGIT_SVG = Buffer.from(
   '<?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg" width="10" height="10">' +
     '<circle cx="5" cy="5" r="4" fill="red"/></svg>'
@@ -43,7 +45,10 @@ const MALICIOUS_SVGS: Array<[string, string]> = [
   // where embedded HTML/SVG scripts execute.
   ['vbscript: URL', '<svg><a href="vbscript:msgbox(1)"><circle r="1"/></a></svg>'],
   ['vbscript: URL via char ref', '<svg><a href="&#118;bscript:msgbox(1)"/></svg>'],
-  ['data: URL on <a> (navigable document)', '<svg><a href="data:text/html,<script>alert(1)</script>"><circle r="1"/></a></svg>'],
+  [
+    'data: URL on <a> (navigable document)',
+    '<svg><a href="data:text/html,<script>alert(1)</script>"><circle r="1"/></a></svg>',
+  ],
   [
     'data: URL on SMIL to=',
     '<svg><a><set attributeName="href" to="data:text/html,<script>alert(1)</script>"/></a></svg>',
@@ -51,10 +56,16 @@ const MALICIOUS_SVGS: Array<[string, string]> = [
   // Passive beacons: fetched with no user interaction when the SVG is loaded.
   ['external <image> beacon', '<svg><image href="https://evil.example/beacon.png"/></svg>'],
   ['external <use> beacon', '<svg><use href="https://evil.example/sprite.svg#i"/></svg>'],
-  ['external <feImage> beacon', '<svg><filter><feImage href="https://evil.example/x.png"/></filter></svg>'],
+  [
+    'external <feImage> beacon',
+    '<svg><filter><feImage href="https://evil.example/x.png"/></filter></svg>',
+  ],
   ['protocol-relative <image> beacon', '<svg><image xlink:href="//evil.example/b.png"/></svg>'],
   // The WHATWG parser treats "\" as "/" for special schemes.
-  ['backslash protocol-relative <image> beacon', '<svg><image href="\\\\evil.example/b.png"/></svg>'],
+  [
+    'backslash protocol-relative <image> beacon',
+    '<svg><image href="\\\\evil.example/b.png"/></svg>',
+  ],
   // &#34; decodes to a quote INSIDE the attribute value; &#104; to 'h'.
   // Both are resolved by the parser before the safety rules ever run.
   [
@@ -75,7 +86,10 @@ const MALICIOUS_SVGS: Array<[string, string]> = [
     'billion laughs (nested entity expansion)',
     '<?xml version="1.0"?><!DOCTYPE r [<!ENTITY a "xx"><!ENTITY b "&a;&a;&a;&a;">]><svg>&b;</svg>',
   ],
-  ['bare DOCTYPE (no DTDs allowed, flattened exports only)', '<?xml version="1.0"?><!DOCTYPE svg><svg/>'],
+  [
+    'bare DOCTYPE (no DTDs allowed, flattened exports only)',
+    '<?xml version="1.0"?><!DOCTYPE svg><svg/>',
+  ],
 ];
 
 describe('assertSafeSvg() — rejects each active-content pattern', () => {
@@ -142,7 +156,10 @@ describe('assertSafeSvg() — animated href in isolation (no javascript: involve
       '<animate> remote values=',
       '<svg><animate attributeName="href" values="https://evil.example/a.png"/></svg>',
     ],
-    ['xlink:href target', '<svg><set attributeName="xlink:href" to="https://evil.example/x.png"/></svg>'],
+    [
+      'xlink:href target',
+      '<svg><set attributeName="xlink:href" to="https://evil.example/x.png"/></svg>',
+    ],
     ['protocol-relative to=', '<svg><set attributeName="href" to="//evil.example/x.png"/></svg>'],
   ];
   it.each(REMOTE_ANIMATED_HREFS)('rejects %s', (_label, svg) => {
@@ -151,37 +168,22 @@ describe('assertSafeSvg() — animated href in isolation (no javascript: involve
 });
 
 describe('assertSafeSvg() — performance regression (real parser, linear time)', () => {
-  // The lexer-era patterns needed minutes on these inputs. With the parser
-  // the malformed ones are rejected in single-digit milliseconds (fail
-  // closed, no hang); the 3 s budget accounts for V8 coverage
-  // instrumentation overhead (unit tests run with --coverage in CI, ADR-030)
-  // on loaded runners and stays non-flaky.
+  // SVG_PERF_BUDGET_MS is a generous hang-guard: catches quadratic blowups
+  // (minutes) while absorbing shared-runner noise (observed 5.4s under load).
   it('rejects a degenerate 2 MB buffer without ">" fast (fail closed, no scan hang)', () => {
-    const size = 2_097_152; // LOGO_MAX_BYTES
-    const prefix = '<set ';
-    const unit = 'attributeName=';
-    const filler = unit.repeat(Math.ceil((size - prefix.length) / unit.length)).slice(0, size - prefix.length);
-    const degenerate = Buffer.from(prefix + filler, 'utf8');
-    const start = Date.now();
-    expect(() => assertSafeSvg(degenerate)).toThrow(InvalidFileTypeError);
-    expect(Date.now() - start).toBeLessThan(3000);
+    const bodySize = 2_097_152 - '<set '.length; // LOGO_MAX_BYTES minus the prefix
+    const filler = 'attributeName='.repeat(Math.ceil(bodySize / 14)).slice(0, bodySize);
+    assertRejectFast(Buffer.from(`<set ${filler}`, 'utf8'));
   });
-
   it('rejects 2 MB of repeated unterminated "<image " prefixes fast', () => {
-    const degenerate = Buffer.from('<image '.repeat(300_000)); // 2.1 MB, no ">"
-    const start = Date.now();
-    expect(() => assertSafeSvg(degenerate)).toThrow(InvalidFileTypeError);
-    expect(Date.now() - start).toBeLessThan(3000);
+    assertRejectFast(Buffer.from('<image '.repeat(300_000))); // 2.1 MB, no ">"
   });
-
-  it('accepts a well-formed 2 MB SVG with 60k elements fast', () => {
-    const legit = Buffer.from(
-      '<svg xmlns="http://www.w3.org/2000/svg">' +
-        '<rect width="1" height="1" fill="#000"/>'.repeat(60_000) +
-        '</svg>'
+  it('scales linearly: 4x element count stays within ~4x time (no quadratic blowup)', () => {
+    const rect = '<rect width="1" height="1" fill="#000"/>';
+    assertLinearScaling(
+      (n: number): Buffer =>
+        Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg">${rect.repeat(n)}</svg>`),
+      15_000
     );
-    const start = Date.now();
-    expect(() => assertSafeSvg(legit)).not.toThrow();
-    expect(Date.now() - start).toBeLessThan(3000);
   });
 });

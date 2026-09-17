@@ -12,6 +12,8 @@ import { describe, expect, it } from 'vitest';
 import { InvalidFileTypeError } from '../../lib/app-error.js';
 import { assertSafeSvg } from '../../lib/svg-safety.js';
 
+import { assertLinearScaling, assertRejectFast } from './helpers/svg-timing.js';
+
 // Well over 4096 bytes of valid, inert attributes — the padding window that
 // defeated the pre-parser {0,4096}-bounded tag+attribute patterns.
 const PADDING_ATTRIBUTES = Array.from({ length: 600 }, (_, i) => `data-pad${i}="x"`).join(' ');
@@ -55,7 +57,7 @@ describe('assertSafeSvg() — smuggled ">" inside quoted attribute values', () =
   });
 
   it('rejects <image> whose href hides behind a ">" inside a single-quoted value', () => {
-    const svg = "<svg><image a='>' href=\"https://evil.example/b.png\"/></svg>";
+    const svg = '<svg><image a=\'>\' href="https://evil.example/b.png"/></svg>';
     expect(() => assertSafeSvg(Buffer.from(svg))).toThrow(InvalidFileTypeError);
   });
 
@@ -90,8 +92,7 @@ describe('assertSafeSvg() — namespace-prefixed element names', () => {
 
   it('rejects <svg:script> even though script is matched by local name', () => {
     const svg =
-      '<x xmlns:svg="http://www.w3.org/2000/svg">' +
-      '<svg:script>alert(1)</svg:script></x>';
+      '<x xmlns:svg="http://www.w3.org/2000/svg">' + '<svg:script>alert(1)</svg:script></x>';
     expect(() => assertSafeSvg(Buffer.from(svg))).toThrow(InvalidFileTypeError);
   });
 });
@@ -165,32 +166,23 @@ describe('assertSafeSvg() — quote-aware parsing (no false positives)', () => {
 });
 
 describe('assertSafeSvg() — performance on hostile shapes (no hang, fail fast)', () => {
+  // SVG_PERF_BUDGET_MS is a generous hang-guard: catches quadratic blowups
+  // (minutes) while absorbing shared-runner noise (observed 5.4s under load).
   it('rejects a single 2 MB unterminated <set> full of "attributeName=" fast', () => {
-    const degenerate = Buffer.from(`<set ${'attributeName='.repeat(150_000)}>`);
-    const start = Date.now();
-    expect(() => assertSafeSvg(degenerate)).toThrow(InvalidFileTypeError);
-    expect(Date.now() - start).toBeLessThan(2000);
+    assertRejectFast(Buffer.from(`<set ${'attributeName='.repeat(150_000)}>`));
   });
-
   it('rejects 2 MB of quoted ">" attribute soup (no single root) fast', () => {
     const unit = '<image a=">" b=\'>\' href="#l"/>';
-    const degenerate = Buffer.from(unit.repeat(Math.ceil(2_097_152 / unit.length)));
-    const start = Date.now();
-    expect(() => assertSafeSvg(degenerate)).toThrow(InvalidFileTypeError);
-    expect(Date.now() - start).toBeLessThan(2000);
+    assertRejectFast(Buffer.from(unit.repeat(Math.ceil(2_097_152 / unit.length))));
   });
-
   it('rejects 2 MB of namespace-prefixed unterminated "<x:image " prefixes fast', () => {
-    const degenerate = Buffer.from('<x:image '.repeat(200_000)); // 1.8 MB, no ">"
-    const start = Date.now();
-    expect(() => assertSafeSvg(degenerate)).toThrow(InvalidFileTypeError);
-    expect(Date.now() - start).toBeLessThan(2000);
+    assertRejectFast(Buffer.from('<x:image '.repeat(200_000))); // 1.8 MB, no ">"
   });
-
-  it('accepts 100k-deep element nesting (iterative walk, no stack overflow)', () => {
-    const legit = Buffer.from(`<svg>${'<g>'.repeat(50_000)}${'</g>'.repeat(50_000)}</svg>`);
-    const start = Date.now();
-    expect(() => assertSafeSvg(legit)).not.toThrow();
-    expect(Date.now() - start).toBeLessThan(2000);
+  it('scales linearly: 4x deep-nesting input stays within ~4x time (no quadratic blowup)', () => {
+    assertLinearScaling(
+      (elements: number): Buffer =>
+        Buffer.from(`<svg>${'<g>'.repeat(elements / 2)}${'</g>'.repeat(elements / 2)}</svg>`),
+      25_000
+    );
   });
 });
