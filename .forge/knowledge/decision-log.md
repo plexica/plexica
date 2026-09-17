@@ -6,8 +6,27 @@
 > For lessons learned from the v1 codebase, see
 > [lessons-learned.md](./lessons-learned.md).
 
-**Last Updated**: 2026-08-31 (CodeRabbit review fixes on PR #135 — plugin
-bootstrap verification, GitHub Packages publishing, SD-07/SD-08/SD-09)
+**Last Updated**: 2026-09-17 (Spec 011 — object-storage server swap to Silo,
+solution-agnostic storage rename, storageBucket migration)
+
+---
+
+## Spec 011 — Object-Storage Server Swap (Silo) + Solution-Agnostic Rename
+
+**Issue**: #175 — Replace MinIO with its maintained fork Silo (pgsty/silo).
+**Resolved by**: PR #176 (merged 2026-09-17, commit `6d72d2c`).
+**ADR**: [ADR-034](./adr/adr-034-silo-object-storage.md) (Accepted 2026-09-16).
+
+| Decision | Value | Note |
+| -------- | ----- | ---- |
+| Server image | `pgsty/silo:RELEASE.2026-09-03T13-18-01Z@sha256:b616a0cf…` (classic, multi-arch) | Digest-pinned; `mc ready local` healthcheck verified |
+| JS client | `minio@8.0.7` npm SDK **kept** | No new core dependency; server is drop-in S3-compatible |
+| Naming | Solution-agnostic `storage` vocabulary | Allowlist E1–E3 only (image ref, npm `minio` import, compose `MINIO_ROOT_*` LHS mapping) |
+| Stale-env guard | `storage-env-guard.ts` dual fail-fast | Rejects stale `MINIO_*` AND `SILO_*`, naming `STORAGE_*` replacements; `MINIO_ROOT_*` excluded (E3); unit-tested 6/6 |
+| DB/API rename | `minio_bucket` → `storage_bucket`, `minioBucket` → `storageBucket` | Migration 011 up+down, no alias (edge #12), breaking admin API field coordinated release |
+| Rollback | 5-step runbook in ADR-034 | Repin old image + volume restore + DB down-migration + `prisma migrate resolve --rolled-back 011` + revert commit |
+| Dependabot #77 | **NOT fixed** (documented exception) | `stream-json` MEDIUM via `minio@8.0.7` client chain; review expiry 2027-03-16 |
+| Docs debt | `architecture.md`, `docs/01-03` MinIO refs | Follow-up docs debt, owner lucaforni, 2026-09-16 |
 
 ---
 
