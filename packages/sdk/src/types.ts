@@ -14,6 +14,16 @@ export interface PluginConfig {
   /** @deprecated No longer required. SDK no longer connects to Kafka directly. Use apiUrl instead. */
   kafkaBrokers?: string;
   apiUrl: string;
+  /** Explicit allowlist of single-label internal service hostnames that may
+   *  receive credentials over cleartext `http:` (Docker/K8s internal network,
+   *  e.g. `core-api-e2e` — CWE-319 guard, F9). https: and loopback hosts are
+   *  unaffected. Default empty — a single-label `http:` host is rejected
+   *  unless listed here or `allowHttpInternal` is true. */
+  allowHttpHosts?: string[];
+  /** Opt-in escape hatch: allow cleartext `http:` to ANY single-label
+   *  internal service hostname without enumerating each one. Default false
+   *  (safest). */
+  allowHttpInternal?: boolean;
   accessToken?: string; // Bearer token for API auth
   /** Service-account token injected by the platform as PLEXICA_SERVICE_TOKEN.
    *  Lets the plugin backend emit events without a user JWT. Auto-populated
@@ -70,6 +80,20 @@ export interface PluginEvent {
 export type EventHandler = (event: PluginEvent) => Promise<void>;
 
 /**
+ * A JSON value: string, number, boolean, null, an array of JSON values, or a
+ * string-keyed object of JSON values. Recursive definition so nested
+ * notification metadata is fully typed (F10). No PII allowed in metadata
+ * (Security §6).
+ */
+export type JsonValue =
+  | string
+  | number
+  | boolean
+  | null
+  | JsonValue[]
+  | { [key: string]: JsonValue };
+
+/**
  * Input for `PluginSDK.emitNotification()` (feature 006-05, ADR-035).
  * The type is automatically prefixed with `plugin.<slug>.` before being sent
  * to POST /api/v1/notifications/emit. Title/body keys are i18n keys resolved
@@ -87,7 +111,7 @@ export interface EmitNotificationInput {
   /** Optional i18n body key (resolved by the UI). */
   bodyKey?: string;
   /** Optional structured metadata (no PII), e.g. `{ link: "/contacts/123" }`. */
-  metadata?: Record<string, unknown>;
+  metadata?: Record<string, JsonValue>;
 }
 
 /**

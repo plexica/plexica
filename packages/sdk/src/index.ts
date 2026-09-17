@@ -19,7 +19,10 @@ export type {
   EventHandler,
   EmitNotificationInput,
   EmitNotificationResult,
+  JsonValue,
 } from './types.js';
+// CWE-319 guard options are public so SDK consumers can type allowlists.
+export type { SecureApiUrlOptions } from './url-guard.js';
 // Notification emission helper (feature 006-05) — used directly or via PluginSDK.
 export { emitNotification } from './notification-api.js';
 // Re-export error classes and DB helper for advanced use.

@@ -19,6 +19,11 @@ export const sdk = new PluginSDK({
   slug: 'crm',
   tenantId: process.env['PLEXICA_TENANT_ID'] ?? '',
   apiUrl: process.env['CORE_API_URL'] ?? 'http://localhost:3001',
+  // The CI/E2E container reaches core over the isolated Compose network as
+  // the single-label host "core-api-e2e" over cleartext http: — authorize it
+  // explicitly (CWE-319 allowlist, F9). Dev defaults to loopback localhost,
+  // which needs no allowlist.
+  allowHttpHosts: ['core-api-e2e'],
 });
 
 export async function initSdk(): Promise<void> {

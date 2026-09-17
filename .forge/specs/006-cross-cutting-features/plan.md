@@ -446,29 +446,36 @@ every input (Security §4).
   - `plexica.notification` (plugin emissions and future core notifications)
 - **Target input**: the envelope carries either `userId` (plugin emission,
   §5.1) or `email` (invite event, §5.3). Email-carried targets are resolved
-  once, up-front (`email` → `user_profile.user_id`, §5.3), to feed the cap key
-  and the insert. A non-tenant invitee skips steps 1–3 (no in-app row, no
+  once, up-front (`email` → `user_profile.user_id`, §5.3), to feed the insert
+  and the cap key. A non-tenant invitee skips steps 1–3 (no in-app row, no
   per-user cap) and delivers email only via step 4.
-- Per-event flow, **in this exact order** (in `consumer.ts`):
-  1. **Cap check (F5)** — Redis counter key
-     `notification:{tenantId}:{userId}:emit` (INCR + EXPIRE 60 s) enforces the
-     **100/min per user** consumer cap from ADR-035 **before any persistence**.
-     On breach: **drop the event — no persistence, no delivery** — increment
-     the `notifications_rate_limited_total` counter, and log a warn (no crash,
+- Per-event flow, **in this exact order** (in `consumer.ts`) — **dedupe FIRST**:
+  1. **Insert-ignore (atomic dedupe, F6)** — insert the `notifications` row
+     with **insert-ignore** semantics: `INSERT ... ON CONFLICT (event_id)
+     DO NOTHING` (backed by the UNIQUE index on `notifications.event_id`,
+     §4.1). This is the **only** insert of the `notifications` row in the
+     pipeline and the **first** step — dedupe precedes the cap check so an
+     at-least-once redelivery (ADR-004) of an already-processed event never
+     consumes quota or is dropped by the cap.
+  2. **If `rowCount = 0`** → the `event_id` already exists → duplicate
+     redelivery (ADR-004 at-least-once): **skip** — no quota consumption, no
+     row, no SSE, no email.
+  3. **Else (`rowCount = 1`, new row)** → **cap check (F5)** — Redis counter
+     key `notification:{tenantId}:{userId}:emit` (INCR + EXPIRE 60 s) enforces
+     the **100/min per user** consumer cap from ADR-035 **only for newly
+     inserted rows**. On breach: **drop delivery** — the row stays persisted
+     (explicit trade-off: a rate-limited *new* event is persisted but not
+     delivered, which prevents redeliveries from inflating the counter and
+     blocking legitimate deliveries) — increment the
+     `notifications_rate_limited_total` counter, and log a warn (no crash,
      no DLQ).
-  2. **Insert-ignore (F6)** — insert the `notifications` row with
-     **insert-ignore** semantics: `INSERT ... ON CONFLICT (event_id) DO NOTHING`
-     (backed by the UNIQUE index on `notifications.event_id`, §4.1). This is
-     the **only** insert of the `notifications` row in the pipeline.
-  3. **If `rowCount = 0`** → the `event_id` already exists → duplicate
-     redelivery (ADR-004 at-least-once): **skip** — no row, no SSE, no email.
-  4. **Else (`rowCount = 1`)** → resolve the target user's profile, read
+  4. **Deliver** — resolve the target user's profile, read
      `notification_prefs`, decide channels (in-app vs email), **SSE-push** to
      the user's connections, and **enqueue email** in `core.email_queue` when
      the email channel is enabled.
 - Failures: retry 3× with backoff via existing consumer machinery, then DLQ
   (ADR-016) — a *processing* failure is never silently dropped; a *cap-breach*
-  drop in step 1 is intentional and counted, never retried.
+  delivery suppression in step 3 is intentional and counted, never retried.
 
 ### 5.3 Invitation Event (006-01 trigger)
 
@@ -507,9 +514,12 @@ ADR-004).
 #### [PATCH] `/api/v1/profile` — modified (006-11)
 
 - Body extended with optional `email`. Service syncs the new email to Keycloak
-  (new `syncEmail` helper, fire-and-forget like `syncDisplayName`) and updates
-  `user_profile.email`. Email validation via Zod (basic format) + Keycloak
-  uniqueness handled at sync time (logged warning on conflict).
+  (new `syncEmail` helper) and updates `user_profile.email` **only after
+  Keycloak returns success** — the local write never precedes (or races) the
+  upstream confirmation, preventing divergence between the local profile and
+  Keycloak. On Keycloak rejection/failure → **no local write** and the error is
+  surfaced (no fire-and-forget divergence). Email validation via Zod (basic
+  format) + Keycloak uniqueness handled at sync time.
 
 #### [GET] `/api/v1/profile/sessions` — new (006-13)
 
@@ -779,7 +789,7 @@ services/core-api/src/modules/observability/
 | `services/core-api/src/modules/notification/__tests__/connection-manager.test.ts` | Cap eviction, heartbeat, cleanup, tenant isolation (unit) |
 | `services/core-api/src/modules/notification/__tests__/notification.service.test.ts` | Channel decisions, legacy prefs normalization (unit) |
 | `services/core-api/src/modules/notification/__tests__/notification.routes.int.test.ts` | Stream (connect < 1 s, 401, isolation), list, mark read, prefs < 300 ms (integration) |
-| `services/core-api/src/modules/notification/__tests__/notification.consumer.int.test.ts` | Invite → row + SSE < 2 s, plugin emission, **cap breach (F5): event dropped → no `notifications` row persisted**; **redelivery dedupe (F6): same event published twice → single `notifications` row**, DLQ (integration) |
+| `services/core-api/src/modules/notification/__tests__/notification.consumer.int.test.ts` | Invite → row + SSE < 2 s, plugin emission, **cap breach (F5): new event over cap → `notifications` row persisted + delivery suppressed (dedupe-first order), `notifications_rate_limited_total` incremented**; **redelivery dedupe (F6): same event published twice → single `notifications` row, second delivery skipped with no quota consumption**, DLQ (integration) |
 | `services/core-api/src/modules/notification/__tests__/email-queue.service.test.ts` | Retry, backoff, dead-letter, claim idempotency (**integration** — real SMTP/Mailpit, as §10.2) |
 | `services/core-api/src/modules/notification/__tests__/emit-rate-limit.test.ts` | 10/min boundary (unit) |
 | `services/core-api/src/modules/observability/__tests__/health.routes.int.test.ts` | Deep probes, < 200 ms, degraded statuses (integration) |
@@ -973,9 +983,10 @@ Prisma migration `<ts>_email_queue` (`db:migrate`) + tenant raw-SQL migration
 3. `[M]` `sse.ts` + `routes.ts` — `GET /notifications/stream` in tenantScope with
    rate limit; register in `index.ts`. *(task 3)*
 4. `[L]` `consumer.ts` + `repository.ts` — subscribe `plexica.workspace.invite`
-   + `plexica.notification`; **ordered pipeline per §5.2: cap check (F5) →
-   insert-ignore by `event_id` (F6) → `rowCount = 0` redelivery skip → persist
-   + SSE push + email enqueue**. *(task 4)*
+   + `plexica.notification`; **ordered pipeline per §5.2 (dedupe-first):
+   insert-ignore by `event_id` (F6) → `rowCount = 0` redelivery skip (no quota
+   consumption) → cap check (F5, only for new rows) → persist + SSE push +
+   email enqueue**. *(task 4)*
 5. `[M]` `service.ts` + list/read/read-all routes (006-02 center backend).
 6. `[M]` `core.email_queue` + `email-queue.service.ts` + worker; reroute
    `sendInvitationEmail` through queue (006-03).
@@ -1108,7 +1119,7 @@ asynchronously — the helper must retry the read, not single-shot.
 | File | Focus |
 | ---- | ----- |
 | `notification.routes.int.test.ts` | Stream 401/isolation/connect, list/read/prefs |
-| `notification.consumer.int.test.ts` | Invite → row + SSE < 2 s; emission; **cap breach (F5) — event dropped, `notifications` row count unchanged (cap check precedes insert)**; **redelivery dedupe (F6) — same event twice → one row**; DLQ path |
+| `notification.consumer.int.test.ts` | Invite → row + SSE < 2 s; emission; **cap breach (F5) — new event over cap → `notifications` row persisted, delivery suppressed, counter incremented (dedupe-first order: cap check after insert, only for new rows)**; **redelivery dedupe (F6) — same event twice → one row, second delivery skipped with no quota consumption**; DLQ path |
 | `email-queue.service.test.ts` | Retry, backoff, dead-letter (against real SMTP/Mailpit) — **integration (classified here, not §10.3)** |
 | `profile-sessions.int.test.ts` | Sessions vs real Keycloak; **DELETE another user's sessionId → 404 (F4)** |
 | `email-queue-purge.int.test.ts` | **F8**: tenant deletion saga purges pending `core.email_queue` rows and succeeds |

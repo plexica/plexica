@@ -64,7 +64,7 @@
   - **Dependencies**: 1.2 (DDL mirrors model)
   - **Estimated**: M
 
-- [ ] **1.4** `[S]` `[FR-006-17]` `[P]` Add `prom-client@^15` core dependency
+- [ ] **1.4** `[S]` `[FR-006-17]` `[P]` Add `prom-client@15.1.3` core dependency
   - **File**: `services/core-api/package.json` (Modify)
   - **Type**: backend — dependency
   - **Description**: New core dependency per **ADR-036 (Accepted 2026-09-17)** — `prom-client` registry + default process metrics. Imported **only** by `metrics-registry.ts` (plan §6.2).
@@ -162,7 +162,7 @@
 - [ ] **2.6** `[L]` `[FR-006-01]` `[FR-006-05]` Notification Kafka consumer
   - **File**: `services/core-api/src/modules/notification/consumer.ts` (Create)
   - **Type**: backend — events
-  - **Description**: Consumer group `plexica-notification-consumer` subscribing `plexica.workspace.invite` + `plexica.notification`. **Ordered pipeline per plan §5.2**: (1) **cap check (F5)** — Redis `notification:{tenantId}:{userId}:emit` 100/min/user; breach → **drop, no persistence, no delivery**, increment `notifications_rate_limited_total`, warn (never DLQ); (2) **insert-ignore (F6)** — `INSERT ... ON CONFLICT (event_id) DO NOTHING`; (3) `rowCount = 0` → duplicate redelivery skip (ADR-004 at-least-once); (4) `rowCount = 1` → resolve profile → prefs → channels → SSE push + email enqueue. Non-tenant invitee → email-only. Processing failures: retry 3× backoff then DLQ (ADR-016). Email-carried targets (`email` → `user_profile.user_id`) resolved up-front.
+  - **Description**: Consumer group `plexica-notification-consumer` subscribing `plexica.workspace.invite` + `plexica.notification`. **Ordered pipeline per plan §5.2 (dedupe-first)**: (1) **insert-ignore (F6)** — `INSERT ... ON CONFLICT (event_id) DO NOTHING` — atomic dedupe **before** the cap check, so an at-least-once redelivery (ADR-004) of an already-processed event never consumes quota; (2) `rowCount = 0` → duplicate redelivery skip, no quota consumption, no delivery; (3) `rowCount = 1` (new row) → **cap check (F5)** — Redis `notification:{tenantId}:{userId}:emit` 100/min/user; breach → **delivery suppressed, row stays persisted** (prevents redelivery quota inflation), increment `notifications_rate_limited_total`, warn (never DLQ); (4) resolve profile → prefs → channels → SSE push + email enqueue. Non-tenant invitee → email-only. Processing failures: retry 3× backoff then DLQ (ADR-016). Email-carried targets (`email` → `user_profile.user_id`) resolved up-front.
   - **Spec Reference**: spec 006-01/05; plan §5.2, §6.1
   - **Dependencies**: 2.1, 2.4, 2.5, 2.7
   - **Estimated**: L
@@ -322,7 +322,7 @@
 - [ ] **3.13** `[L]` `[FR-006-01]` `[FR-006-02]` `[FR-006-04]` `[NFR-006-1]` `[NFR-006-6]` Integration tests — routes + consumer
   - **File**: `services/core-api/src/modules/notification/__tests__/notification.routes.int.test.ts` (Create), `services/core-api/src/modules/notification/__tests__/notification.consumer.int.test.ts` (Create)
   - **Type**: test — integration (real stack: Keycloak RS256, PG, Redis, Kafka)
-  - **Description**: Routes: stream connect < 1 s, 401, tenant isolation, list, mark read, prefs < 300 ms. Consumer: invite → row + SSE < 2 s; plugin emission; **cap breach (F5)** — event dropped, `notifications` row count unchanged (cap precedes insert); **redelivery dedupe (F6)** — same event published twice → single row; DLQ path.
+  - **Description**: Routes: stream connect < 1 s, 401, tenant isolation, list, mark read, prefs < 300 ms. Consumer: invite → row + SSE < 2 s; plugin emission; **cap breach (F5)** — new event over cap → `notifications` row persisted, delivery suppressed, counter incremented (dedupe-first order: cap check after insert, only for new rows); **redelivery dedupe (F6)** — same event published twice → single row, second delivery skipped with no quota consumption; DLQ path.
   - **Spec Reference**: plan §10.2, §10.4
   - **Dependencies**: 3.1, 3.2, 2.6
   - **Estimated**: L
@@ -473,7 +473,7 @@
 - [ ] **5.2** `[M]` `[FR-006-11]` `[FR-006-12]` `[FR-006-14]` Profile service extensions
   - **File**: `services/core-api/src/modules/user-profile/service.ts` (Modify), `services/core-api/src/modules/user-profile/repository.ts` (Modify — `updateEmail`), `services/core-api/src/modules/user-profile/schema.ts` (Modify — optional `email`)
   - **Type**: backend — service
-  - **Description**: `getProfile` merges the Keycloak JWT `picture` claim → `avatarUrl` + `avatarSource: "keycloak"|"upload"` (picture wins — 006-12); adds `keycloakAccountUrl` from `KEYCLOAK_ACCOUNT_URL_PATTERN` (006-14); `updateProfile` accepts optional `email` → `syncEmail` fire-and-forget (like `syncDisplayName`) + `user_profile.email` update (uniqueness conflict logged as warning, no crash).
+  - **Description**: `getProfile` merges the Keycloak JWT `picture` claim → `avatarUrl` + `avatarSource: "keycloak"|"upload"` (picture wins — 006-12); adds `keycloakAccountUrl` from `KEYCLOAK_ACCOUNT_URL_PATTERN` (006-14); `updateProfile` accepts optional `email` → `syncEmail` to Keycloak **first**, and `user_profile.email` local write **only after Keycloak returns success** — a rejected/failed Keycloak sync must NOT update the local email (no divergence); error surfaced on failure.
   - **Spec Reference**: spec 006-11/12/14; plan §5.4, §6.4
   - **Dependencies**: 5.1, 1.6
   - **Estimated**: M
@@ -692,6 +692,7 @@
 | M    | 50 |
 | L    | 9  |
 | XL   | 0  |
+| ALL (meta, 7.2) | 1 |
 
 ---
 

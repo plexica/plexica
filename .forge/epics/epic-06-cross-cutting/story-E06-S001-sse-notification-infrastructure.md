@@ -6,7 +6,7 @@
 | Field    | Value             |
 | -------- | ----------------- |
 | Story ID | E06-S001          |
-| Epic     | [E06 — Cross-Cutting](.forge/epics/epic-06-cross-cutting/epic.md) |
+| Epic     | [E06 — Cross-Cutting](epic.md) |
 | Sprint   | 6 (sprint story `006-01`) |
 | Points   | 3                 |
 | Priority | High              |
@@ -90,7 +90,7 @@ This is the foundation story of Phase 1 — Notifications. Stories `006-02`
 1. `[M]` `[FR-006-01]` `[P]` Add `notifications` model + index to the tenant
    Prisma schema and generate the migration.
    - **Files**: `services/core-api/prisma/tenant-schema/core-models.prisma` (or new
-     `notification-models.prisma`), migration under `services/core-api/prisma/migrations/`
+     `notification-models.prisma`), migration under `services/core-api/prisma/tenant-schema/`
    - **Dependencies**: none
    - **Estimated**: 30 min - 2 h
 2. `[M]` `[FR-006-01]` `[P]` Notification connection manager — per-tenant pools,

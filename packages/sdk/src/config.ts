@@ -21,6 +21,11 @@ export function resolvePluginConfig(config: PluginConfig): PluginConfig {
   return {
     ...config,
     apiUrl,
+    // CWE-319 allowlist passthrough (F9): default = no allowlist = safest.
+    // Explicitly materialized so resolved configs are never accidentally
+    // permissive.
+    allowHttpHosts: config.allowHttpHosts ?? [],
+    allowHttpInternal: config.allowHttpInternal ?? false,
     ...(serviceToken ? { serviceToken } : {}),
     ...(installId ? { installId } : {}),
   };

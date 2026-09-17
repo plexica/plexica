@@ -88,6 +88,45 @@ describe('emitNotification (standalone)', () => {
     expect(caught).not.toBeInstanceOf(SyntaxError);
   });
 
+  it('throws ApiCallError on a 200 response (ADR-035 accepts only 202)', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        text: () => Promise.resolve('queued'),
+        json: () => Promise.resolve({ status: 'queued', notificationId: 'n-123' }),
+      } as unknown as Response)
+    );
+    let caught: unknown;
+    try {
+      await emitNotification(BASE_CONFIG, INPUT);
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeInstanceOf(ApiCallError);
+    expect((caught as Error).message).toContain('200');
+  });
+
+  it('throws ApiCallError on a 500 response', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 500,
+        text: () => Promise.resolve('boom'),
+      } as unknown as Response)
+    );
+    let caught: unknown;
+    try {
+      await emitNotification(BASE_CONFIG, INPUT);
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeInstanceOf(ApiCallError);
+    expect((caught as Error).message).toContain('500');
+  });
+
   it('sends the service token auth header (falls back to user JWT otherwise)', async () => {
     const fetchMock = vi.fn().mockResolvedValue(ok202());
     vi.stubGlobal('fetch', fetchMock);
@@ -105,6 +144,24 @@ describe('emitNotification (standalone)', () => {
     ).rejects.toThrow(/CWE-319/);
   });
 
+  it('throws CWE-319 guard on single-label http: without an allowlist (F9)', async () => {
+    vi.stubGlobal('fetch', vi.fn());
+    await expect(
+      emitNotification({ ...BASE_CONFIG, apiUrl: 'http://core-api-e2e:3001' }, INPUT)
+    ).rejects.toThrow(/CWE-319/);
+  });
+
+  it('allows single-label http: when the host is in allowHttpHosts (F9)', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(ok202());
+    vi.stubGlobal('fetch', fetchMock);
+    await emitNotification(
+      { ...BASE_CONFIG, apiUrl: 'http://core-api-e2e:3001', allowHttpHosts: ['core-api-e2e'] },
+      INPUT
+    );
+    const [url] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('http://core-api-e2e:3001/api/v1/notifications/emit');
+  });
+
   it('resolves CORE_API_URL and PLEXICA_SERVICE_TOKEN env fallbacks', async () => {
     const fetchMock = vi.fn().mockResolvedValue(ok202());
     vi.stubGlobal('fetch', fetchMock);
@@ -113,7 +170,7 @@ describe('emitNotification (standalone)', () => {
     process.env['CORE_API_URL'] = 'http://core-api:3001';
     process.env['PLEXICA_SERVICE_TOKEN'] = 'svc-env';
     try {
-      await emitNotification({ ...BASE_CONFIG, apiUrl: '' }, INPUT);
+      await emitNotification({ ...BASE_CONFIG, apiUrl: '', allowHttpHosts: ['core-api'] }, INPUT);
     } finally {
       if (origUrl === undefined) delete process.env['CORE_API_URL'];
       else process.env['CORE_API_URL'] = origUrl;

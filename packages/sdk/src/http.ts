@@ -16,7 +16,12 @@ export class PluginHttp {
     // CWE-319 guard (see url-guard.ts): reject cleartext non-loopback apiUrl
     // for ANY PluginHttp entry point (PluginSDK + standalone emitNotification).
     // Idempotent — safe if PluginSDK's constructor also validated the URL.
-    assertSecureApiUrl(config.apiUrl);
+    // Single-label internal http: hosts require an explicit allowlist
+    // (ADR-035/CWE-319, F9).
+    assertSecureApiUrl(config.apiUrl, {
+      allowHttpHosts: config.allowHttpHosts ?? [],
+      allowHttpInternal: config.allowHttpInternal ?? false,
+    });
   }
 
   /**
@@ -124,7 +129,12 @@ export class PluginHttp {
       signal: AbortSignal.timeout(10_000),
     });
 
-    if (!response.ok) {
+    // ADR-035 Decision 5 contract: emit returns exactly `202 { status:
+    // "accepted", notificationId }`. Reject EVERY other status — including
+    // other 2xx (e.g. 200) — before attempting to parse the body (F8). The
+    // ApiCallError built from the non-202 response is the same as any other
+    // API failure.
+    if (response.status !== 202) {
       const text = await response.text();
       throw new ApiCallError('POST', url, response.status, text.substring(0, 200));
     }

@@ -250,7 +250,7 @@ notification Kafka consumer topology. Concretely:
 ## Follow-Up Actions
 
 - [x] **Review + accept this ADR** (Proposed → Accepted) — **Accepted 2026-09-17** by user (Plexica Team). Open points confirmed: `202 { status: "accepted", notificationId }` emit response; idempotency mechanism deferred to consumer task (`/forge-tasks`).
-- [ ] **Decision-log entry** (orchestrator): record ADR-035 acceptance in `.forge/knowledge/decision-log.md` with date + summary.
+- [x] **Decision-log entry** (orchestrator): record ADR-035 acceptance in `.forge/knowledge/decision-log.md` with date + summary.
 - [ ] **Migration** `<ts>_notifications_and_email_queue` (plan §4.4): tenant schema `notifications` + core schema `email_queue` via the existing `multi-schema-migrate` path (`tenant:migrate` / `db:migrate`). Additive; no backfill.
 - [ ] **Consumer idempotency** (negative-consequence mitigation): define and implement `eventId`-based dedupe for notification persistence in `consumer.ts` (ADR-004 amendment requirement).
 - [ ] **E2E specs** per Rule 1: `notification-sse.spec.ts` (delivery < 2 s, tenant isolation), `notification-center.spec.ts`, `notification-email.spec.ts` (Mailpit, retry + dead-letter), `notification-prefs.spec.ts`, `plugin-notification.spec.ts`.

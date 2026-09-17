@@ -47,7 +47,11 @@ export class PluginSDK {
   constructor(config: PluginConfig) {
     this.config = resolvePluginConfig(config);
     // CWE-319 guard (see url-guard.ts): reject cleartext non-loopback apiUrl.
-    assertSecureApiUrl(this.config.apiUrl);
+    // Single-label internal http: hosts require an explicit allowlist (F9).
+    assertSecureApiUrl(this.config.apiUrl, {
+      allowHttpHosts: this.config.allowHttpHosts ?? [],
+      allowHttpInternal: this.config.allowHttpInternal ?? false,
+    });
     this.db = new PluginDb(config.onError === undefined ? {} : { onError: config.onError });
     this.http = new PluginHttp(this.config);
   }
