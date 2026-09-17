@@ -36,6 +36,7 @@ model Tenant {
   deadLetters              DeadLetterQueue[]
   serviceCredentials       PluginServiceCredential[]
   lifecycleReconciliations TenantLifecycleReconciliation[]
+  emailQueue               EmailQueue[]
 
   @@index([status])
   @@map("tenants")
@@ -232,6 +233,31 @@ model TenantLifecycleReconciliation {
   @@unique([tenantId, targetVersion])
   @@index([status, availableAt, leaseExpiresAt], map: "tenant_lifecycle_reconciliation_claim_idx")
   @@map("tenant_lifecycle_reconciliations")
+  @@schema("core")
+}
+
+// Email delivery retry queue (ADR-035, feature 006-03).
+// Durable outbox for outbound notification email. tenant_id is nullable and
+// references core.tenants for the GDPR purge hook (ADR-016 pattern): the
+// deletion saga deletes rows via tenant_id before schema_drop. last_error is
+// bounded (no stack traces, no PII).
+model EmailQueue {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String?   @map("tenant_id") @db.Uuid
+  toAddress     String    @map("to_address") @db.VarChar(255)
+  subject       String    @db.VarChar(255)
+  htmlBody      String    @map("html_body") @db.Text
+  emailType     String    @map("email_type") @db.VarChar(63)
+  status        String    @default("pending") @db.VarChar(16)
+  attempts      Int       @default(0)
+  nextAttemptAt DateTime  @default(now()) @map("next_attempt_at") @db.Timestamptz
+  lastError     String?   @map("last_error") @db.VarChar(512)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  sentAt        DateTime? @map("sent_at") @db.Timestamptz
+  tenant        Tenant?   @relation(fields: [tenantId], references: [id], onDelete: NoAction)
+
+  @@index([status, nextAttemptAt], map: "email_queue_status_next_attempt_idx")
+  @@map("email_queue")
   @@schema("core")
 }
 

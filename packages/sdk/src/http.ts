@@ -3,14 +3,21 @@
 // Extracted from PluginSDK to keep index.ts under the 200-line constitution limit.
 
 import { ApiCallError } from './errors.js';
+import { assertSecureApiUrl } from './url-guard.js';
 
+import type { EmitNotificationInput, EmitNotificationResult } from './types.js';
 import type { PluginConfig } from './types.js';
 
 /**
  * Injects X-Plexica context headers and auth into outbound calls to core.
  */
 export class PluginHttp {
-  constructor(private readonly config: PluginConfig) {}
+  constructor(private readonly config: PluginConfig) {
+    // CWE-319 guard (see url-guard.ts): reject cleartext non-loopback apiUrl
+    // for ANY PluginHttp entry point (PluginSDK + standalone emitNotification).
+    // Idempotent — safe if PluginSDK's constructor also validated the URL.
+    assertSecureApiUrl(config.apiUrl);
+  }
 
   /**
    * Make an authenticated API call to the core platform.
@@ -80,5 +87,61 @@ export class PluginHttp {
       const text = await response.text();
       throw new ApiCallError('POST', url, response.status, text.substring(0, 200));
     }
+  }
+
+  /**
+   * Emit a notification via core's notification endpoint (feature 006-05,
+   * ADR-035 Decision 5). The type is automatically prefixed with
+   * `plugin.<slug>.`. Prefers the platform-injected service token; falls back
+   * to user JWT (same auth as emitEvent).
+   * The core generates the `notificationId` at emission and returns it
+   * synchronously; persistence + SSE delivery are asynchronous.
+   * @throws {ApiCallError} on non-2xx response.
+   */
+  async emitNotification(input: EmitNotificationInput): Promise<EmitNotificationResult> {
+    const url = `${this.config.apiUrl.replace(/\/+$/, '')}/api/v1/notifications/emit`;
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+
+    if (this.config.serviceToken) {
+      headers['X-Plugin-Service-Token'] = this.config.serviceToken;
+    } else if (this.config.accessToken) {
+      headers['Authorization'] = `Bearer ${this.config.accessToken}`;
+    }
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        userId: input.userId,
+        type: `plugin.${this.config.slug}.${input.type}`,
+        titleKey: input.titleKey,
+        ...(input.titleParams !== undefined ? { titleParams: input.titleParams } : {}),
+        ...(input.bodyKey !== undefined ? { bodyKey: input.bodyKey } : {}),
+        ...(input.metadata !== undefined ? { metadata: input.metadata } : {}),
+        timestamp: new Date().toISOString(),
+        correlationId: crypto.randomUUID(),
+      }),
+      signal: AbortSignal.timeout(10_000),
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new ApiCallError('POST', url, response.status, text.substring(0, 200));
+    }
+    // Defensive parse: a 202 that is not valid JSON (or lacks the contract
+    // field) is a contract violation, not an HTTP failure — parse defensively
+    // so a raw SyntaxError never leaks, and build the error without claiming
+    // the HTTP status was a failure.
+    const body = (await response.json().catch(() => null)) as { notificationId?: unknown } | null;
+    if (!body || typeof body.notificationId !== 'string' || body.notificationId.length === 0) {
+      throw new ApiCallError(
+        'POST',
+        url,
+        202,
+        'Emit response missing notificationId',
+        `Notification emit contract violation: 202 response from ${url} is missing a valid notificationId`
+      );
+    }
+    return { notificationId: body.notificationId };
   }
 }

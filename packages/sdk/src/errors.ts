@@ -22,12 +22,19 @@ export class EventSubscriptionError extends Error {
 }
 
 /**
- * Error thrown when an API call to the core platform fails with a non-2xx status.
+ * Error thrown when an API call to the core platform fails with a non-2xx status,
+ * or when a 2xx response violates the documented response contract.
  */
 export class ApiCallError extends Error {
   readonly code = 'API_CALL_ERROR';
-  constructor(method: string, path: string, status: number, body: string) {
-    super(`API call ${method} ${path} failed with ${status}: ${body}`);
+  constructor(
+    method: string,
+    path: string,
+    status: number,
+    body: string,
+    messageOverride?: string
+  ) {
+    super(messageOverride ?? `API call ${method} ${path} failed with ${status}: ${body}`);
   }
 }
 

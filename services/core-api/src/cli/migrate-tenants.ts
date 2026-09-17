@@ -1,5 +1,6 @@
 // migrate-tenants.ts
-// CLI entrypoint: applies the 003_core_features DDL migration to all active tenant schemas.
+// CLI entrypoint: applies all registered tenant DDL migrations (TENANT_MIGRATION_FILES)
+// to all active tenant schemas.
 // Usage: pnpm --filter core-api tenant:migrate
 // Safe to re-run — all DDL statements use CREATE TABLE IF NOT EXISTS / CREATE INDEX IF NOT EXISTS.
 
