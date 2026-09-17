@@ -18,6 +18,7 @@ model UserProfile {
   workspacesCreated Workspace[]       @relation("WorkspaceCreator")
   workspaceMembers  WorkspaceMember[]
   invitationsSent   Invitation[]
+  notifications     Notification[]
 
   @@map("user_profile")
 }

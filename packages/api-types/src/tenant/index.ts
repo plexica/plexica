@@ -5,3 +5,4 @@ export * from './workspace.js';
 export * from './audit-log.js';
 export * from './user.js';
 export * from './plugin.js';
+export * from './notification.js';

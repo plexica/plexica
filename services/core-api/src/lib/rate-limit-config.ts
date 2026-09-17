@@ -88,3 +88,15 @@ export const SETTINGS_RATE_LIMIT = {
   max: 30,
   timeWindow: '1 minute',
 } as const;
+
+/**
+ * SSE notification stream connection establishment: 10 req/min per user
+ * (ADR-035 Decision 1). Applies to connection *establishment* only — sustained
+ * delivery is push-only. No aggregate NOTIFICATION_EMIT_RATE_LIMIT preset
+ * exists: emission is bounded by the per-plugin-per-user Redis counter
+ * (10/min) plus the consumer defense-in-depth cap (100/min/user).
+ */
+export const SSE_CONNECT_RATE_LIMIT = {
+  max: 10,
+  timeWindow: '1 minute',
+} as const;

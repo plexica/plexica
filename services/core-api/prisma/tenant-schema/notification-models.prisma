@@ -1,0 +1,20 @@
+// notification-models.prisma
+// Notification (ADR-035 — real-time in-app notifications, feature 006-01)
+// Tenant-scoped in-app notification row. Titles are i18n keys (no PII, Security §6).
+
+model Notification {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  eventId   String   @unique @map("event_id") @db.VarChar(255)
+  userId    String   @map("user_id") @db.Uuid
+  type      String   @db.VarChar(63)
+  title     String   @db.VarChar(255)
+  body      String?  @db.Text
+  metadata  Json     @default("{}") @db.JsonB
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  user UserProfile @relation(fields: [userId], references: [userId], onDelete: Cascade)
+
+  @@index([userId, read, createdAt(sort: Desc)], map: "notifications_user_read_created_idx")
+  @@map("notifications")
+}

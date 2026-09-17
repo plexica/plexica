@@ -40,6 +40,7 @@
     "@vitejs/plugin-react": "catalog:",
     "autoprefixer": "catalog:",
     "dotenv": "catalog:",
+    "eslint-plugin-formatjs": "^8.0.3",
     "postcss": "catalog:",
     "tailwindcss": "catalog:",
     "typescript": "catalog:",

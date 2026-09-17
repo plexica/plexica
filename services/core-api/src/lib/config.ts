@@ -5,6 +5,7 @@ import { z } from 'zod';
 
 import { validateCiRuntimeContract } from './ci-runtime-contract.js';
 import { ciRuntimeEnvSchema } from './ci-runtime-env-config.js';
+import { featuresConfigShape } from './config-features.js';
 import { assertNoStaleStorageEnv } from './storage-env-guard.js';
 
 const configSchema = z
@@ -62,6 +63,10 @@ const configSchema = z
     SMTP_HOST: z.string().default('localhost'),
     SMTP_PORT: z.coerce.number().int().default(1025),
 
+    // Cross-cutting feature config (spec 006): notifications, observability,
+    // OTel stub, Keycloak account URL — see config-features.ts.
+    ...featuresConfigShape.shape,
+
     // ABAC
     ABAC_CACHE_TTL_SECONDS: z.coerce.number().int().default(300),
     ABAC_DECISION_LOG_SAMPLE_RATE: z.coerce.number().min(0).max(1).default(1.0),
@@ -100,14 +105,9 @@ const configSchema = z
     // issued by the master realm, not by a tenant realm (H-03 security fix).
     KEYCLOAK_MASTER_REALM: z.string().default('master'),
 
-    // Fastify trustProxy — controls how X-Forwarded-* hops are trusted.
-    // false  = trust no proxy (safe default; request.ip is the direct connection IP).
-    // <ip|cidr> = comma-separated IPs/CIDRs to trust as proxies (e.g. the reverse
-    //   proxy address). Recommended when running behind a single reverse proxy.
-    // true   = trust the entire X-Forwarded-For chain. Never use — it enables
-    //   trivial IP spoofing by any client that sends a forged X-Forwarded-For header.
-    // Numeric hop counts are no longer supported: fastify 5.12+ fails closed on
-    // numeric values (security hardening), so any numeric input maps to false.
+    // Fastify trustProxy — X-Forwarded-* hop trust. false = trust no proxy
+    // (safe default); <ip|cidr> = trust listed proxies; true = never use (IP
+    // spoofing). Numeric hop counts map to false (fastify 5.12+ fails closed).
     TRUST_PROXY: z.preprocess(
       (v) =>
         v === 'true'

@@ -25,6 +25,7 @@ is_excluded() {
     coverage/*|*/coverage/*|*/playwright-report/*|*/test-results/*) return 0 ;;
     generated/*|*/generated/*|*.generated.*|*.gen.ts|*.min.js) return 0 ;;
     */migrations/*.sql) return 0 ;;
+    */tenant-schema/*/migration.sql) return 0 ;;
     *) return 1 ;;
   esac
 }

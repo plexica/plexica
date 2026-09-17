@@ -1,35 +1,36 @@
 // plugin-sdk.ts
-// The PluginSDK class — one class per plugin backend (spec §7.6 "SDK Plugin
-// v2", docs/01-SPECIFICHE.md; v2 Lesson #9: single SDK class, no Kafka).
-//
-// Events: dispatched via HTTP POST /_plexica/event (core → plugin backend).
-// DB/HTTP delegated to PluginDb (db.ts) and PluginHttp (http.ts). No direct
-// Kafka connection — core manages Kafka consumption/production.
+// The PluginSDK class — one class per plugin backend (spec §7.6; v2 Lesson #9).
+// Events: HTTP POST /_plexica/event (core → plugin backend). DB/HTTP delegated
+// to PluginDb (db.ts) and PluginHttp (http.ts). No direct Kafka connection.
 
 import { SdkNotInitializedError, DbAccessError } from './errors.js';
+import { resolvePluginConfig } from './config.js';
 import { PluginDb } from './db.js';
 import { PluginHttp } from './http.js';
 import { assertSecureApiUrl } from './url-guard.js';
 
 import type { Pool } from 'pg';
-import type { PluginConfig, PluginContext, PluginEvent, EventHandler } from './types.js';
+import type {
+  EmitNotificationInput,
+  EmitNotificationResult,
+  PluginConfig,
+  PluginContext,
+  PluginEvent,
+  EventHandler,
+} from './types.js';
 
 /**
  * Main SDK class for Plexica plugin backends.
  *
- * Provides a unified interface for:
- * - Event subscription and dispatch (via HTTP, no direct Kafka)
- * - Authenticated API calls to the core platform
- * - Scoped database access to plugin-declared tables
- * - Context extraction (tenant, user, workspace, role)
+ * Unified interface for event subscription/dispatch (via HTTP, no direct
+ * Kafka), authenticated API calls to core, scoped DB access, and context
+ * extraction (tenant, user, workspace, role).
  *
  * @example
- * ```typescript
  * const sdk = new PluginSDK({ pluginId: 'crm', slug: 'crm', tenantId: 'acme' });
  * await sdk.initialize();
  * sdk.onEvent('tenant.created', async (event) => { ... });
  * await sdk.destroy();
- * ```
  */
 export class PluginSDK {
   private config: PluginConfig;
@@ -44,35 +45,24 @@ export class PluginSDK {
    * @param config - Plugin configuration (IDs, credentials, callbacks)
    */
   constructor(config: PluginConfig) {
-    this.config = {
-      ...config,
-      // `||` not `??`: an empty apiUrl must fall back to the loopback dev
-      // default, and only that default is allowed over cleartext HTTP.
-      apiUrl: config.apiUrl || process.env['CORE_API_URL'] || 'http://localhost:3001',
-    };
+    this.config = resolvePluginConfig(config);
     // CWE-319 guard (see url-guard.ts): reject cleartext non-loopback apiUrl.
-    assertSecureApiUrl(this.config.apiUrl);
-    const svcToken = config.serviceToken ?? process.env['PLEXICA_SERVICE_TOKEN'];
-    const instId = config.installId ?? process.env['PLEXICA_INSTALL_ID'];
-    if (svcToken) this.config.serviceToken = svcToken;
-    if (instId) this.config.installId = instId;
+    // Single-label internal http: hosts require an explicit allowlist (F9).
+    assertSecureApiUrl(this.config.apiUrl, {
+      allowHttpHosts: this.config.allowHttpHosts ?? [],
+      allowHttpInternal: this.config.allowHttpInternal ?? false,
+    });
     this.db = new PluginDb(config.onError === undefined ? {} : { onError: config.onError });
     this.http = new PluginHttp(this.config);
   }
 
-  /**
-   * Initializes the SDK. Must be called before using event/API methods.
-   * Idempotent - safe to call multiple times.
-   */
+  /** Initializes the SDK. Must be called before using event/API methods. Idempotent. */
   async initialize(): Promise<void> {
     if (this.initialized) return;
     this.initialized = true;
   }
 
-  /**
-   * Shuts down the SDK, clearing event handlers and closing database connections.
-   * Should be called during plugin backend graceful shutdown.
-   */
+  /** Shuts down the SDK: clears event handlers and closes DB connections. */
   async destroy(): Promise<void> {
     this.handlers = [];
     this.initialized = false;
@@ -81,7 +71,6 @@ export class PluginSDK {
 
   /**
    * Register an event handler for an event type or `.*` glob pattern.
-   *
    * @param pattern - Event type or glob pattern (e.g. 'tenant.*')
    * @param handler - Async callback invoked for matching dispatched events
    */
@@ -91,8 +80,7 @@ export class PluginSDK {
 
   /**
    * Dispatch an incoming event to all matching registered handlers.
-   * Called by the platform when events are delivered via POST /_plexica/event.
-   * Handlers run concurrently (Promise.all).
+   * Called by the platform via POST /_plexica/event. Handlers run concurrently.
    *
    * @param event - Event object received from the platform
    * @throws {SdkNotInitializedError} if SDK not initialized
@@ -132,8 +120,7 @@ export class PluginSDK {
    *
    * @param type - Event type suffix (will be prefixed automatically)
    * @param payload - Event payload data
-   * @throws {ApiCallError} on non-2xx response
-   * @throws {SdkNotInitializedError} if SDK not initialized
+   * @throws {ApiCallError} on non-2xx; {SdkNotInitializedError} if not initialized
    */
   async emitEvent(type: string, payload: unknown): Promise<void> {
     if (!this.initialized) throw new SdkNotInitializedError();
@@ -141,10 +128,21 @@ export class PluginSDK {
   }
 
   /**
-   * Extract the current request context (tenant, user, workspace, role).
-   * Context is derived from platform-injected headers or fallback config values.
+   * Emit a notification to a tenant user (feature 006-05, ADR-035).
+   * Notification type is automatically prefixed with `plugin.<slug>.`.
    *
-   * @returns Current plugin execution context
+   * @param input - Notification payload (userId, type, titleKey, …)
+   * @returns The notificationId generated by core at emission (ADR-035 Decision 5)
+   * @throws {ApiCallError} on non-2xx; {SdkNotInitializedError} if not initialized
+   */
+  async emitNotification(input: EmitNotificationInput): Promise<EmitNotificationResult> {
+    if (!this.initialized) throw new SdkNotInitializedError();
+    return this.http.emitNotification(input);
+  }
+
+  /**
+   * Extract the current request context (tenant, user, workspace, role).
+   * Derived from platform-injected headers or fallback config values.
    */
   getContext(): PluginContext {
     const ctx = this.config.plexicaHeaders;
@@ -158,7 +156,6 @@ export class PluginSDK {
 
   /**
    * Get a typed pg.Pool scoped to the plugin's declared tables.
-   * The pool is connected via the platform-injected restricted role.
    *
    * @returns PostgreSQL connection pool
    * @throws {DbAccessError} if no connection string is available
@@ -180,7 +177,7 @@ export class PluginSDK {
   }
 
   /**
-   * Execute a parameterized SQL query and return only the first row, or null.
+   * Execute a parameterized SQL query and return the first row, or null.
    *
    * @param sql - SQL query with $1, $2, etc. placeholders
    * @param params - Query parameters

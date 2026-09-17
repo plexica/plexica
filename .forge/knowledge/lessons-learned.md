@@ -153,3 +153,32 @@ _This document is the institutional memory of the project. Reference it during
 design reviews and when evaluating new approaches. If a proposed solution
 resembles a v1 mistake listed here, it requires explicit justification for
 why it will be different this time._
+
+---
+
+## Process / Sprint Tracking (added 2026-09-17 — Sprint 5 retro)
+
+- **A sprint that is never closed does not exist for planning.** Sprint 5 was
+  fully implemented and merged (PR #73, PR #77) but sat in `active/` for ~2
+  months with all stories `pending`, `end_date: null`, and the kanban board
+  still reading "Not Started". The tracking artifacts were stale while the
+  repository moved forward. Nobody noticed because no routine checked sprint
+  hygiene.
+  **v2 rule**: Close sprints within 3 days of the last story landing. Flip
+  story status to `done` the moment a PR merges (`completed_at` = merge date).
+  A pre-flight check should warn on active sprints with `end_date: null` or
+  age > 30 days. A sprint with no end date is a process failure, not a state.
+
+- **Velocity is meaningless without a normalized scale.** Sprints 1–3 counted
+  task-level points (109/219/322), Sprint 4 counted features at 1pt each (30),
+  Sprint 5 counted stories at 1pt each (11). The numbers are not comparable
+  and cannot drive capacity planning.
+  **v2 rule**: One point system across all sprints — 1 story = 1pt, sized
+  [S/M/L] per story; tasks do not carry points. Document it in
+  `.forge/sprints/velocity.md`.
+
+- **Retros are how process failures become visible.** This was the project's
+  first retrospective, after 5 sprints. Lessons from Sprints 1–4 were never
+  harvested.
+  **v2 rule**: Run a retro within 1 week of every sprint close; produce ≥ 1
+  actionable improvement and append it here.

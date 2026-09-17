@@ -14,9 +14,8 @@
 // and safe to re-run. (See decision-log ID-007 for rollback semantics.)
 
 import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { dirname } from 'node:path';
 
 import { prisma } from './database.js';
 import { logger } from './logger.js';
@@ -25,12 +24,19 @@ import type { Prisma } from '@prisma/client';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-// Relative to src/lib/ → ../.. → services/core-api/
-const MIGRATIONS_DIR = resolve(__dirname, '../../prisma/migrations');
+// Relative to src/lib/ → ../.. → services/core-api/prisma/tenant-schema/
+// Tenant DDL lives OUTSIDE prisma/migrations/ (the `prisma migrate deploy`
+// scan path, which applies unqualified DDL to the core schema). These raw-SQL
+// files are applied per-tenant via SET LOCAL search_path instead.
+export const MIGRATIONS_DIR = resolve(__dirname, '../../prisma/tenant-schema');
 
 // Migration files that contain tenant-schema DDL.
 // These are executed in order against every tenant schema.
-const TENANT_MIGRATION_FILES = ['003_core_features/migration.sql'];
+export const TENANT_MIGRATION_FILES = [
+  '003_core_features/migration.sql',
+  '006_notifications/migration.sql',
+  '006_translation_overrides/migration.sql',
+];
 
 interface MigrationResult {
   slug: string;

@@ -12,7 +12,19 @@
 export { PluginSDK } from './plugin-sdk.js';
 
 // Re-export public types so consumers can import them from '@plexica/sdk'.
-export type { PluginConfig, PluginContext, PluginEvent, EventHandler } from './types.js';
+export type {
+  PluginConfig,
+  PluginContext,
+  PluginEvent,
+  EventHandler,
+  EmitNotificationInput,
+  EmitNotificationResult,
+  JsonValue,
+} from './types.js';
+// CWE-319 guard options are public so SDK consumers can type allowlists.
+export type { SecureApiUrlOptions } from './url-guard.js';
+// Notification emission helper (feature 006-05) — used directly or via PluginSDK.
+export { emitNotification } from './notification-api.js';
 // Re-export error classes and DB helper for advanced use.
 export { DbAccessError, ApiCallError, SdkNotInitializedError } from './errors.js';
 export { PluginDb } from './db.js';

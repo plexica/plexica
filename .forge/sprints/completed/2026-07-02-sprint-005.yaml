@@ -1,0 +1,123 @@
+version: 1
+sprint_number: 5
+sprint_goal: 'Deliver Spec 005 — Super Admin Panel: dedicated super admin application with platform dashboard, tenant lifecycle management (provision/suspend/reactivate/delete/GDPR), plugin catalog management, system health monitoring, Kafka status + DLQ visibility, and filterable system logs.'
+start_date: '2026-07-02'
+end_date: '2026-07-31'
+actual_velocity: 11
+velocity_target: 11
+kanban_phase: 'Phase 4'
+spec_id: '005-super-admin'
+spec_path: '.forge/specs/005-super-admin/spec.md'
+plan_path: '.forge/specs/005-super-admin/plan.md'
+tasks_path: '.forge/specs/005-super-admin/tasks.md'
+retrospective_path: '.forge/sprints/retrospectives/sprint-005.md'
+
+# Closing summary — recorded at archival close on 2026-09-17.
+# Sprint 5 was fully implemented but never formally closed. All 11 stories
+# shipped via feat/005-super-admin (PR #73, merged 2026-07-20) with admin PKCE
+# auth support in feat/admin-pkce-auth (PR #77, merged 2026-07-24). ADR-022
+# (super admin data model) and ADR-023 (PKCE) were accepted. End date chosen
+# as 2026-07-31: the last known PR merge was 2026-07-24 (PR #77) and the
+# session decisions SD-01..SD-03 (2026-07-31) close out this sprint's
+# verification work. The sprint took ~2 months of wall-clock time and was
+# tracked inconsistently — the active sprint YAML stayed at 'pending' for all
+# stories, kanban.md still read "Sprint 5: Not Started", and no retrospective
+# existed. Actual velocity: 11 points (11/11 stories at 1pt each).
+closing_summary: >-
+  All 11 stories delivered and merged via PR #73 (2026-07-20) + PR #77
+  (2026-07-24). ADR-022 + ADR-023 accepted. Sprint formally closed on
+  2026-07-31 (end date chosen: last PR merge 2026-07-24; verification
+  decisions SD-01..SD-03 logged 2026-07-31). Actual velocity 11/11 pts.
+  NOTE: sprint ran ~2 months and was tracked inconsistently — active YAML
+  never updated (11/11 'pending'), kanban stale ("Sprint 5: Not Started"),
+  no retrospective, no end date set. 11/11 pages in apps/admin/src/pages/ and
+  11/11 E2E specs in apps/admin/e2e/005-*.spec.ts verified present.
+
+stories:
+  # ── Phase 1 — System Health Check ────────────────────────────────
+  - id: '005-09'
+    title: 'System health check'
+    phase: 'Phase 1 — System Health Check'
+    status: done
+    points: 1
+    completed_at: '2026-07-20'
+
+  # ── Phase 2 — Tenant List ────────────────────────────────────────
+  - id: '005-02'
+    title: 'Tenant list with search and filters'
+    phase: 'Phase 2 — Tenant List'
+    status: done
+    points: 1
+    completed_at: '2026-07-20'
+
+  # ── Phase 3 — Tenant Detail ──────────────────────────────────────
+  - id: '005-03'
+    title: 'Tenant detail (info, users, plugins, audit)'
+    phase: 'Phase 3 — Tenant Detail'
+    status: done
+    points: 1
+    completed_at: '2026-07-20'
+
+  # ── Phase 4 — Tenant Provisioning Wizard ─────────────────────────
+  - id: '005-04'
+    title: 'Tenant provisioning wizard'
+    phase: 'Phase 4 — Tenant Provisioning Wizard'
+    status: done
+    points: 1
+    completed_at: '2026-07-20'
+
+  # ── Phase 5 — Tenant Suspension ──────────────────────────────────
+  - id: '005-05'
+    title: 'Tenant suspension'
+    phase: 'Phase 5 — Tenant Suspension'
+    status: done
+    points: 1
+    completed_at: '2026-07-20'
+
+  # ── Phase 6 — Tenant Reactivation ────────────────────────────────
+  - id: '005-06'
+    title: 'Tenant reactivation'
+    phase: 'Phase 6 — Tenant Reactivation'
+    status: done
+    points: 1
+    completed_at: '2026-07-20'
+
+  # ── Phase 7 — Tenant Deletion (GDPR Saga) ────────────────────────
+  - id: '005-07'
+    title: 'Tenant deletion (GDPR — schema, realm, bucket)'
+    phase: 'Phase 7 — Tenant Deletion (GDPR Saga)'
+    status: done
+    points: 1
+    completed_at: '2026-07-20'
+
+  # ── Phase 8 — Plugin Catalog Management ──────────────────────────
+  - id: '005-08'
+    title: 'Plugin catalog management'
+    phase: 'Phase 8 — Plugin Catalog Management'
+    status: done
+    points: 1
+    completed_at: '2026-07-20'
+
+  # ── Phase 9 — Kafka Status ───────────────────────────────────────
+  - id: '005-11'
+    title: 'Kafka status (consumer lag, DLQ size)'
+    phase: 'Phase 9 — Kafka Status'
+    status: done
+    points: 1
+    completed_at: '2026-07-20'
+
+  # ── Phase 10 — Filterable System Logs ────────────────────────────
+  - id: '005-10'
+    title: 'Filterable system logs'
+    phase: 'Phase 10 — Filterable System Logs'
+    status: done
+    points: 1
+    completed_at: '2026-07-20'
+
+  # ── Phase 11 — Dashboard ─────────────────────────────────────────
+  - id: '005-01'
+    title: 'Dashboard with platform metrics'
+    phase: 'Phase 11 — Dashboard'
+    status: done
+    points: 1
+    completed_at: '2026-07-20'

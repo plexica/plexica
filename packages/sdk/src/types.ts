@@ -14,6 +14,16 @@ export interface PluginConfig {
   /** @deprecated No longer required. SDK no longer connects to Kafka directly. Use apiUrl instead. */
   kafkaBrokers?: string;
   apiUrl: string;
+  /** Explicit allowlist of single-label internal service hostnames that may
+   *  receive credentials over cleartext `http:` (Docker/K8s internal network,
+   *  e.g. `core-api-e2e` — CWE-319 guard, F9). https: and loopback hosts are
+   *  unaffected. Default empty — a single-label `http:` host is rejected
+   *  unless listed here or `allowHttpInternal` is true. */
+  allowHttpHosts?: string[];
+  /** Opt-in escape hatch: allow cleartext `http:` to ANY single-label
+   *  internal service hostname without enumerating each one. Default false
+   *  (safest). */
+  allowHttpInternal?: boolean;
   accessToken?: string; // Bearer token for API auth
   /** Service-account token injected by the platform as PLEXICA_SERVICE_TOKEN.
    *  Lets the plugin backend emit events without a user JWT. Auto-populated
@@ -68,3 +78,47 @@ export interface PluginEvent {
  * Receives a PluginEvent and returns a Promise (async handlers supported).
  */
 export type EventHandler = (event: PluginEvent) => Promise<void>;
+
+/**
+ * A JSON value: string, number, boolean, null, an array of JSON values, or a
+ * string-keyed object of JSON values. Recursive definition so nested
+ * notification metadata is fully typed (F10). No PII allowed in metadata
+ * (Security §6).
+ */
+export type JsonValue =
+  | string
+  | number
+  | boolean
+  | null
+  | JsonValue[]
+  | { [key: string]: JsonValue };
+
+/**
+ * Input for `PluginSDK.emitNotification()` (feature 006-05, ADR-035).
+ * The type is automatically prefixed with `plugin.<slug>.` before being sent
+ * to POST /api/v1/notifications/emit. Title/body keys are i18n keys resolved
+ * by the UI — no PII in the payload.
+ */
+export interface EmitNotificationInput {
+  /** Target user id (user_profile.user_id in the tenant schema). */
+  userId: string;
+  /** Notification type suffix (e.g. `contact_created` → `plugin.crm.contact_created`). */
+  type: string;
+  /** i18n title key, e.g. `notifications.plugin.crm.contact_created.title`. */
+  titleKey: string;
+  /** Optional interpolation params for the title message. */
+  titleParams?: Record<string, string>;
+  /** Optional i18n body key (resolved by the UI). */
+  bodyKey?: string;
+  /** Optional structured metadata (no PII), e.g. `{ link: "/contacts/123" }`. */
+  metadata?: Record<string, JsonValue>;
+}
+
+/**
+ * Result of `PluginSDK.emitNotification()` (ADR-035 Decision 5): the core
+ * generates the notificationId at emission and returns it synchronously for
+ * caller correlation; persistence + delivery are asynchronous via the consumer.
+ */
+export interface EmitNotificationResult {
+  notificationId: string;
+}
