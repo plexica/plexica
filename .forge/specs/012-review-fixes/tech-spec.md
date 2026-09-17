@@ -1,4 +1,4 @@
-# Tech Spec: 008 — PR #77 Review Fixes (Batch 2)
+# Tech Spec: 012 — PR #77 Review Fixes (Batch 2)
 
 > Lightweight specification for the Quick track. Combines requirements,
 > tasks, and acceptance criteria in a single document.
@@ -10,7 +10,7 @@
 | Author  | forge-pm                          |
 | Date    | 2026-07-23                        |
 | Track   | Quick                             |
-| Spec ID | 008                               |
+| Spec ID | 012                               |
 
 ---
 

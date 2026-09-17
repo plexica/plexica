@@ -1,0 +1,141 @@
+version: 1
+sprint_number: 6
+sprint_goal: 'Deliver Spec 006 — Cross-Cutting Features: real-time notifications (SSE + email + preferences + plugin emission), full i18n (react-intl migration, EN/IT switch, plugin + tenant translations), user profile (page, avatar, sessions, password change), and the observability stack (health check, structured logs, Prometheus/Grafana + Kafka dashboards).'
+start_date: '2026-09-17'
+end_date: '2026-10-08'
+velocity_target: 27
+actual_velocity: null
+kanban_phase: 'Phase 5'
+spec_id: '006-cross-cutting-features'
+spec_path: '.forge/specs/006-cross-cutting-features/spec.md'
+plan_path: null
+tasks_path: null
+retrospective_path: '.forge/sprints/retrospectives/sprint-006.md'
+
+# Scaling note: this is the first sprint on the normalized S/M/L velocity
+# scale (S=1, M=2, L=3). See .forge/sprints/velocity.md. Target 27 pts =
+# 3 weeks × ~9 pts/wk normalized baseline. 13 stories, 27 pts planned.
+# Deferred to Sprint 7: spec 006-19 OpenTelemetry tracing (optional).
+
+stories:
+  # ── Phase 1 — Notifications (1.5 wks) ─────────────────────────────
+  - id: '006-01'
+    title: 'Real-time notification infrastructure (SSE)'
+    forge_story_id: 'E06-S001'
+    phase: 'Phase 1 — Notifications'
+    status: pending
+    size: L
+    points: 3
+    spec_features: ['006-01']
+    acceptance: 'SSE endpoint with per-tenant connection pools + heartbeat; invite event delivers notification to UI in < 2 s; connection established < 1 s.'
+
+  - id: '006-02'
+    title: 'Notification center UI'
+    phase: 'Phase 1 — Notifications'
+    status: pending
+    size: M
+    points: 2
+    spec_features: ['006-02']
+    acceptance: 'User opens notification center, sees list with read/unread state, marks notifications as read; E2E covers the flow.'
+
+  - id: '006-03'
+    title: 'Email notifications with retry queue'
+    phase: 'Phase 1 — Notifications'
+    status: pending
+    size: M
+    points: 2
+    spec_features: ['006-03']
+    acceptance: 'Workspace invite arrives via email (Mailpit in test); failed sends retried via queue and dead-lettered after N attempts.'
+
+  - id: '006-04'
+    title: 'Per-user notification preferences'
+    phase: 'Phase 1 — Notifications'
+    status: pending
+    size: M
+    points: 2
+    spec_features: ['006-04']
+    acceptance: 'User chooses per-notification-type channels (in-app, email, both); preferences persist (< 300 ms save) and are respected by delivery.'
+
+  - id: '006-05'
+    title: 'Plugin notification emission via SDK'
+    phase: 'Phase 1 — Notifications'
+    status: pending
+    size: M
+    points: 2
+    spec_features: ['006-05']
+    acceptance: 'CRM plugin emits a notification on new contact via SDK; emission rate-limited to max 10/min/plugin/user; E2E verifies delivery.'
+
+  # ── Phase 2 — Internationalization (1 wk) ─────────────────────────
+  - id: '006-06'
+    title: 'Full react-intl migration (no hardcoded strings)'
+    phase: 'Phase 2 — Internationalization'
+    status: pending
+    size: L
+    points: 3
+    spec_features: ['006-06']
+    acceptance: 'All frontend strings resolve via react-intl; no hardcoded strings remain; missing keys fall back to EN; CI lint rule flags missing keys.'
+
+  - id: '006-07'
+    title: 'Language switch (EN/IT) + locale-aware formatting'
+    phase: 'Phase 2 — Internationalization'
+    status: pending
+    size: M
+    points: 2
+    spec_features: ['006-07', '006-08']
+    acceptance: 'User switches language and the entire interface updates in < 500 ms with no page reload; dates, numbers, currency format per locale.'
+
+  - id: '006-08'
+    title: 'Plugin translation registration via SDK'
+    phase: 'Phase 2 — Internationalization'
+    status: pending
+    size: M
+    points: 2
+    spec_features: ['006-09']
+    acceptance: 'CRM plugin registers EN/IT translation bundles via SDK; plugin strings render through the same react-intl pipeline.'
+
+  - id: '006-09'
+    title: 'Tenant translation overrides'
+    phase: 'Phase 2 — Internationalization'
+    status: pending
+    size: S
+    points: 1
+    spec_features: ['006-10']
+    acceptance: 'Tenant admin customizes specific translation keys; overrides take precedence over plugin/core bundles.'
+
+  # ── Phase 3 — User Profile (0.5 wk) ────────────────────────────────
+  - id: '006-10'
+    title: 'Profile page + avatar'
+    phase: 'Phase 3 — User Profile'
+    status: pending
+    size: M
+    points: 2
+    spec_features: ['006-11', '006-12']
+    acceptance: 'User views and edits name + email; avatar displayed in header and profile from Keycloak JWT picture claim; E2E covers view/edit.'
+
+  - id: '006-11'
+    title: 'Session management + password change'
+    phase: 'Phase 3 — User Profile'
+    status: pending
+    size: M
+    points: 2
+    spec_features: ['006-13', '006-14']
+    acceptance: 'User sees active sessions and can terminate them; password change redirects to Keycloak account console; E2E verifies both.'
+
+  # ── Phase 4 — Observability (1 wk) ─────────────────────────────────
+  - id: '006-12'
+    title: 'Health check endpoint + structured logs'
+    phase: 'Phase 4 — Observability'
+    status: pending
+    size: M
+    points: 2
+    spec_features: ['006-15', '006-16']
+    acceptance: '/health returns status of DB, Redis, Keycloak, Kafka in < 200 ms; Pino JSON logs carry requestId, tenantId, userId; async writes < 5 ms overhead.'
+
+  - id: '006-13'
+    title: 'Observability dashboards (Prometheus + Grafana + Kafka)'
+    phase: 'Phase 4 — Observability'
+    status: pending
+    size: M
+    points: 2
+    spec_features: ['006-17', '006-18', '006-20']
+    acceptance: '/metrics exports HTTP latency, error rate, Kafka consumer lag in < 100 ms scrape; Grafana dashboard importable; Kafka dashboard shows per-plugin lag, DLQ size, throughput.'

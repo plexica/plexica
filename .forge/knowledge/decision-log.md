@@ -6,8 +6,69 @@
 > For lessons learned from the v1 codebase, see
 > [lessons-learned.md](./lessons-learned.md).
 
-**Last Updated**: 2026-09-17 (Spec 011 — object-storage server swap to Silo,
-solution-agnostic storage rename, storageBucket migration)
+**Last Updated**: 2026-09-17 (Phase 1 Spec 006: review fixes + schema.prisma line-gate exemption)
+
+---
+
+## Spec 006 Phase 1 — Review Fixes + Line-Gate Exemption (2026-09-17)
+
+**Issue**: Dual-model `/forge-review` on Phase 1 (Foundation) found 2 Majors + 1 Medium (must-fix) + recommendeds. Fixed by Build agent.
+**Resolved by**: Build agent fixes on `feat/006-cross-cutting`; verified typecheck/prisma validate/SDK 32 tests.
+
+| Decision | Value | Note |
+| -------- | ----- | ---- |
+| Tenant migrations | Moved `003_core_features`, `006_notifications`, `006_translation_overrides` to `prisma/tenant-schema/` | `prisma/migrations/` is deploy-scanned (applied to `public` — live-verified pollution precedent); `MIGRATIONS_DIR` updated; helper imports shared constants (no drift) |
+| SDK security | `assertSecureApiUrl` hoisted into `PluginHttp` constructor | Covers standalone `emitNotification` (CWE-319 cleartext guard) |
+| SDK emit contract | Kept prefix + `timestamp`/`correlationId`; plan §5.1/§6.6 updated | Route must NOT re-prefix; Phase 2 Zod schema must include the extra fields |
+| prom-client | Pinned `15.1.3` (exact) | Registry marks `^15` deprecated (replaced by `@prometheus-io/client`); ADR-036 consequence noted; follow-up ADR before Phase 6 |
+| SDK emit return | `Promise<{ notificationId: string }>` | ADR-035 intent restored (sync id for correlation) |
+| **Rule 4 exemption** | `services/core-api/prisma/schema.prisma` (281 lines) — **line-gate exemption recorded** | Pre-existing 255-line breach extended by `EmailQueue`; multi-file split not feasible (single default-path schema resolved by migrate/generate/studio + 2 CI scripts without `--schema` flag; splitting risks migration pipeline). New code kept within breach, not structurally worse. |
+
+**Phase 1 status**: review findings closed; ready for Phase 2. **Cleanup for existing dev DBs** (one-time manual, do not run `db:migrate`/`migrate dev` first): pre-existing `public.*` tenant tables from prior deploy runs need one-time infra cleanup, and history rows for the moved tenant migrations conflict on the next deploy — run `DELETE FROM core._prisma_migrations WHERE migration_name IN ('003_core_features','006_notifications','006_translation_overrides');` and drop any polluted `public.notifications`/`public.translation_overrides` tables, then use `pnpm --filter core-api tenant:migrate` going forward.
+
+---
+
+## Spec 006 — ADRs Accepted (2026-09-17)
+
+**Issue**: ADR-035/036 proposed earlier today required user sign-off to clear the implementation gate (plan §9).
+**Resolved by**: user confirmation (all 4 open points confirmed as defaulted) — both ADRs moved Proposed → Accepted.
+
+| Decision | Value | Note |
+| -------- | ----- | ---- |
+| ADR-035 | Real-Time Notification Delivery (SSE) — **Accepted** | Emit endpoint `202 { status: "accepted", notificationId }` confirmed; consumer idempotency mechanism deferred to `/forge-tasks` (consumer.ts) |
+| ADR-036 | Prometheus Metrics via `prom-client@15.1.3` — **Accepted** | Pinned `15.1.3` exact (range `^15` resolves to the deprecated 15.1.3); `/metrics` public by default + optional `METRICS_TOKEN`; no rate limit (ADR-012 `/health` exemption precedent) |
+| Gate | Plan 006 Phase 1 (notifications) + Phase 4 task 3 (/metrics) **unblocked** | Implementation may start |
+
+**Pending (non-blocking)**: consumer idempotency mechanism (dedupe table vs unique constraint) — decision recorded when `/forge-tasks` breaks it.
+
+---
+
+## Spec 006 — ADRs Proposed (2026-09-17)
+
+**Issue**: Spec 006 (Cross-Cutting) implementation requires decisions on real-time notifications and metrics. Plan flagged both as ADR-required.
+**Resolved by**: forge-architect via `/forge-adr` — both Proposed, awaiting user review/acceptance.
+
+| Decision | Value | Note |
+| -------- | ----- | ---- |
+| ADR-035 | Real-Time Notification Delivery (SSE) — **Proposed** | Manual SSE on Fastify `reply.raw` (no new dep); new `notifications` tenant table + `core.email_queue` (3× retry, 1s/4s/16s backoff, DLQ, GDPR purge); outbox→Kafka→SSE+email; per-tenant pools, 5 conns/user cap, heartbeat 20s; rate limits 10/min/user connect + 10/min/plugin/user emit; emit endpoint returns `202 { status: "accepted", notificationId }` |
+| ADR-036 | Prometheus Metrics via `prom-client@15.1.3` — **Proposed** | New core dep in `services/core-api`; `/metrics` [PUBLIC] + optional `METRICS_TOKEN`; no rate limit (aligned with `/health` exemption); 9-metric series incl. `kafka_consumer_lag`; infra: `infra/prometheus/prometheus.yml` + compose service |
+| Decision needed | Consumer idempotency mechanism (dedupe table vs unique constraint) | ADR-004 at-least-once can duplicate notification rows on crash; mechanism deferred to `/forge-tasks` |
+| Decision resolved | `prom-client` pinned `15.1.3` exact | Kafka client is exact-pinned (1.10.0); range `^15` resolves to the deprecated `15.1.3`; plan updated to the exact pin (ADR-036) |
+
+**Blocking**: plan §9 gates Phase 1/4 tasks on ADR-035/036 acceptance. Do not start implementation until accepted.
+
+---
+
+## Governance — Spec ID Collision Fix (2026-09-17)
+
+**Issue**: Two specs claimed ID `008` (`008-kafka-javascript-migration` Epic and `008-review-fixes` Quick), threatening traceability misrouting.
+**Resolved by**: Forge orchestrator + forge-scrum, no PR (process artifact only).
+
+| Decision | Value | Note |
+| -------- | ----- | ---- |
+| Renumber | `008-review-fixes` → `012-review-fixes` | Zero references in repo; dir moved + 2 in-file updates (`tech-spec.md` title + Spec ID field) |
+| Keep | `008-kafka-javascript-migration` keeps ID 008 | Epic with 6 docs, PR #134 merged; renumbering would break references |
+| ADR-033 | **No renumber** — intentional split | `adr-033-f2-dev-registration-auth.md` is an addendum ("Part of: ADR-033") split to respect the 200-line gate (Constitution Rule 4), documented in ADR-034 §numbering note |
 
 ---
 
