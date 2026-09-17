@@ -3,7 +3,7 @@
 // Extracted from PluginSDK to keep index.ts under the 200-line constitution limit.
 
 import { ApiCallError } from './errors.js';
-import { assertSecureApiUrl } from './url-guard.js';
+import { assertSecureApiUrl, trimTrailingSlashes } from './url-guard.js';
 
 import type { EmitNotificationInput, EmitNotificationResult } from './types.js';
 import type { PluginConfig } from './types.js';
@@ -25,7 +25,7 @@ export class PluginHttp {
    * @throws {ApiCallError} on non-2xx response.
    */
   async callApi(method: string, path: string, body?: unknown): Promise<Response> {
-    const url = `${this.config.apiUrl.replace(/\/+$/, '')}/${path.replace(/^\//, '')}`;
+    const url = `${trimTrailingSlashes(this.config.apiUrl)}/${path.replace(/^\//, '')}`;
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
 
     if (this.config.accessToken) {
@@ -62,7 +62,7 @@ export class PluginHttp {
    * @throws {ApiCallError} on non-2xx response.
    */
   async emitEvent(type: string, payload: unknown): Promise<void> {
-    const url = `${this.config.apiUrl.replace(/\/+$/, '')}/api/v1/events/emit`;
+    const url = `${trimTrailingSlashes(this.config.apiUrl)}/api/v1/events/emit`;
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
 
     if (this.config.serviceToken) {
@@ -99,7 +99,7 @@ export class PluginHttp {
    * @throws {ApiCallError} on non-2xx response.
    */
   async emitNotification(input: EmitNotificationInput): Promise<EmitNotificationResult> {
-    const url = `${this.config.apiUrl.replace(/\/+$/, '')}/api/v1/notifications/emit`;
+    const url = `${trimTrailingSlashes(this.config.apiUrl)}/api/v1/notifications/emit`;
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
 
     if (this.config.serviceToken) {

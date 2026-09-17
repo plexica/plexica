@@ -31,3 +31,16 @@ export function assertSecureApiUrl(apiUrl: string): void {
     );
   }
 }
+
+/**
+ * Removes trailing slashes from a base URL in linear time (no regex, no
+ * backtracking — CodeQL js/polynomial-redos safe). Used when joining a base
+ * URL with an API path so the join never produces "//".
+ */
+export function trimTrailingSlashes(url: string): string {
+  let end = url.length;
+  while (end > 0 && url.charCodeAt(end - 1) === 47 /* '/' */) {
+    end -= 1;
+  }
+  return url.slice(0, end);
+}
