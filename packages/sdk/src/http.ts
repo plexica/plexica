@@ -142,8 +142,16 @@ export class PluginHttp {
     // field) is a contract violation, not an HTTP failure — parse defensively
     // so a raw SyntaxError never leaks, and build the error without claiming
     // the HTTP status was a failure.
-    const body = (await response.json().catch(() => null)) as { notificationId?: unknown } | null;
-    if (!body || typeof body.notificationId !== 'string' || body.notificationId.length === 0) {
+    const body = (await response.json().catch(() => null)) as {
+      status?: unknown;
+      notificationId?: unknown;
+    } | null;
+    if (
+      !body ||
+      body.status !== 'accepted' ||
+      typeof body.notificationId !== 'string' ||
+      body.notificationId.length === 0
+    ) {
       throw new ApiCallError(
         'POST',
         url,

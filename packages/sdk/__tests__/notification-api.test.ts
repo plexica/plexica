@@ -65,6 +65,24 @@ describe('emitNotification (standalone)', () => {
     await expect(emitNotification(BASE_CONFIG, INPUT)).resolves.toEqual({ notificationId: 'n-123' });
   });
 
+  it('throws ApiCallError when a 202 lacks status "accepted" (ADR-035 contract)', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(ok202({ json: () => Promise.resolve({ notificationId: 'n-123' }) }))
+    );
+    await expect(emitNotification(BASE_CONFIG, INPUT)).rejects.toBeInstanceOf(ApiCallError);
+  });
+
+  it('throws ApiCallError when a 202 has a non-accepted status', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        ok202({ json: () => Promise.resolve({ status: 'rejected', notificationId: 'n-123' }) })
+      )
+    );
+    await expect(emitNotification(BASE_CONFIG, INPUT)).rejects.toBeInstanceOf(ApiCallError);
+  });
+
   it('throws ApiCallError when notificationId is missing from a 202', async () => {
     vi.stubGlobal(
       'fetch',
