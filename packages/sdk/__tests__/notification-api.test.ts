@@ -30,6 +30,12 @@ function ok202(overrides: Partial<Response> = {}): Response {
   } as unknown as Response;
 }
 
+function stubFetch(response: Response = ok202()) {
+  const fetchMock = vi.fn().mockResolvedValue(response);
+  vi.stubGlobal('fetch', fetchMock);
+  return fetchMock;
+}
+
 describe('emitNotification (standalone)', () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', vi.fn());
@@ -40,8 +46,7 @@ describe('emitNotification (standalone)', () => {
   });
 
   it('prefixes the type with plugin.<slug>.', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(ok202());
-    vi.stubGlobal('fetch', fetchMock);
+    const fetchMock = stubFetch();
     await emitNotification(BASE_CONFIG, INPUT);
     const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     const body = JSON.parse(init.body as string);
@@ -50,8 +55,7 @@ describe('emitNotification (standalone)', () => {
   });
 
   it('includes timestamp and correlationId in the request body', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(ok202());
-    vi.stubGlobal('fetch', fetchMock);
+    const fetchMock = stubFetch();
     await emitNotification(BASE_CONFIG, INPUT);
     const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     const body = JSON.parse(init.body as string);
@@ -61,41 +65,27 @@ describe('emitNotification (standalone)', () => {
   });
 
   it('returns { notificationId } on a 202 accepted response', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(ok202()));
+    stubFetch();
     await expect(emitNotification(BASE_CONFIG, INPUT)).resolves.toEqual({ notificationId: 'n-123' });
   });
 
   it('throws ApiCallError when a 202 lacks status "accepted" (ADR-035 contract)', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue(ok202({ json: () => Promise.resolve({ notificationId: 'n-123' }) }))
-    );
+    stubFetch(ok202({ json: () => Promise.resolve({ notificationId: 'n-123' }) }));
     await expect(emitNotification(BASE_CONFIG, INPUT)).rejects.toBeInstanceOf(ApiCallError);
   });
 
   it('throws ApiCallError when a 202 has a non-accepted status', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue(
-        ok202({ json: () => Promise.resolve({ status: 'rejected', notificationId: 'n-123' }) })
-      )
-    );
+    stubFetch(ok202({ json: () => Promise.resolve({ status: 'rejected', notificationId: 'n-123' }) }));
     await expect(emitNotification(BASE_CONFIG, INPUT)).rejects.toBeInstanceOf(ApiCallError);
   });
 
   it('throws ApiCallError when notificationId is missing from a 202', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue(ok202({ json: () => Promise.resolve({ status: 'accepted' }) }))
-    );
+    stubFetch(ok202({ json: () => Promise.resolve({ status: 'accepted' }) }));
     await expect(emitNotification(BASE_CONFIG, INPUT)).rejects.toBeInstanceOf(ApiCallError);
   });
 
   it('throws ApiCallError (not a raw SyntaxError) on malformed 202 JSON', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue(ok202({ json: () => Promise.reject(new SyntaxError('boom')) }))
-    );
+    stubFetch(ok202({ json: () => Promise.reject(new SyntaxError('boom')) }));
     let caught: unknown;
     try {
       await emitNotification(BASE_CONFIG, INPUT);
@@ -107,15 +97,12 @@ describe('emitNotification (standalone)', () => {
   });
 
   it('throws ApiCallError on a 200 response (ADR-035 accepts only 202)', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({
-        ok: true,
-        status: 200,
-        text: () => Promise.resolve('queued'),
-        json: () => Promise.resolve({ status: 'queued', notificationId: 'n-123' }),
-      } as unknown as Response)
-    );
+    stubFetch({
+      ok: true,
+      status: 200,
+      text: () => Promise.resolve('queued'),
+      json: () => Promise.resolve({ status: 'queued', notificationId: 'n-123' }),
+    } as unknown as Response);
     let caught: unknown;
     try {
       await emitNotification(BASE_CONFIG, INPUT);
@@ -127,14 +114,11 @@ describe('emitNotification (standalone)', () => {
   });
 
   it('throws ApiCallError on a 500 response', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({
-        ok: false,
-        status: 500,
-        text: () => Promise.resolve('boom'),
-      } as unknown as Response)
-    );
+    stubFetch({
+      ok: false,
+      status: 500,
+      text: () => Promise.resolve('boom'),
+    } as unknown as Response);
     let caught: unknown;
     try {
       await emitNotification(BASE_CONFIG, INPUT);
@@ -146,8 +130,7 @@ describe('emitNotification (standalone)', () => {
   });
 
   it('sends the service token auth header (falls back to user JWT otherwise)', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(ok202());
-    vi.stubGlobal('fetch', fetchMock);
+    const fetchMock = stubFetch();
     await emitNotification({ ...BASE_CONFIG, serviceToken: 'svc-1' }, INPUT);
     const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     const headers = init.headers as Record<string, string>;
@@ -170,8 +153,7 @@ describe('emitNotification (standalone)', () => {
   });
 
   it('allows single-label http: when the host is in allowHttpHosts (F9)', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(ok202());
-    vi.stubGlobal('fetch', fetchMock);
+    const fetchMock = stubFetch();
     await emitNotification(
       { ...BASE_CONFIG, apiUrl: 'http://core-api-e2e:3001', allowHttpHosts: ['core-api-e2e'] },
       INPUT
@@ -181,8 +163,7 @@ describe('emitNotification (standalone)', () => {
   });
 
   it('resolves CORE_API_URL and PLEXICA_SERVICE_TOKEN env fallbacks', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(ok202());
-    vi.stubGlobal('fetch', fetchMock);
+    const fetchMock = stubFetch();
     const origUrl = process.env['CORE_API_URL'];
     const origTok = process.env['PLEXICA_SERVICE_TOKEN'];
     process.env['CORE_API_URL'] = 'http://core-api:3001';
