@@ -1,7 +1,7 @@
 // unit/notification/consumer-pipeline-validations.test.ts
-// Unit tests for the consumer pipeline input guards (fixes 7 + 8):
-// (a) an invite event without a workspaceId is rejected up-front instead of
-//     dead-lettering on a `::uuid` cast of an empty string,
+// Unit tests for the consumer pipeline input guards (fixes 7 + 8, round-2):
+// (a) an invite event without a valid UUID workspaceId is rejected up-front
+//     instead of dead-lettering on a `::uuid` cast of an empty/malformed value,
 // (b) payload.event_id can no longer override the envelope eventId — the
 //     envelope UUID stays the dedupe key for notifications + email queue.
 
@@ -26,6 +26,7 @@ const INVITE_SRC = { topic: 'plexica.workspace.invite', partition: 0, offset: '0
 const PLUGIN_SRC = { topic: 'plexica.notification', partition: 0, offset: '0' };
 const TENANT_CTX = { tenantId: '11111111-1111-4111-8111-111111111111', slug: 'acme' };
 const ENVELOPE_EVENT_ID = '44444444-4444-4444-8444-444444444444';
+const VALID_WORKSPACE_ID = '55555555-5555-4555-8555-555555555555';
 
 vi.mock('../../../lib/logger.js', () => ({
   logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
@@ -70,7 +71,7 @@ function inviteEvent(payload: Record<string, unknown> = {}): Record<string, unkn
     correlationId: '33333333-3333-4333-8333-333333333333',
     causationId: null,
     payload: {
-      workspaceId: 'w1',
+      workspaceId: VALID_WORKSPACE_ID,
       workspaceName: 'Acme',
       inviteeEmail: 'ada@example.com',
       ...payload,
@@ -104,7 +105,7 @@ beforeEach(() => {
   mocks.deliverEmail.mockResolvedValue({ inApp: true, email: true });
 });
 
-describe('invite workspaceId guard (fix 7)', () => {
+describe('invite workspaceId guard (fix 7 + round-2 UUID)', () => {
   it('skips the event when workspaceId is missing', async () => {
     await processNotificationEvent(inviteEvent({ workspaceId: undefined }) as never, INVITE_SRC);
     expect(mocks.findProfileByEmail).not.toHaveBeenCalled();
@@ -119,6 +120,13 @@ describe('invite workspaceId guard (fix 7)', () => {
     expect(mocks.deliverEmail).not.toHaveBeenCalled();
   });
 
+  it('skips the event when workspaceId is non-empty but not a valid UUID', async () => {
+    await processNotificationEvent(inviteEvent({ workspaceId: 'w1' }) as never, INVITE_SRC);
+    expect(mocks.findProfileByEmail).not.toHaveBeenCalled();
+    expect(mocks.insertNotification).not.toHaveBeenCalled();
+    expect(mocks.deliverEmail).not.toHaveBeenCalled();
+  });
+
   it('reuses the validated workspaceId for the email input and metadata link', async () => {
     mocks.findProfileByEmail.mockResolvedValue({ userId: 'u1' });
     mocks.insertNotification.mockResolvedValue({ inserted: true, row: { id: 'n1' } });
@@ -129,9 +137,9 @@ describe('invite workspaceId guard (fix 7)', () => {
       input: Record<string, unknown>;
     };
     expect(target.kind).toBe('invite');
-    expect(target.input.workspaceId).toBe('w1');
+    expect(target.input.workspaceId).toBe(VALID_WORKSPACE_ID);
     const metadata = mocks.insertNotification.mock.calls[0]?.[1].metadata;
-    expect(metadata.link).toBe('/workspaces/w1');
+    expect(metadata.link).toBe(`/workspaces/${VALID_WORKSPACE_ID}`);
   });
 });
 

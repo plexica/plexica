@@ -9,7 +9,7 @@ import { Prisma } from '@prisma/client';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
-  enqueueEmailRaw: vi.fn(async () => 'row-1'),
+  enqueueEmailRaw: vi.fn(async (_db: unknown, _input: unknown) => 'row-1'),
   readPreferences: vi.fn(),
   resolveChannels: vi.fn(),
 }));
@@ -72,6 +72,22 @@ describe('enqueueInviteEmail — invitation table name (fix 6, 42P01 dead-letter
     const { client } = captureClient([]);
     await enqueueInviteEmail(client, INPUT);
     expect(mocks.enqueueEmailRaw).not.toHaveBeenCalled();
+  });
+
+  it('passes the raw workspaceName in the subject, escaped only in the HTML body', async () => {
+    const { client } = captureClient([{ token: 'tok-1' }]);
+    await enqueueInviteEmail(client, {
+      ...INPUT,
+      workspaceName: 'A & B "Acme" <acme>',
+    });
+
+    const args = mocks.enqueueEmailRaw.mock.calls[0]?.[1] as unknown as {
+      subject: string;
+      htmlBody: string;
+    };
+    expect(args.subject).toBe('You\'ve been invited to A & B "Acme" <acme>');
+    expect(args.htmlBody).toContain('A &amp; B &quot;Acme&quot; &lt;acme&gt;');
+    expect(args.htmlBody).not.toContain('<acme>');
   });
 });
 

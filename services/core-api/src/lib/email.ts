@@ -123,7 +123,7 @@ export async function sendInvitationEmail(
 
   return enqueueEmail({
     to,
-    subject: `You've been invited to ${escapeHtml(tenantName)}`,
+    subject: `You've been invited to ${tenantName}`,
     html,
     emailType: 'workspace.invite',
     ...(tenantId === undefined ? {} : { tenantId }),

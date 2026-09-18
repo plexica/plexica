@@ -1,8 +1,9 @@
 // unit/notification/consumer-cap.test.ts
-// Unit tests for the per-user delivery cap (fix 5): INCR + EXPIRE must run as
-// one atomic multi() pipeline with EXPIRE ... NX — a two-round-trip incr/expire
-// could leave a TTL-less key and permanently suppress delivery. Pure unit tests
-// — Redis mocked, no connections.
+// Unit tests for the per-user delivery cap (fix 5, round-2): INCR + EXPIRE must
+// run as one atomic multi() pipeline with EXPIRE ... NX — a two-round-trip
+// incr/expire could leave a TTL-less key and permanently suppress delivery.
+// Per-command error tuples fail open instead of silently growing the counter.
+// Pure unit tests — Redis mocked, no connections.
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -14,10 +15,13 @@ const mocks = vi.hoisted(() => {
     expire: vi.fn(function (this: unknown) {
       return this;
     }),
-    exec: vi.fn(async () => [
-      [null, 5],
-      [null, 1],
-    ]),
+    exec: vi.fn(
+      async () =>
+        [
+          [null, 5],
+          [null, 1],
+        ] as Array<[Error | null, number | null]>
+    ),
   };
   return {
     multi: vi.fn(() => chain),
@@ -87,6 +91,31 @@ describe('isUserRateLimited — atomic INCR + EXPIRE NX (fix 5)', () => {
 
   it('fails open when Redis is unavailable', async () => {
     mocks.chain.exec.mockRejectedValueOnce(new Error('connection refused'));
+    await expect(isUserRateLimited(TENANT_ID, USER_ID)).resolves.toBe(false);
+  });
+
+  it('fails open when EXPIRE returns a per-command error instead of silently growing the counter', async () => {
+    mocks.chain.exec.mockResolvedValueOnce([
+      [null, 5],
+      [new Error('EXPIRE boom'), null],
+    ]);
+    await expect(isUserRateLimited(TENANT_ID, USER_ID)).resolves.toBe(false);
+    expect(mocks.incrementRateLimited).not.toHaveBeenCalled();
+  });
+
+  it('fails open when INCR returns a per-command error', async () => {
+    mocks.chain.exec.mockResolvedValueOnce([
+      [new Error('INCR boom'), null],
+      [null, 1],
+    ]);
+    await expect(isUserRateLimited(TENANT_ID, USER_ID)).resolves.toBe(false);
+  });
+
+  it('fails open when the INCR result is not numeric', async () => {
+    mocks.chain.exec.mockResolvedValueOnce([
+      [null, 'oops' as unknown as number],
+      [null, 1],
+    ]);
     await expect(isUserRateLimited(TENANT_ID, USER_ID)).resolves.toBe(false);
   });
 });

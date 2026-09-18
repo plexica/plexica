@@ -47,7 +47,7 @@ export async function enqueueInviteEmail(db: RawSqlClient, input: InviteEmailInp
   await enqueueEmailRaw(db, {
     tenantId: input.tenantId,
     toAddress: input.inviteeEmail,
-    subject: `You've been invited to ${escapeHtml(input.workspaceName)}`,
+    subject: `You've been invited to ${input.workspaceName}`,
     htmlBody: renderInvitationHtml(inviteUrl, input.workspaceName),
     emailType: 'workspace.invite',
     eventId: input.eventId,

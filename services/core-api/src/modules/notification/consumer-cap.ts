@@ -2,8 +2,10 @@
 // Per-user delivery cap for the notification consumer (F5, ADR-035): 100/min
 // per user via Redis counter `notification:{tenantId}:{userId}:emit`. The row
 // stays persisted on breach (delivery suppressed) so at-least-once redelivery
-// never inflates the counter. Fail-open on Redis outage (ADR-012). Split from
-// consumer-pipeline.ts for the 200-line gate (Rule 4).
+// never inflates the counter. Fail-open on Redis outage (ADR-012) and on
+// per-command multi() errors — a TTL-less counter must never silently and
+// permanently suppress delivery. Split from consumer-pipeline.ts for the
+// 200-line gate (Rule 4).
 
 import { config } from '../../lib/config.js';
 import { logger } from '../../lib/logger.js';
@@ -50,7 +52,11 @@ export async function isUserRateLimited(tenantId: string, userId: string): Promi
       .incr(key)
       .expire(key, CAP_WINDOW_SECONDS, 'NX')
       .exec()) as Array<[Error | null, number]>;
-    const count = results[0]?.[1] ?? 0;
+    const [incrementResult, expiryResult] = results;
+    const count = incrementResult?.[1];
+    if (incrementResult?.[0] || expiryResult?.[0] || typeof count !== 'number') {
+      throw incrementResult?.[0] ?? expiryResult?.[0] ?? new Error('NOTIF_CAP_INVALID_REPLY');
+    }
     if (count > config.NOTIFICATION_CONSUMER_CAP_PER_MIN) {
       incrementRateLimited();
       logger.warn(

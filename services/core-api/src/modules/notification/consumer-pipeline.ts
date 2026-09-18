@@ -27,6 +27,7 @@ import type { PluginNotificationPayload } from './consumer-plugin.js';
 
 const INVITE_TYPE = 'workspace.invite';
 const INVITE_TITLE_KEY = 'notifications.workspace.invite.title';
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 interface InvitePayload {
   workspaceId?: string;
@@ -57,7 +58,7 @@ async function processInvite(
   const inviteeEmail = payload.inviteeEmail;
   if (typeof inviteeEmail !== 'string' || inviteeEmail.length === 0) return;
   const workspaceId = payload.workspaceId;
-  if (typeof workspaceId !== 'string' || workspaceId.length === 0) return;
+  if (typeof workspaceId !== 'string' || !UUID_RE.test(workspaceId)) return;
 
   // Email-carried targets are resolved up-front (plan §5.2).
   const profile = await withTenantDb((db) => findProfileByEmail(db, inviteeEmail), tenantCtx);
