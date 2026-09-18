@@ -114,14 +114,21 @@ export class EmailQueueService {
       FROM (
         SELECT candidate.id
         FROM core.email_queue AS candidate
+        LEFT JOIN core.tenants AS tenant ON tenant.id = candidate.tenant_id
         WHERE (
-            candidate.status IN ('pending', 'failed')
-            AND candidate.next_attempt_at <= ${now}::timestamptz
+            candidate.tenant_id IS NULL
+            OR tenant.status::text = 'active'
           )
-          OR (
-            candidate.status = 'sending'
-            AND candidate.lease_expires_at IS NOT NULL
-            AND candidate.lease_expires_at <= ${now}::timestamptz
+          AND (
+            (
+              candidate.status IN ('pending', 'failed')
+              AND candidate.next_attempt_at <= ${now}::timestamptz
+            )
+            OR (
+              candidate.status = 'sending'
+              AND candidate.lease_expires_at IS NOT NULL
+              AND candidate.lease_expires_at <= ${now}::timestamptz
+            )
           )
         ORDER BY candidate.next_attempt_at
         FOR UPDATE OF candidate SKIP LOCKED

@@ -8,7 +8,7 @@ import { Prisma } from '@prisma/client';
 
 import { config } from '../../lib/config.js';
 import { prisma } from '../../lib/database.js';
-import { renderInvitationHtml } from '../../lib/email.js';
+import { escapeHtml, renderInvitationHtml } from '../../lib/email.js';
 
 import { enqueueEmailRaw } from './email-queue.service.js';
 import { readPreferences } from './repository.js';
@@ -35,7 +35,7 @@ export interface InviteEmailInput {
  */
 export async function enqueueInviteEmail(db: RawSqlClient, input: InviteEmailInput): Promise<void> {
   const invitation = await db.$queryRaw<Array<{ token: string }>>(Prisma.sql`
-    SELECT token FROM invitations
+    SELECT token FROM invitation
     WHERE email = ${input.inviteeEmail}
       AND workspace_id = ${input.workspaceId}::uuid
       AND status = 'pending'
@@ -47,7 +47,7 @@ export async function enqueueInviteEmail(db: RawSqlClient, input: InviteEmailInp
   await enqueueEmailRaw(db, {
     tenantId: input.tenantId,
     toAddress: input.inviteeEmail,
-    subject: `You've been invited to ${input.workspaceName}`,
+    subject: `You've been invited to ${escapeHtml(input.workspaceName)}`,
     htmlBody: renderInvitationHtml(inviteUrl, input.workspaceName),
     emailType: 'workspace.invite',
     eventId: input.eventId,
@@ -118,13 +118,4 @@ function renderNotificationHtml(centerUrl: string, type: string): string {
     <hr />
     <p style="color:#888;font-size:12px;">${escapeHtml(type)}</p>
   `.trim();
-}
-
-function escapeHtml(value: string): string {
-  return value
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;');
 }

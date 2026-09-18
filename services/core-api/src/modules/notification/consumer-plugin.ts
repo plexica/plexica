@@ -29,7 +29,6 @@ export interface PluginNotificationPayload {
   bodyKey?: string | null;
   metadata?: Record<string, unknown>;
   notificationId?: string;
-  event_id?: string;
 }
 
 export async function processPluginNotification(
@@ -58,7 +57,10 @@ export async function processPluginNotification(
   }
 
   const userId = profile.userId;
-  const eventId = typeof payload.event_id === 'string' ? payload.event_id : event.eventId;
+  // The envelope event_id is the single idempotency key (dedupe_key in
+  // core.email_queue + notifications.event_id). Never accept an unvalidated
+  // payload override: a cross-tenant collision would silently drop emails.
+  const eventId = event.eventId;
   const emailTarget: EmailTarget = {
     kind: 'notification',
     input: {

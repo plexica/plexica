@@ -4,6 +4,8 @@
 // consumer uses the granular pieces (insertNotification + resolveChannels +
 // deliverInApp) so the cap check can run between insert and delivery.
 
+import { Prisma } from '@prisma/client';
+
 import { NotFoundError } from '../../lib/app-error.js';
 
 import { connectionManager } from './connection-manager.js';
@@ -14,10 +16,14 @@ import {
   markNotificationRead,
   readPreferences,
   rowToNotificationDto,
-  writePreferences,
 } from './repository.js';
+import { normalizePreferences } from './types.js';
 
-import type { TenantDbClient } from '../../lib/tenant-database.js';
+import type {
+  TenantDbClient,
+  TenantPrisma,
+  TenantPrismaClient,
+} from '../../lib/tenant-database.js';
 import type { PaginatedResult } from '../../lib/pagination.js';
 import type {
   CreateNotificationInput,
@@ -86,16 +92,33 @@ export async function getPreferences(db: TenantDbClient, userId: string): Promis
   return readPreferences(db, userId);
 }
 
-/** Merges the partial patch over the normalized current prefs and persists. */
+/**
+ * Merges the partial patch over the normalized current prefs and persists.
+ * The read-merge-write runs inside a transaction with `SELECT ... FOR UPDATE`
+ * on the profile row so concurrent partial PATCHes cannot clobber each other
+ * (a defaults update can no longer erase a simultaneous type update).
+ */
 export async function updatePreferences(
-  db: TenantDbClient,
+  db: TenantPrismaClient,
   userId: string,
   patch: { defaults?: NotificationChannel; types?: Record<string, NotificationChannel> }
 ): Promise<PreferenceMap> {
-  const current = await readPreferences(db, userId);
-  const next: PreferenceMap = {
-    defaults: patch.defaults ?? current.defaults,
-    types: { ...current.types, ...(patch.types ?? {}) },
-  };
-  return writePreferences(db, userId, next);
+  return db.$transaction(async (tx) => {
+    const rows = await tx.$queryRaw<Array<{ notificationPrefs: unknown }>>(Prisma.sql`
+      SELECT notification_prefs AS "notificationPrefs"
+      FROM user_profile
+      WHERE user_id = ${userId}::uuid
+      FOR UPDATE
+    `);
+    const current = normalizePreferences(rows[0]?.notificationPrefs);
+    const next: PreferenceMap = {
+      defaults: patch.defaults ?? current.defaults,
+      types: { ...current.types, ...(patch.types ?? {}) },
+    };
+    await tx.userProfile.update({
+      where: { userId },
+      data: { notificationPrefs: next as unknown as TenantPrisma.InputJsonValue },
+    });
+    return next;
+  });
 }

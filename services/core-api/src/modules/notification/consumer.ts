@@ -1,8 +1,7 @@
 // consumer.ts
 // Notification Kafka consumer — group `plexica-notification-consumer` on
 // `plexica.workspace.invite` + `plexica.notification` (ADR-035, 006-01).
-// Each message is decrypted, run through the ordered pipeline (consumer-pipeline),
-// retried 3× with backoff on transient failures, then dead-lettered (ADR-016).
+// Messages are decrypted, pipelined, retried 3×, then dead-lettered (ADR-016).
 
 import { prisma } from '../../lib/database.js';
 import { decryptWireEvent } from '../../events/event-crypto.js';
@@ -40,6 +39,18 @@ const STALE_GEN = 'KAFKA_COMMIT_STALE_GENERATION';
 
 let consumer: KafkaConsumer | null = null;
 let isRunning = false;
+let startupPromise: Promise<void> | null = null;
+let closing = false;
+
+/** Bounded consumer teardown shared by failed-start, aborted-start and stop paths. */
+async function teardownConsumer(target: KafkaConsumer, code: string): Promise<void> {
+  try {
+    await awaitOwnedHandlers(target);
+    await disconnectConsumerWithBudget(target);
+  } catch (error) {
+    logger.error({ code, err: String(error) }, 'Notification consumer teardown failed');
+  }
+}
 
 export async function handleNotificationMessage(input: {
   value: string;
@@ -81,7 +92,6 @@ export async function handleNotificationMessage(input: {
     await moveWireToNotificationDlq(wire, input.source, 'NOTIF_DECRYPT_FAILED');
     return;
   }
-
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
     if (attempt > 0)
       await new Promise((resolve) => setTimeout(resolve, RETRY_BACKOFF_MS[attempt - 1]));
@@ -116,68 +126,75 @@ export async function handleNotificationMessage(input: {
   );
 }
 
-export async function startNotificationConsumer(): Promise<void> {
-  if (isRunning) return;
-  const activeConsumer = createConsumer(CONSUMER_GROUP_ID);
-  try {
-    await activeConsumer.connect();
-    await activeConsumer.subscribe({ topics: NOTIFICATION_TOPICS });
-    await activeConsumer.run({
-      partitionsConsumedConcurrently: 1,
-      eachMessage: ({ topic, partition, message }) => {
-        const offset = message.offset;
-        const nextOffset = (BigInt(offset) + 1n).toString();
-        const generation = getConsumerGeneration(activeConsumer);
-        const stale = (): boolean =>
-          getConsumerGeneration(activeConsumer) !== generation ||
-          !isAssigned(activeConsumer, topic, partition);
-        const task = (async () => {
-          try {
-            await handleNotificationMessage({
-              value: message.value?.toString() ?? '',
-              source: { topic, partition, offset },
-            });
-            if (stale()) throw new Error(STALE_GEN);
-            await commitOffsetGuarded(activeConsumer, topic, partition, nextOffset);
-          } catch (error) {
-            if (String((error as Error).message ?? '').includes(STALE_GEN)) throw error;
-            logger.error(
-              { topic, partition, offset, code: 'NOTIF_CONSUMER_TRANSIENT', err: String(error) },
-              'Notification consumer transient failure'
-            );
-            throw error;
-          }
-        })();
-        trackHandler(activeConsumer, task);
-        return task;
-      },
-    });
-    await waitForConsumerAssignment(activeConsumer, 15000);
-  } catch (error) {
+export function startNotificationConsumer(): Promise<void> {
+  if (isRunning) return Promise.resolve();
+  if (closing) return Promise.reject(new Error('NOTIF_CONSUMER_CLOSING'));
+  if (startupPromise) return startupPromise;
+  startupPromise = (async () => {
+    const activeConsumer = createConsumer(CONSUMER_GROUP_ID);
     try {
-      await awaitOwnedHandlers(activeConsumer);
-      await disconnectConsumerWithBudget(activeConsumer);
-    } catch {
-      // ignore cleanup errors on a failed start
+      await activeConsumer.connect();
+      await activeConsumer.subscribe({ topics: NOTIFICATION_TOPICS });
+      await activeConsumer.run({
+        partitionsConsumedConcurrently: 1,
+        eachMessage: ({ topic, partition, message }) => {
+          const offset = message.offset;
+          const nextOffset = (BigInt(offset) + 1n).toString();
+          const generation = getConsumerGeneration(activeConsumer);
+          const stale = (): boolean =>
+            getConsumerGeneration(activeConsumer) !== generation ||
+            !isAssigned(activeConsumer, topic, partition);
+          const task = (async () => {
+            try {
+              await handleNotificationMessage({
+                value: message.value?.toString() ?? '',
+                source: { topic, partition, offset },
+              });
+              if (stale()) throw new Error(STALE_GEN);
+              await commitOffsetGuarded(activeConsumer, topic, partition, nextOffset);
+            } catch (error) {
+              if (String((error as Error).message ?? '').includes(STALE_GEN)) throw error;
+              logger.error(
+                { topic, partition, offset, code: 'NOTIF_CONSUMER_TRANSIENT', err: String(error) },
+                'Notification consumer transient failure'
+              );
+              throw error;
+            }
+          })();
+          trackHandler(activeConsumer, task);
+          return task;
+        },
+      });
+      await waitForConsumerAssignment(activeConsumer, 15000);
+    } catch (error) {
+      await teardownConsumer(activeConsumer, 'NOTIF_CONSUMER_CLEANUP_FAILED');
+      throw error;
     }
-    throw error;
-  }
-  consumer = activeConsumer;
-  isRunning = true;
-  logger.info('Notification consumer started');
+    if (closing) {
+      await teardownConsumer(activeConsumer, 'NOTIF_CONSUMER_ABORT_FAILED');
+      throw new Error('NOTIF_CONSUMER_CLOSING');
+    }
+    consumer = activeConsumer;
+    isRunning = true;
+    logger.info('Notification consumer started');
+  })().finally(() => {
+    startupPromise = null;
+  });
+  return startupPromise;
 }
 
 export async function stopNotificationConsumer(): Promise<void> {
-  if (!consumer) return;
-  try {
-    await awaitOwnedHandlers(consumer);
-    await disconnectConsumerWithBudget(consumer);
-  } catch {
-    logger.error(
-      { code: 'NOTIF_CONSUMER_DISCONNECT_FAILED' },
-      'Failed to disconnect notification consumer'
-    );
+  closing = true;
+  if (startupPromise) {
+    try {
+      await startupPromise;
+    } catch {
+      // pending startup aborted (NOTIF_CONSUMER_CLOSING) — expected
+    }
   }
+  const active = consumer;
   consumer = null;
   isRunning = false;
+  if (!active) return;
+  await teardownConsumer(active, 'NOTIF_CONSUMER_DISCONNECT_FAILED');
 }

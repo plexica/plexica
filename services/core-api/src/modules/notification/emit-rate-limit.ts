@@ -29,8 +29,12 @@ export class EmitRateLimiter {
     const key = `notif-rl:${tenantId}:${pluginSlug}:${userId}`;
     let count: number;
     try {
-      count = await this.client.incr(key);
-      if (count === 1) await this.client.expire(key, WINDOW_SECONDS);
+      const results = (await this.client
+        .multi()
+        .incr(key)
+        .expire(key, WINDOW_SECONDS, 'NX')
+        .exec()) as Array<[Error | null, number]>;
+      count = results[0]?.[1] ?? 0;
     } catch (error) {
       // Fail open (ADR-012): a Redis outage must not break legitimate emission.
       logger.warn(

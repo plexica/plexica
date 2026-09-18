@@ -41,7 +41,12 @@ const pluginTypeSchema = z
   .refine((value) => {
     const parts = value.split('.');
     const slug = parts[1];
-    return parts.length >= 3 && typeof slug === 'string' && RESOURCE_SLUG_REGEX.test(slug);
+    return (
+      parts.length >= 3 &&
+      typeof slug === 'string' &&
+      RESOURCE_SLUG_REGEX.test(slug) &&
+      parts.slice(2).every((part) => part.length > 0)
+    );
   }, 'Type must be "plugin.{slug}.{type}" with a valid slug');
 
 // POST /api/v1/notifications/emit (feature 006-05). The SDK pre-prefixes `type`

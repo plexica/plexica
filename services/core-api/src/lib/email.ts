@@ -85,12 +85,24 @@ export async function enqueueEmail(input: EnqueueEmailInput): Promise<string | n
   return id;
 }
 
+/** HTML-escapes user-controlled values interpolated into email bodies (CWE-79). */
+export function escapeHtml(value: string): string {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
 /** Renders the invitation accept-link HTML body (shared by enqueue + consumer). */
 export function renderInvitationHtml(inviteUrl: string, tenantName: string): string {
+  const safeTenant = escapeHtml(tenantName);
+  const safeUrl = escapeHtml(inviteUrl);
   return `
-    <h1>You've been invited to ${tenantName}</h1>
+    <h1>You've been invited to ${safeTenant}</h1>
     <p>Click the link below to accept your invitation and join the workspace:</p>
-    <p><a href="${inviteUrl}">${inviteUrl}</a></p>
+    <p><a href="${safeUrl}">${safeUrl}</a></p>
     <p>This invitation will expire in ${config.INVITATION_EXPIRY_DAYS} days.</p>
     <hr />
     <p style="color:#888;font-size:12px;">If you did not request this invitation, you can safely ignore this email.</p>
@@ -111,7 +123,7 @@ export async function sendInvitationEmail(
 
   return enqueueEmail({
     to,
-    subject: `You've been invited to ${tenantName}`,
+    subject: `You've been invited to ${escapeHtml(tenantName)}`,
     html,
     emailType: 'workspace.invite',
     ...(tenantId === undefined ? {} : { tenantId }),

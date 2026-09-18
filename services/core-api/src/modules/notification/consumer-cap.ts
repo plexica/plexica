@@ -45,8 +45,12 @@ export async function resolveActiveTenantContext(
 export async function isUserRateLimited(tenantId: string, userId: string): Promise<boolean> {
   const key = `${CAP_KEY_PREFIX}${tenantId}:${userId}:emit`;
   try {
-    const count = await redis.incr(key);
-    if (count === 1) await redis.expire(key, CAP_WINDOW_SECONDS);
+    const results = (await redis
+      .multi()
+      .incr(key)
+      .expire(key, CAP_WINDOW_SECONDS, 'NX')
+      .exec()) as Array<[Error | null, number]>;
+    const count = results[0]?.[1] ?? 0;
     if (count > config.NOTIFICATION_CONSUMER_CAP_PER_MIN) {
       incrementRateLimited();
       logger.warn(

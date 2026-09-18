@@ -56,6 +56,8 @@ async function processInvite(
 ): Promise<void> {
   const inviteeEmail = payload.inviteeEmail;
   if (typeof inviteeEmail !== 'string' || inviteeEmail.length === 0) return;
+  const workspaceId = payload.workspaceId;
+  if (typeof workspaceId !== 'string' || workspaceId.length === 0) return;
 
   // Email-carried targets are resolved up-front (plan §5.2).
   const profile = await withTenantDb((db) => findProfileByEmail(db, inviteeEmail), tenantCtx);
@@ -80,7 +82,7 @@ async function processInvite(
     input: {
       tenantId: tenantCtx.tenantId,
       inviteeEmail,
-      workspaceId: payload.workspaceId ?? '',
+      workspaceId,
       workspaceName: payload.workspaceName ?? '',
       eventId: event.eventId,
     },
@@ -95,9 +97,9 @@ async function processInvite(
         titleKey: INVITE_TITLE_KEY,
         bodyKey: null,
         metadata: {
-          workspaceId: payload.workspaceId,
+          workspaceId,
           workspaceName: payload.workspaceName,
-          link: `/workspaces/${payload.workspaceId ?? ''}`,
+          link: `/workspaces/${workspaceId}`,
         },
       }),
     tenantCtx
