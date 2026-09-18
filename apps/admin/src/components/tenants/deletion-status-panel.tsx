@@ -23,6 +23,7 @@ interface DeletionStatusPanelProps {
 
 const STEP_LABELS: Record<DeletionStepName, string> = {
   event_data_purge: 'tenants.deletion.step.eventDataPurge',
+  email_queue_purge: 'tenants.deletion.step.emailQueuePurge',
   schema_drop: 'tenants.deletion.step.schemaDrop',
   realm_delete: 'tenants.deletion.step.realmDelete',
   bucket_delete: 'tenants.deletion.step.bucketDelete',
@@ -30,6 +31,7 @@ const STEP_LABELS: Record<DeletionStepName, string> = {
 
 const ORDER: DeletionStepName[] = [
   'event_data_purge',
+  'email_queue_purge',
   'schema_drop',
   'realm_delete',
   'bucket_delete',

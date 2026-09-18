@@ -1,6 +1,6 @@
 // 005-07-deletion.spec.ts — Deletion saga E2E (Feature 005-07).
 // Provision a throwaway tenant via the admin API → open its detail → Delete
-// with type-to-confirm → watch the deletion panel → poll until all 4 steps are
+// with type-to-confirm → watch the deletion panel → poll until all 5 steps are
 // done → verify the tenant row is `deleted` and the saga steps are all `done`.
 // The test is its own cleanup: the provisioned tenant is permanently erased.
 //
@@ -45,7 +45,7 @@ async function waitForCompletedSaga(
           (failed.lastError ?? 'no error reported')
       );
     }
-    if (latest.steps.length === 4 && latest.steps.every((step) => step.status === 'done')) {
+    if (latest.steps.length === 5 && latest.steps.every((step) => step.status === 'done')) {
       return latest;
     }
     await new Promise((resolve) => setTimeout(resolve, 5_000));
@@ -104,6 +104,7 @@ test.describe('005-07 Tenant deletion saga', () => {
     expect(deletedTenant).toBeUndefined();
     expect(status.steps).toEqual([
       expect.objectContaining({ step: 'event_data_purge', status: 'done' }),
+      expect.objectContaining({ step: 'email_queue_purge', status: 'done' }),
       expect.objectContaining({ step: 'schema_drop', status: 'done' }),
       expect.objectContaining({ step: 'realm_delete', status: 'done' }),
       expect.objectContaining({ step: 'bucket_delete', status: 'done' }),
