@@ -1,124 +1,21 @@
 // service.ts
-// Invitation service — create, resend, and list flows.
-// The accept flow is in service-accept.ts (split for 200-line compliance).
+// Invitation service — resend and list flows. The create flow lives in
+// service-create.ts (split for 200-line compliance, mirroring service-accept.ts)
+// and is re-exported here so existing import sites are unaffected.
 
-import { config } from '../../lib/config.js';
-import { generateInviteToken } from '../../lib/crypto.js';
 import { sendInvitationEmail } from '../../lib/email.js';
-import {
-  AlreadyExistsError,
-  InvitationNotFoundError,
-  InvitationAlreadyAcceptedError,
-} from '../../lib/app-error.js';
+import { InvitationNotFoundError, InvitationAlreadyAcceptedError } from '../../lib/app-error.js';
 import { writeAuditLog } from '../audit-log/writer.js';
 
-import {
-  createInvitation,
-  findInvitationById,
-  findInvitationsByWorkspace,
-  findPendingInvitation,
-  updateExpiry,
-} from './repository.js';
+import { findInvitationById, findInvitationsByWorkspace, updateExpiry } from './repository.js';
+import { buildInviteUrl, expiryDate, maskInvitation } from './service-util.js';
 
 import type { TenantContext } from '../../lib/tenant-context-store.js';
 import type { TenantDbClient, TenantPrismaClient } from '../../lib/tenant-database.js';
 import type { PaginatedResult } from '../../lib/pagination.js';
-import type { CreateInvitationInput, InvitationDto, ListInvitationsFilters } from './types.js';
+import type { InvitationDto, ListInvitationsFilters } from './types.js';
 
-function expiryDate(): Date {
-  const d = new Date();
-  d.setDate(d.getDate() + config.INVITATION_EXPIRY_DAYS);
-  return d;
-}
-
-/**
- * Masks a PII email for API responses to prevent enumeration.
- * "alice@company.com" → "a***@company.com"
- * Keeps the first character of the local part and the full domain.
- */
-function maskEmail(email: string): string {
-  const [local, domain] = email.split('@');
-  if (local === undefined || domain === undefined) return '***';
-  return `${local.charAt(0)}***@${domain}`;
-}
-
-function maskInvitation(inv: InvitationDto): InvitationDto {
-  return { ...inv, email: maskEmail(inv.email) };
-}
-
-function buildInviteUrl(token: string): string {
-  return `${config.APP_URL}/invite/${token}`;
-}
-
-async function assertNoActiveInvitation(
-  tenantDb: TenantDbClient,
-  email: string,
-  workspaceId: string
-): Promise<void> {
-  const existing = await findPendingInvitation(tenantDb, email, workspaceId);
-  if (existing !== null) {
-    throw new AlreadyExistsError(
-      'A pending invitation for this address already exists in the workspace (INVITATION_EXISTS)'
-    );
-  }
-}
-
-async function assertNotAlreadyMember(
-  tenantDb: TenantDbClient,
-  email: string,
-  workspaceId: string
-): Promise<void> {
-  const profile = await tenantDb.userProfile.findFirst({
-    where: { email },
-    select: { userId: true },
-  });
-  if (profile === null) return;
-
-  const member = await tenantDb.workspaceMember.findUnique({
-    where: { workspaceId_userId: { workspaceId, userId: profile.userId } },
-    select: { userId: true },
-  });
-  if (member !== null) {
-    throw new AlreadyExistsError(
-      `User is already a member of this workspace (USER_ALREADY_IN_TENANT)`
-    );
-  }
-}
-
-// TenantPrismaClient (non-transactional): writes the audit log.
-export async function createInvitationService(
-  tenantDb: TenantPrismaClient,
-  input: CreateInvitationInput,
-  actorId: string,
-  tenantContext: TenantContext
-): Promise<InvitationDto> {
-  await assertNoActiveInvitation(tenantDb, input.email, input.workspaceId);
-  await assertNotAlreadyMember(tenantDb, input.email, input.workspaceId);
-
-  const token = generateInviteToken();
-  const expiresAt = expiryDate();
-
-  const invitation = await createInvitation(tenantDb, {
-    email: input.email,
-    workspaceId: input.workspaceId,
-    role: input.role,
-    invitedBy: actorId,
-    token,
-    expiresAt,
-  });
-
-  const inviteUrl = buildInviteUrl(token);
-  await sendInvitationEmail(input.email, inviteUrl, tenantContext.slug);
-
-  await writeAuditLog(tenantDb, {
-    actorId,
-    actionType: 'invitation.send',
-    targetType: 'invitation',
-    targetId: invitation.id,
-  });
-
-  return maskInvitation(invitation);
-}
+export { createInvitationService } from './service-create.js';
 
 // TenantPrismaClient (non-transactional): writes the audit log.
 export async function resendInvitationService(
@@ -137,14 +34,8 @@ export async function resendInvitationService(
   const updated = await findInvitationById(tenantDb, invitationId);
   if (updated === null) throw new InvitationNotFoundError();
 
-  const inviteUrl = buildInviteUrl(
-    // Token stored in DB — re-fetch via repository; use same token
-    // We need the token but InvitationDto doesn't expose it.
-    // Re-use a direct query here via the cast db.
-    await getToken(tenantDb, invitationId)
-  );
-
-  await sendInvitationEmail(updated.email, inviteUrl, tenantContext.slug);
+  const inviteUrl = buildInviteUrl(await getToken(tenantDb, invitationId));
+  await sendInvitationEmail(updated.email, inviteUrl, tenantContext.slug, tenantContext.tenantId);
 
   await writeAuditLog(tenantDb, {
     actorId,

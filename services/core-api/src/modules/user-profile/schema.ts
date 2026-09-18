@@ -16,11 +16,9 @@ export const updateProfileSchema = z.object({
   displayName: z.string().min(1).max(100).nullable().optional(),
   timezone: timezoneSchema.optional(),
   language: languageSchema.optional(),
-  notificationPrefs: z
-    .object({
-      invite_received: z.object({ email: z.boolean() }).optional(),
-      workspace_changes: z.object({ email: z.boolean() }).optional(),
-      role_changes: z.object({ email: z.boolean() }).optional(),
-    })
-    .optional(),
+  // notificationPrefs intentionally NOT writable here: the notification module
+  // owns the notification_prefs column (D-6 nested shape). The canonical write
+  // path is PATCH /api/v1/notifications/preferences (feature 006-04); the
+  // profile module reads only. Unknown keys are stripped by Zod, so legacy
+  // clients sending the category shape are ignored instead of rejected.
 });

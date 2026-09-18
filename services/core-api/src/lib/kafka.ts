@@ -99,6 +99,7 @@ export const Topics = {
   user: (action: string) => `plexica.user.${action}`,
   tenant: (action: string) => `plexica.tenant.${action}`,
   plugin: (action: string) => `plexica.plugin.${action}`,
+  notification: 'plexica.notification',
   pluginCustom: (slug: string, entity: string, action: string) =>
     `plugin.${slug}.${entity}.${action}`,
   dlq: 'plexica.plugin.dlq',

@@ -16,8 +16,9 @@ export const featuresConfigShape = z.object({
   NOTIFICATION_CONSUMER_CAP_PER_MIN: z.coerce.number().int().min(1).default(100),
   // Emission cap: max notifications per plugin per user per minute (Redis counter).
   NOTIFICATION_EMIT_RATE_LIMIT_PER_PLUGIN_USER_PER_MIN: z.coerce.number().int().min(1).default(10),
-  // Email queue retry worker (006-03): max attempts and base backoff.
-  NOTIFICATION_EMAIL_MAX_ATTEMPTS: z.coerce.number().int().min(1).max(10).default(3),
+  // Email queue retry worker (006-03): max attempts (4 = 1 send + 3 retries
+  // at 1s/4s/16s backoff, ADR-035) and base backoff.
+  NOTIFICATION_EMAIL_MAX_ATTEMPTS: z.coerce.number().int().min(1).max(10).default(4),
   NOTIFICATION_EMAIL_BACKOFF_MS: z.coerce.number().int().min(100).default(1_000),
   NOTIFICATION_EMAIL_WORKER_INTERVAL_MS: z.coerce.number().int().min(100).default(1_000),
 

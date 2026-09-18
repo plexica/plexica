@@ -5,6 +5,7 @@ import { randomUUID } from 'node:crypto';
 import { logger } from '../../../lib/logger.js';
 
 import { executeBucketDelete } from './deletion-step-bucket-delete.js';
+import { executeEmailQueuePurge } from './deletion-step-email-queue-purge.js';
 import { executeEventDataPurge } from './deletion-step-event-data-purge.js';
 import { completeGdprDeletion } from './deletion-step-gdpr-purge.js';
 import { executeRealmDelete } from './deletion-step-realm-delete.js';
@@ -15,6 +16,7 @@ import type { DeletionContext } from './deletion-context.service.js';
 
 export const STEP_ORDER = [
   'event_data_purge',
+  'email_queue_purge',
   'schema_drop',
   'realm_delete',
   'bucket_delete',
@@ -46,6 +48,8 @@ async function dispatchStep(
   switch (step) {
     case 'event_data_purge':
       return executeEventDataPurge(prisma, tenantId, context);
+    case 'email_queue_purge':
+      return executeEmailQueuePurge(prisma, tenantId);
     case 'schema_drop':
       return executeSchemaDrop(prisma, tenantId, context.schemaName);
     case 'realm_delete':
@@ -121,7 +125,10 @@ export async function executeStepWithRetry(
             stepId: step.id,
             step: stepName,
             attempt,
-            err: err instanceof Error ? { message: err.message, code: (err as { code?: string }).code } : String(err),
+            err:
+              err instanceof Error
+                ? { message: err.message, code: (err as { code?: string }).code }
+                : String(err),
           },
           'Deletion step attempt failed'
         );
