@@ -2,52 +2,17 @@
 // Unit tests for SSE connection eviction semantics (CodeRabbit #5, round 2):
 // a false heartbeat/publish write result is BACKPRESSURE, not failure — the
 // connection survives and resumes after drain. Only a socket that is actually
-// dead (destroyed/ended) is evicted. Uses fake timers so the heartbeat
-// interval fires deterministically. Pure unit tests — mock ServerResponse, no
-// network.
+// dead (destroyed/ended) is evicted; a backpressured frame is queued, not
+// dropped (bound/overflow/flush tests live in connection-manager-backpressure.test.ts).
+// Uses fake timers so the heartbeat interval fires deterministically. Pure
+// unit tests — mock ServerResponse, no network.
 
 import { describe, expect, it, vi } from 'vitest';
 
 import { config } from '../../../lib/config.js';
 import { connectionManager } from '../../../modules/notification/connection-manager.js';
 
-import type { NotificationDto } from '../../../modules/notification/types.js';
-import type { ServerResponse } from 'node:http';
-
-function mockRes(
-  overrides: {
-    writeResult?: boolean;
-    destroyed?: boolean;
-    writableEnded?: boolean;
-    writableNeedDrain?: boolean;
-  } = {}
-): {
-  res: ServerResponse;
-  end: ReturnType<typeof vi.fn>;
-  write: ReturnType<typeof vi.fn>;
-} {
-  const res = {
-    destroyed: overrides.destroyed ?? false,
-    writableEnded: overrides.writableEnded ?? false,
-    writableNeedDrain: overrides.writableNeedDrain ?? false,
-    setHeader: vi.fn(),
-    flushHeaders: vi.fn(),
-    write: vi.fn(() => overrides.writeResult ?? true),
-    end: vi.fn(),
-    on: vi.fn(),
-  };
-  return { res: res as unknown as ServerResponse, end: res.end, write: res.write };
-}
-
-const DTO: NotificationDto = {
-  id: '00000000-0000-4000-8000-000000000001',
-  type: 'workspace.invite',
-  titleKey: 'notification.workspace.invite.title',
-  bodyKey: 'notification.workspace.invite.body',
-  metadata: {},
-  read: false,
-  createdAt: '2026-09-18T00:00:00.000Z',
-};
+import { DTO, mockRes } from './helpers/connection-manager-fixtures.js';
 
 describe('connectionManager — heartbeat backpressure (CodeRabbit #5, round 2)', () => {
   it('does NOT evict a backpressured connection when the heartbeat write returns false', () => {
@@ -114,7 +79,7 @@ describe('connectionManager — heartbeat backpressure (CodeRabbit #5, round 2)'
 });
 
 describe('connectionManager — publish backpressure (CodeRabbit #5, round 2)', () => {
-  it('skips a backpressured connection but does NOT evict it', () => {
+  it('queues a backpressured frame instead of dropping it, without evicting', () => {
     const { res, write } = mockRes({ writeResult: false });
     const handle = connectionManager.connect('acme', 'user-1', res);
     expect(connectionManager.connectionCount).toBe(1);

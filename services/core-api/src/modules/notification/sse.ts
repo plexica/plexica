@@ -31,8 +31,9 @@ export function writeSseHeaders(res: ServerResponse): void {
  * the SSE spec so a payload never truncates the stream. Returns false when the
  * socket is already closed OR the socket buffer is full (writableNeedDrain —
  * backpressure). A false result is backpressure, NOT a failure: the caller
- * skips the frame for that connection and waits for drain. Only a
- * destroyed/ended socket warrants eviction.
+ * queues the frame (bounded, per-connection) and flushes it on `drain` rather
+ * than dropping it or disconnecting the slow reader. Only a destroyed/ended
+ * socket warrants eviction.
  */
 export function writeEvent(res: ServerResponse, frame: SseFrame): boolean {
   if (res.destroyed || res.writableEnded) return false;
@@ -51,8 +52,8 @@ export function writeEvent(res: ServerResponse, frame: SseFrame): boolean {
   for (const line of json.split('\n')) payload += `data: ${line}\n`;
   payload += '\n';
   // res.write() returns false when the kernel buffer is full (backpressure) —
-  // propagate it so connection-manager.publish can skip the frame for this
-  // connection instead of evicting the slow consumer.
+  // propagate it so connection-manager.publish can queue the frame for this
+  // connection (flushed on drain) instead of evicting the slow consumer.
   return res.write(payload);
 }
 
