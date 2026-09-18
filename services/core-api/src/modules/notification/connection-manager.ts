@@ -37,10 +37,15 @@ class ConnectionManager {
     writeSseHeaders(res);
     const entry: ConnectionEntry = { res, timer: undefined };
     const timer = setInterval(() => {
-      // A failed heartbeat write (socket closed/ended, backpressure, or a
-      // stalled kernel buffer) means the connection can no longer receive
-      // frames — evict it, mirroring the failed-write eviction in publish().
-      if (!writeHeartbeat(res)) this.evict(entry);
+      // A false heartbeat write is backpressure (kernel buffer full / drain
+      // pending), NOT a failure: a slow-but-alive reader must wait for drain
+      // instead of being disconnected. Only a socket that is actually dead
+      // (destroyed/ended/errored) is evicted.
+      if (res.destroyed || res.writableEnded) {
+        this.evict(entry);
+        return;
+      }
+      writeHeartbeat(res);
     }, HEARTBEAT_INTERVAL_MS);
     timer.unref();
     entry.timer = timer;
@@ -64,9 +69,11 @@ class ConnectionManager {
   }
 
   /**
-   * Writes the notification frame to every open connection of the user.
-   * Connections that fail the write (socket closed or backpressure) are evicted
-   * immediately. Returns true when at least one connection received the frame.
+   * Writes the notification frame to every open connection of the user. Only
+   * connections whose socket is actually dead (destroyed/ended) are evicted; a
+   * backpressured connection (writableNeedDrain / full buffer) skips the frame
+   * and waits for drain instead of being disconnected. Returns true when at
+   * least one connection received the frame.
    */
   publish(tenantSlug: string, userId: string, dto: NotificationDto): boolean {
     const userConnections = this.tenants.get(tenantSlug)?.get(userId);
@@ -74,11 +81,13 @@ class ConnectionManager {
     let delivered = false;
     const stale: ConnectionEntry[] = [];
     for (const entry of userConnections) {
-      if (writeEvent(entry.res, { event: 'notification', data: dto })) {
-        delivered = true;
-      } else {
+      if (entry.res.destroyed || entry.res.writableEnded) {
         stale.push(entry);
+        continue;
       }
+      // A false writeEvent result is backpressure — skip the frame for this
+      // connection and let it drain; never evict a slow-but-alive reader.
+      if (writeEvent(entry.res, { event: 'notification', data: dto })) delivered = true;
     }
     for (const entry of stale) this.evict(entry);
     return delivered;

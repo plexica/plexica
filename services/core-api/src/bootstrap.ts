@@ -4,19 +4,20 @@
 // background worker is started and stopped here, in one documented order.
 //
 // Startup order (startBackgroundServices)          Teardown order (stopBackgroundServices)
-//   1. Kafka producer warm-up                        1. notification consumer       (9)
-//   2. event workers (outbox + DLQ consumer)         2. email queue worker          (8)
-//   3. tenant lifecycle worker                       3. metrics aggregator          (7)
-//   4. deletion saga startup sweep (fire & forget)   4. plugin runtime reconcile    (6b)
-//   5. plugin consumer groups (reconcile)            5. plugin health poller        (6)
-//   6. plugin health poller                          6. plugin consumer groups      (5)
-//   6b. plugin runtime reconcile                     7. tenant lifecycle worker     (3)
-//   7. metrics aggregator                            8. event workers               (2)
-//   8. email queue worker                            9. kafka-health-cleanup
-//   9. notification consumer                       10. Kafka producer              (1)
-//                                                   11. tenant DB client cache (ADR-027)
-//                                                   12. PostgreSQL
-//                                                   13. Redis
+//   1. Kafka producer warm-up                        1. notification consumer supervisor
+//   2. event workers (outbox + DLQ consumer)         2. notification consumer       (9)
+//   3. tenant lifecycle worker                       3. email queue worker          (8)
+//   4. deletion saga startup sweep (fire & forget)   4. metrics aggregator          (7)
+//   5. plugin consumer groups (reconcile)            5. plugin runtime reconcile    (6b)
+//   6. plugin health poller                          6. plugin health poller        (6)
+//   6b. plugin runtime reconcile                     7. plugin consumer groups      (5)
+//   7. metrics aggregator                            8. tenant lifecycle worker     (3)
+//   8. email queue worker                            9. event workers               (2)
+//   9. notification consumer                        10. kafka-health-cleanup
+//                                                  11. Kafka producer              (1)
+//                                                  12. tenant DB client cache (ADR-027)
+//                                                  13. PostgreSQL
+//                                                  14. Redis
 // Teardown is the exact reverse of startup: every Kafka producer/consumer is
 // stopped before the connections and stores it depends on (Kafka, PostgreSQL,
 // Redis) are closed. Nothing is started here without a matching stop.
@@ -37,10 +38,11 @@ import {
   stopTenantLifecycleWorker,
 } from './modules/admin/services/tenant-lifecycle-worker.js';
 import { awaitKafkaHealthCleanup } from './modules/admin/services/health-check-kafka.js';
+import { stopNotificationConsumer } from './modules/notification/consumer.js';
 import {
-  startNotificationConsumer,
-  stopNotificationConsumer,
-} from './modules/notification/consumer.js';
+  startNotificationConsumerSupervisor,
+  stopNotificationConsumerSupervisor,
+} from './modules/notification/consumer-supervisor.js';
 import {
   startEmailQueueWorker,
   stopEmailQueueWorker,
@@ -118,15 +120,11 @@ export async function startBackgroundServices(): Promise<void> {
   // consumer because the consumer enqueues emails for tenant-user deliveries.
   startEmailQueueWorker();
 
-  // 9. Notification Kafka consumer (ADR-035). Fire-and-forget: a broker that
-  // is still booting must not block startup, and a failed start only degrades
-  // in-app notifications (the email path survives via the worker above).
-  void startNotificationConsumer().catch(() =>
-    logger.error(
-      { code: 'NOTIF_CONSUMER_START_FAILED' },
-      'Notification consumer failed to start — in-app notifications degraded'
-    )
-  );
+  // 9. Notification Kafka consumer (ADR-035). Fire-and-forget with bounded
+  // supervision: a broker that is still booting must not block startup, and a
+  // failed start is retried with exponential backoff (up to 5 attempts) before
+  // the supervisor gives up. The email path survives via the worker above.
+  startNotificationConsumerSupervisor();
 }
 
 /**
@@ -168,6 +166,11 @@ async function stopStep(name: string, stop: () => Promise<void>): Promise<void> 
  * Never throws: individual failures are logged per step.
  */
 export async function stopBackgroundServices(): Promise<void> {
+  // Stop the supervisor FIRST so its retry loop cannot re-attempt a consumer
+  // start while (or after) the consumer below is torn down.
+  await stopStep('notification-consumer-supervisor', async () =>
+    stopNotificationConsumerSupervisor()
+  );
   await stopStep('notification-consumer', stopNotificationConsumer);
   await stopStep('email-queue-worker', async () => stopEmailQueueWorker());
   await stopStep('metrics-aggregator', stopMetricsAggregator);

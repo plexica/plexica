@@ -30,15 +30,16 @@ export function writeSseHeaders(res: ServerResponse): void {
  * Writes a single SSE frame. Multi-line JSON is split across `data:` lines per
  * the SSE spec so a payload never truncates the stream. Returns false when the
  * socket is already closed OR the socket buffer is full (writableNeedDrain —
- * backpressure): the caller should treat the connection as dead and evict it
- * rather than queueing more frames (per-user cap 5).
+ * backpressure). A false result is backpressure, NOT a failure: the caller
+ * skips the frame for that connection and waits for drain. Only a
+ * destroyed/ended socket warrants eviction.
  */
 export function writeEvent(res: ServerResponse, frame: SseFrame): boolean {
   if (res.destroyed || res.writableEnded) return false;
   if (res.writableNeedDrain) {
     logger.warn(
       { code: 'SSE_BACKPRESSURE' },
-      'SSE socket buffer full — evicting slow consumer connection'
+      'SSE socket buffer full — skipping frame for slow consumer'
     );
     return false;
   }
@@ -50,15 +51,16 @@ export function writeEvent(res: ServerResponse, frame: SseFrame): boolean {
   for (const line of json.split('\n')) payload += `data: ${line}\n`;
   payload += '\n';
   // res.write() returns false when the kernel buffer is full (backpressure) —
-  // propagate it so connection-manager.publish evicts the slow consumer.
+  // propagate it so connection-manager.publish can skip the frame for this
+  // connection instead of evicting the slow consumer.
   return res.write(payload);
 }
 
 /**
  * Keepalive comment frame — resets proxies' idle timeouts (20 s cadence).
- * Returns the raw res.write() result so the heartbeat scheduler can detect a
- * stalled socket (false = kernel buffer full / backpressure) and evict the
- * connection instead of silently queueing more bytes.
+ * Returns the raw res.write() result so the heartbeat scheduler can tell a
+ * stalled-but-alive socket (false = kernel buffer full / backpressure) from a
+ * dead one; the caller only evicts destroyed/ended sockets.
  */
 export function writeHeartbeat(res: ServerResponse): boolean {
   if (res.destroyed || res.writableEnded) return false;
