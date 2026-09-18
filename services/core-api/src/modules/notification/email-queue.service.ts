@@ -10,12 +10,14 @@ import { Prisma } from '@prisma/client';
 
 import { logger } from '../../lib/logger.js';
 
-import { sanitizeEmailError } from './email-error-sanitize.js';
+import { settleEmailQueue } from './email-queue-settle.js';
 
 import type { PrismaClient } from '@prisma/client';
 import type { EmailQueueRow } from './types.js';
+import type { EmailSettleUpdate } from './email-queue-settle.js';
 
 export { redactEmail, sanitizeEmailError } from './email-error-sanitize.js';
+export type { EmailSettleUpdate } from './email-queue-settle.js';
 
 export interface EmailEnqueueInput {
   tenantId?: string;
@@ -26,11 +28,6 @@ export interface EmailEnqueueInput {
   /** Consumer event_id — makes the enqueue idempotent (ON CONFLICT DO NOTHING). */
   eventId?: string;
 }
-
-export type EmailSettleUpdate =
-  | { status: 'sent'; sentAt: Date }
-  | { status: 'failed'; attempts: number; nextAttemptAt: Date; lastError: unknown }
-  | { status: 'dead'; attempts: number; lastError: unknown };
 
 /** Raw-SQL executor (core PrismaClient or a tenant tx client both satisfy this). */
 export interface RawSqlClient {
@@ -79,6 +76,7 @@ interface EmailQueueSqlRow {
   sentAt: Date | null;
   claimedAt: Date | null;
   leaseExpiresAt: Date | null;
+  leaseToken: string;
   dedupeKey: string | null;
 }
 
@@ -106,9 +104,14 @@ export class EmailQueueService {
    * settle.
    */
   async claim(batchSize = 10, now = new Date(), leaseMs = 60_000): Promise<EmailQueueRow[]> {
+    // Per-batch fencing token (mirrors event_outbox.claimOutboxEvents): every
+    // settle/retry later predicates on this token, so a stale holder cannot
+    // overwrite a row that a successor re-claimed after lease expiry.
+    const leaseToken = crypto.randomUUID();
     const rows = await this.db.$queryRaw<EmailQueueSqlRow[]>(Prisma.sql`
       UPDATE core.email_queue AS queue
       SET status = 'sending',
+          lease_token = ${leaseToken}::uuid,
           claimed_at = now(),
           lease_expires_at = now() + (${leaseMs} * interval '1 millisecond')
       FROM (
@@ -140,40 +143,19 @@ export class EmailQueueService {
         queue.status, queue.attempts, queue.next_attempt_at AS "nextAttemptAt",
         queue.last_error AS "lastError", queue.created_at AS "createdAt",
         queue.sent_at AS "sentAt", queue.claimed_at AS "claimedAt",
-        queue.lease_expires_at AS "leaseExpiresAt", queue.dedupe_key AS "dedupeKey"
+        queue.lease_expires_at AS "leaseExpiresAt", queue.lease_token AS "leaseToken",
+        queue.dedupe_key AS "dedupeKey"
     `);
     return rows.map(toRow);
   }
 
-  /** Marks the row sent / failed (schedules retry) / dead (dead-lettered). */
-  async settle(id: string, update: EmailSettleUpdate): Promise<void> {
-    if (update.status === 'sent') {
-      await this.db.emailQueue.update({
-        where: { id },
-        data: {
-          status: 'sent',
-          sentAt: update.sentAt,
-          lastError: null,
-          claimedAt: null,
-          leaseExpiresAt: null,
-        },
-      });
-      return;
-    }
-    // ADR-035 invariant enforced at the persistence boundary: last_error is
-    // sanitized here (not just by callers) so no future caller can persist PII.
-    const lastError = sanitizeEmailError(update.lastError);
-    await this.db.emailQueue.update({
-      where: { id },
-      data: {
-        status: update.status,
-        attempts: update.attempts,
-        lastError,
-        claimedAt: null,
-        leaseExpiresAt: null,
-        ...(update.status === 'failed' ? { nextAttemptAt: update.nextAttemptAt } : {}),
-      },
-    });
+  /**
+   * Settles a claimed row, fenced by the claim's lease_token (see
+   * settleEmailQueue in email-queue-settle.ts). Returns false on a stale claim
+   * so the caller ignores it instead of reclassifying state.
+   */
+  async settle(id: string, leaseToken: string, update: EmailSettleUpdate): Promise<boolean> {
+    return settleEmailQueue(this.db, id, leaseToken, update);
   }
 
   async countPending(now = new Date()): Promise<number> {

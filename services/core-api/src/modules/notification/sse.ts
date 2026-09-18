@@ -54,10 +54,14 @@ export function writeEvent(res: ServerResponse, frame: SseFrame): boolean {
   return res.write(payload);
 }
 
-/** Keepalive comment frame — resets proxies' idle timeouts (20 s cadence). */
+/**
+ * Keepalive comment frame — resets proxies' idle timeouts (20 s cadence).
+ * Returns the raw res.write() result so the heartbeat scheduler can detect a
+ * stalled socket (false = kernel buffer full / backpressure) and evict the
+ * connection instead of silently queueing more bytes.
+ */
 export function writeHeartbeat(res: ServerResponse): boolean {
   if (res.destroyed || res.writableEnded) return false;
   if (res.writableNeedDrain) return false;
-  res.write(':ping\n\n');
-  return true;
+  return res.write(':ping\n\n');
 }

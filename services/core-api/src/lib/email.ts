@@ -18,11 +18,14 @@ function createTransport(): nodemailer.Transporter {
     host: config.SMTP_HOST,
     port: config.SMTP_PORT,
     secure: false,
-    // Bound a hung SMTP connection at the socket level (nodemailer aborts the
-    // connection itself on timeout — no leaked sockets).
-    connectionTimeout: 10_000,
-    greetingTimeout: 10_000,
-    socketTimeout: 10_000,
+    // Abort a hung SMTP at the socket level BEFORE the worker's Promise.race
+    // timeout (sendMailNow, 10s) can reject: nodemailer's native socket
+    // timeouts destroy the in-flight connection deterministically, so a retry
+    // never runs while the original connection could still deliver (shrinks
+    // the at-least-once duplicate window; ADR-035 accepts a sub-second race).
+    connectionTimeout: 8_000,
+    greetingTimeout: 8_000,
+    socketTimeout: 8_000,
     // No auth required in dev — Mailpit accepts unauthenticated connections
   });
 }
@@ -31,8 +34,12 @@ function createTransport(): nodemailer.Transporter {
  * Synchronous send. Used only by the email queue worker — callers that want a
  * durable retry path should use enqueueEmail instead.
  * Throws on SMTP failure — the worker decides retry/dead-letter.
- * `timeoutMs` bounds the send with Promise.race so a hung SMTP (beyond the
- * native transport timeouts) can never strand a claimed queue row.
+ * `timeoutMs` is a backstop on top of the transport's native socket timeouts
+ * (8s, see createTransport) so a hung SMTP can never strand a claimed queue
+ * row. Delivery semantics are at-least-once (ADR-035): on a truly uncertain
+ * SMTP outcome (e.g. the server committed the message but the response was
+ * lost) a duplicate email is possible — accepted, prefer a duplicate over a
+ * lost email.
  */
 export async function sendMailNow(
   to: string,
@@ -49,17 +56,27 @@ export async function sendMailNow(
   });
   if (options.timeoutMs === undefined) {
     await send;
+    await transport.close();
     return;
   }
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new Error('EMAIL_SMTP_TIMEOUT')), options.timeoutMs);
+    timer = setTimeout(() => {
+      // Promise.race does not cancel sendMail. transport.close() signals the
+      // abort; combined with the transport's native socket timeouts (which
+      // fire ~2s before this backstop), the in-flight SMTP connection is
+      // destroyed before the worker can retry, shrinking the duplicate window
+      // to a sub-second race.
+      transport.close();
+      reject(new Error('EMAIL_SMTP_TIMEOUT'));
+    }, options.timeoutMs);
     timer.unref?.();
   });
   try {
     await Promise.race([send, timeout]);
   } finally {
     if (timer !== undefined) clearTimeout(timer);
+    await transport.close();
   }
 }
 

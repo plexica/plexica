@@ -85,6 +85,8 @@ export interface EmailQueueRow {
   claimedAt: Date | null;
   /** Lease expiry — a `sending` row past this is re-claimable after a crash. */
   leaseExpiresAt: Date | null;
+  /** Fencing claim token — required on every settle/retry (ADR-035). */
+  leaseToken: string;
   /** Consumer idempotency key (event_id) — ON CONFLICT DO NOTHING on enqueue. */
   dedupeKey: string | null;
 }

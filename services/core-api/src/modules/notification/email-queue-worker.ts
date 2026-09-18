@@ -3,8 +3,11 @@
 // batch, sends via nodemailer (sendMailNow), and schedules retries with
 // 1s/4s/16s backoff (base × 4^attempt) before dead-lettering after
 // NOTIFICATION_EMAIL_MAX_ATTEMPTS (4 = 1 send + 3 retries). Each send is
-// bounded by a 10s Promise.race timeout (sendMailNow) so a hung SMTP cannot
-// strand a claim. Mailpit is the dev/test SMTP target.
+// bounded at the socket level (8s native SMTP timeouts, 10s Promise.race
+// backstop in sendMailNow) so a hung SMTP cannot strand a claim; the
+// transport is closed on timeout to abort the in-flight SMTP op. Every settle
+// is fenced by the claim's lease_token, so a stale holder cannot overwrite a
+// re-claimed row. Mailpit is the dev/test SMTP target.
 
 import { config } from '../../lib/config.js';
 import { prisma } from '../../lib/database.js';
@@ -44,26 +47,38 @@ export async function runTick(
       try {
         // Bound the send so a hung SMTP connection cannot strand the lease:
         // a timeout rejects, the catch schedules a retry, and the worker (or
-        // its successor after a crash) re-claims the row.
+        // its successor after a crash) re-claims the row. sendMailNow closes
+        // its transport on timeout, so the in-flight SMTP op is aborted before
+        // this retry path runs — shrinking the duplicate window. At-least-once
+        // semantics (ADR-035) still allow a duplicate on a truly uncertain
+        // outcome: prefer a duplicate over a lost email.
         await sendMailNow(row.toAddress, row.subject, row.htmlBody, {
           timeoutMs: SEND_TIMEOUT_MS,
         });
       } catch (error) {
         const attempts = row.attempts + 1;
         if (attempts >= config.NOTIFICATION_EMAIL_MAX_ATTEMPTS) {
-          await emailQueue.settle(row.id, { status: 'dead', attempts, lastError: error });
+          // Fenced settle: false means the claim is stale (row re-claimed or
+          // purged) — ignore it, another holder owns the row now.
+          const settled = await emailQueue.settle(row.id, row.leaseToken, {
+            status: 'dead',
+            attempts,
+            lastError: error,
+          });
+          if (!settled) return;
           result.dead += 1;
           logger.error(
             { id: row.id, emailType: row.emailType, code: 'EMAIL_DEAD' },
             'Email dead-lettered after max attempts'
           );
         } else {
-          await emailQueue.settle(row.id, {
+          const settled = await emailQueue.settle(row.id, row.leaseToken, {
             status: 'failed',
             attempts,
             nextAttemptAt: nextAttemptAt(row.attempts),
             lastError: error,
           });
+          if (!settled) return;
           result.failed += 1;
           logger.warn(
             {
@@ -81,12 +96,15 @@ export async function runTick(
 
       // Send succeeded — count it, then settle('sent') in isolation: a
       // state-transition failure must NOT reclassify a delivered email as
-      // failed (no duplicate on re-claim) and must NOT abort the other rows
-      // in this tick. The row is re-claimed after lease expiry if the settle
-      // write truly failed.
+      // failed and must NOT abort the other rows in this tick. With lease
+      // fencing, a stale settle (row re-claimed after lease expiry, or purged
+      // by the GDPR deletion saga) updates 0 rows and is ignored — if the row
+      // still exists it is re-claimed and re-sent, so a duplicate is possible.
+      // That is the accepted at-least-once recovery (ADR-035): prefer a
+      // duplicate over a lost email.
       result.sent += 1;
       try {
-        await emailQueue.settle(row.id, { status: 'sent', sentAt: new Date() });
+        await emailQueue.settle(row.id, row.leaseToken, { status: 'sent', sentAt: new Date() });
       } catch (error) {
         logger.warn(
           {
@@ -95,7 +113,7 @@ export async function runTick(
             err: String(error),
             code: 'EMAIL_SETTLE_SENT_FAILED',
           },
-          'Email delivered but settle(sent) failed — row re-claimed after lease expiry'
+          'Email delivered but settle(sent) failed — row may be re-claimed and re-sent after lease expiry'
         );
       }
     })

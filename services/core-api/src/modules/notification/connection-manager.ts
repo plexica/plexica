@@ -17,7 +17,7 @@ export interface ConnectionHandle {
 
 interface ConnectionEntry {
   res: ServerResponse;
-  timer: ReturnType<typeof setInterval>;
+  timer: ReturnType<typeof setInterval> | undefined;
 }
 
 type UserPool = Map<string, Set<ConnectionEntry>>;
@@ -35,18 +35,22 @@ class ConnectionManager {
    */
   connect(tenantSlug: string, userId: string, res: ServerResponse): ConnectionHandle {
     writeSseHeaders(res);
-    const entry: ConnectionEntry = {
-      res,
-      timer: setInterval(() => writeHeartbeat(res), HEARTBEAT_INTERVAL_MS),
-    };
-    entry.timer.unref();
+    const entry: ConnectionEntry = { res, timer: undefined };
+    const timer = setInterval(() => {
+      // A failed heartbeat write (socket closed/ended, backpressure, or a
+      // stalled kernel buffer) means the connection can no longer receive
+      // frames — evict it, mirroring the failed-write eviction in publish().
+      if (!writeHeartbeat(res)) this.evict(entry);
+    }, HEARTBEAT_INTERVAL_MS);
+    timer.unref();
+    entry.timer = timer;
 
     const userConnections = this.userConnections(tenantSlug, userId);
     userConnections.add(entry);
     this.evictIfOverCap(tenantSlug, userId, userConnections);
 
     const remove = (): void => {
-      clearInterval(entry.timer);
+      if (entry.timer) clearInterval(entry.timer);
       userConnections.delete(entry);
       const pool = this.tenants.get(tenantSlug);
       if (pool?.get(userId)?.size === 0) pool.delete(userId);
@@ -132,7 +136,7 @@ class ConnectionManager {
 
   /** Removes a connection from its pool, stops its heartbeat, closes the socket. */
   private evict(entry: ConnectionEntry): void {
-    clearInterval(entry.timer);
+    if (entry.timer) clearInterval(entry.timer);
     for (const [tenantSlug, pool] of this.tenants) {
       for (const [userId, connections] of pool) {
         if (!connections.has(entry)) continue;
