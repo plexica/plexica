@@ -112,7 +112,6 @@ export interface UpdateProfileFields {
   displayName?: string | null;
   timezone?: string;
   language?: string;
-  notificationPrefs?: NotificationPrefs;
 }
 
 export async function updateProfile(
@@ -125,8 +124,6 @@ export async function updateProfile(
   if ('displayName' in fields) data.displayName = fields.displayName;
   if (fields.timezone !== undefined) data.timezone = fields.timezone;
   if (fields.language !== undefined) data.language = fields.language;
-  if (fields.notificationPrefs !== undefined)
-    data.notificationPrefs = fields.notificationPrefs as unknown as TenantPrisma.InputJsonValue;
 
   const row = await db.userProfile.update({
     where: { userId },

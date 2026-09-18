@@ -20,4 +20,6 @@ for topic in plexica.tenant.events plexica.user.events plexica.plugin.events; do
   ensure_topic "$topic" "$week_ms"
 done
 ensure_topic plexica.plugin.dlq "$month_ms"
+ensure_topic plexica.workspace.invite "$week_ms"
+ensure_topic plexica.notification "$week_ms"
 rpk --brokers "$brokers" topic list

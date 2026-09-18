@@ -103,6 +103,7 @@ describe('deletion saga start transaction', () => {
       const result = await startDeletionSaga(prisma, cacheTenantId, 1, ACTOR_ID);
       expect(result.steps).toEqual([
         { step: 'event_data_purge', status: 'pending' },
+        { step: 'email_queue_purge', status: 'pending' },
         { step: 'schema_drop', status: 'pending' },
         { step: 'realm_delete', status: 'pending' },
         { step: 'bucket_delete', status: 'pending' },
@@ -122,7 +123,7 @@ describe('deletion saga start transaction', () => {
       }),
     ]);
     expect(tenant).toMatchObject({ status: 'pending_deletion', version: 2 });
-    expect(steps).toHaveLength(4);
+    expect(steps).toHaveLength(5);
     expect(audit?.metadata).toMatchObject({ phase: 'started' });
 
     const [resolvedA, resolvedB] = await Promise.all([

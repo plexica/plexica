@@ -5,12 +5,14 @@
 import crypto from 'node:crypto';
 import { Readable } from 'node:stream';
 
-
 import { UserNotFoundError } from '../../lib/app-error.js';
 import { config } from '../../lib/config.js';
 import { readStream } from '../../lib/file-upload.js';
 import { logger } from '../../lib/logger.js';
-import { uploadAvatar as storageUploadAvatar, getPresignedReadUrl } from '../../lib/storage-client.js';
+import {
+  uploadAvatar as storageUploadAvatar,
+  getPresignedReadUrl,
+} from '../../lib/storage-client.js';
 import { syncDisplayName } from '../../lib/keycloak-admin-users.js';
 import { writeAuditLog } from '../audit-log/writer.js';
 
@@ -91,7 +93,6 @@ export async function updateProfile(
   if ('displayName' in input) fields.displayName = input.displayName;
   if (input.timezone !== undefined) fields.timezone = input.timezone;
   if (input.language !== undefined) fields.language = input.language;
-  if (input.notificationPrefs !== undefined) fields.notificationPrefs = input.notificationPrefs;
 
   const updated = await repoUpdateProfile(tenantDb, existing.userId, fields);
 

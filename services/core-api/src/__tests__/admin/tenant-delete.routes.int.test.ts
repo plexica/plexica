@@ -93,7 +93,7 @@ describe('DELETE /api/v1/admin/tenants/:id — deletion saga', () => {
     expect(res.statusCode).toBe(409);
   });
 
-  it('happy path: correct confirmSlug → 202, 4 saga steps created + completed', async () => {
+  it('happy path: correct confirmSlug → 202, 5 saga steps created + completed', async () => {
     const res = await server.inject({
       method: 'DELETE',
       url: `/api/v1/admin/tenants/${happy.tenantId}`,
@@ -101,16 +101,22 @@ describe('DELETE /api/v1/admin/tenants/:id — deletion saga', () => {
     });
     expect(res.statusCode).toBe(202);
     const body = JSON.parse(res.payload);
-    expect(body.steps).toHaveLength(4);
+    expect(body.steps).toHaveLength(5);
     const stepNames = body.steps.map((s: { step: string }) => s.step).sort();
-    expect(stepNames).toEqual(['bucket_delete', 'event_data_purge', 'realm_delete', 'schema_drop']);
+    expect(stepNames).toEqual([
+      'bucket_delete',
+      'email_queue_purge',
+      'event_data_purge',
+      'realm_delete',
+      'schema_drop',
+    ]);
 
     const statusRes = await server.inject({
       method: 'GET',
       url: `/api/v1/admin/tenants/${happy.tenantId}/deletion-status`,
     });
     expect(statusRes.statusCode).toBe(200);
-    expect(JSON.parse(statusRes.payload).steps).toHaveLength(4);
+    expect(JSON.parse(statusRes.payload).steps).toHaveLength(5);
 
     await poll(
       () => prisma.tenant.findUnique({ where: { id: happy.tenantId }, select: { status: true } }),
