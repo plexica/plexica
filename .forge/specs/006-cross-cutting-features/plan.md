@@ -137,7 +137,7 @@ monitoring dashboard. 006-19 (OpenTelemetry) is **deferred to Sprint 7** per
 | SSE connection management at scale | Per-tenant connection pools, per-user cap (5), heartbeat (20 s comment), cleanup on `close`/abort (§5.1) |
 | Missing i18n keys at runtime | EN default fallback; CI key-parity test between `en`/`it` catalogs and plugin bundles (§10.3 `i18n-keys.test.ts`) |
 | Observability overhead on API latency | Pre-aggregated gauges; OTel sampling deferred + feature-flagged off; async Pino (§2.2) |
-| Email delivery reliability | `core.email_queue` + retry worker (3 attempts, 1s/4s/16s backoff) + dead-letter logging (§5.2) |
+| Email delivery reliability | `core.email_queue` + retry worker (4 attempts = 1 send + 3 retries, 1s/4s/16s backoff) + dead-letter logging (§5.2) |
 | Plugin notification spam | Redis counter `notif-rl:{tenantId}:{pluginSlug}:{userId}` max 10/min at emission (§5.1) + defense-in-depth 100/min per user at consumer `notification:{tenantId}:{userId}:emit` (§5.2) |
 
 ---
@@ -163,7 +163,7 @@ monitoring dashboard. 006-19 (OpenTelemetry) is **deferred to Sprint 7** per
 | D-3 | **`core.email_queue` table + in-process worker** for all outbound notification email (invitation email moved onto it) | Durable retry across restarts, testable against Mailpit, dead-letter logging per risk table. Core schema (cross-tenant infrastructure) | Bundled into **ADR-035** (Accepted) |
 | D-4 | **Notifications flow through the existing Kafka topics**: core modules emit domain events (`plexica.workspace.invite`); plugins emit via `POST /api/v1/notifications/emit` → `plexica.notification` topic; one notification consumer group subscribes to both | Preserves plugin subscription to domain events (ADR-004 semantics) while keeping one notification sink | No |
 | D-5 | **Plugin notification emission via a dedicated endpoint** (mirrors `/events/emit`, service identity + installed-plugin check) with a Redis **10/min/plugin/user** limit at emission + 100/min/user consumer cap | Spec risk table ("plugin notification spam"); per-plugin-per-user keying; defense in depth | No |
-| D-6 | **Notification preferences schema** on the existing `notification_prefs` JSONB: `{ defaults: {inApp,email}, types: { "<type>": {inApp,email} } }` | Avoids a new table; backward-compatible with the current flat boolean map (migration helper reads both) | No |
+| D-6 | **Notification preferences schema** on the existing `notification_prefs` JSONB: `{ defaults: {inApp,email}, types: { "<type>": {inApp,email} } }` | Avoids a new table; backward-compatible with the current flat boolean map AND the legacy user-profile category shape (`invite_received`/`workspace_changes`/`role_changes`, each `{email}`) — the reader normalizes all three (review fix 2). **Column ownership (fix 2 reconciliation)**: the notification module is the **authoritative writer** of `notification_prefs`; the user-profile module is **read-only** (its `PATCH /profile` no longer accepts `notificationPrefs` — prefs are written via `PATCH /notifications/preferences`) | No |
 | D-7 | **Language switch state in the existing Zustand auth store** (`locale` field, persisted) | Constitution Rule 3 / AGENTS.md: one auth store; profile `language` stays the source of truth synced via `PATCH /profile` | No |
 | D-8 | **Plugin i18n bundles as static JSON assets** declared in the plugin manifest, fetched by the shell on plugin load and merged under the `plugin.{slug}.` namespace prefix | Avoids key collisions; no new dependency; works with the MF remote delivery model (ADR-014) | No |
 | D-9 | **Tenant translation overrides** in a new tenant table `translation_overrides`, managed by the `tenant-settings` module | Tenant-scoped data must live in the tenant schema (ADR-001); reuses the settings module's admin guard | No |
@@ -459,7 +459,7 @@ every input (Security §4).
      consumes quota or is dropped by the cap.
   2. **If `rowCount = 0`** → the `event_id` already exists → duplicate
      redelivery (ADR-004 at-least-once): **skip** — no quota consumption, no
-     row, no SSE, no email.
+     row, no SSE — email enqueue re-attempted idempotently (step 4 / fix 5).
   3. **Else (`rowCount = 1`, new row)** → **cap check (F5)** — Redis counter
      key `notification:{tenantId}:{userId}:emit` (INCR + EXPIRE 60 s) enforces
      the **100/min per user** consumer cap from ADR-035 **only for newly
@@ -472,7 +472,10 @@ every input (Security §4).
   4. **Deliver** — resolve the target user's profile, read
      `notification_prefs`, decide channels (in-app vs email), **SSE-push** to
      the user's connections, and **enqueue email** in `core.email_queue` when
-     the email channel is enabled.
+     the email channel is enabled. The email enqueue is **event_id-keyed and
+     idempotent** (`dedupe_key`, `ON CONFLICT DO NOTHING`): a duplicate
+     redelivery (step 2) still re-attempts the enqueue, so a crash between
+     step 1 (row insert) and step 4 can never lose the email (fix 5).
 - Failures: retry 3× with backoff via existing consumer machinery, then DLQ
   (ADR-016) — a *processing* failure is never silently dropped; a *cap-breach*
   delivery suppression in step 3 is intentional and counted, never retried.
@@ -494,9 +497,12 @@ enqueueEvent(tx, 'plexica.workspace.invite', buildDomainEvent({
 
 Consumer resolves `inviteeEmail` → `user_profile.user_id`; if the invitee is
 already a tenant user → in-app notification + SSE. If not (pure email invite) →
-in-app skipped, email path still fires (006-03). **No PII in the event payload**
-(email is the minimal required target; the envelope is tenant-key encrypted per
-ADR-004).
+in-app skipped, email path still fires (006-03). **Fix 11**: the non-tenant
+accept-link email is enqueued **inside the same transaction** as the invitation
+row + outbox (raw `INSERT INTO core.email_queue`, same cross-schema pattern as
+`enqueueEvent`) — a crash after commit can no longer lose the email. **No PII in
+the event payload** (email is the minimal required target; the envelope is
+tenant-key encrypted per ADR-004).
 
 ### 5.4 Profile Endpoints
 
@@ -641,7 +647,7 @@ services/core-api/src/modules/notification/
   consumer.ts             — Kafka consumer (plexica.workspace.invite + plexica.notification); event_id dedupe + 100/min/user cap (§5.2)
   emit-rate-limit.ts      — Redis 10/min/plugin/user counter
   email-queue.service.ts  — enqueue/claim/settle rows in core.email_queue
-  email-queue-worker.ts   — retry worker (3 attempts, 1s/4s/16s, dead-letter log)
+  email-queue-worker.ts   — retry worker (4 attempts = 1 send + 3 retries, 1s/4s/16s, dead-letter log)
 ```
 
 **Key classes/methods**:
@@ -1249,7 +1255,7 @@ file exactly.
 | SSE client reconnection storms | MEDIUM | Exponential backoff + jitter in `sse-client.ts`; heartbeat timeout detection distinguishes dead connections from server restarts. |
 | Missing i18n keys at runtime | MEDIUM | EN fallback (react-intl `defaultMessage`); CI key-parity test (`en`/`it`/plugin bundles); `formatjs/no-hardcoded-string` lint. |
 | Observability overhead on API latency | MEDIUM | Pre-aggregated gauges (30 s interval); histogram buckets bounded; `prom-client` uses `collectDefaultMetrics` at 30 s; OTel deferred + flag off. |
-| Email delivery reliability | MEDIUM | `core.email_queue` durable queue; 3 retries 1s/4s/16s; dead-letter log; Mailpit in dev; GDPR purge hook for `email_queue.tenant_id`. |
+| Email delivery reliability | MEDIUM | `core.email_queue` durable queue; 4 attempts = 1 send + 3 retries (1s/4s/16s); dead-letter log; Mailpit in dev; GDPR purge hook for `email_queue.tenant_id`. |
 | Plugin notification spam | LOW | Redis 10/min/plugin/user at emission (429) + 100/min/user consumer cap (drop + counter). |
 | `/health` payload change breaks CI contract | MEDIUM | Additive shape (keep `status` + `version`); update `ci-runtime-contract.spec.ts` **and `ci-runtime-contract-flow.ts`** in the same PR (Phase 4, F7). |
 | `notificationPrefs` legacy shape | LOW | Reader normalizes flat boolean map; writer persists nested shape; typed at the domain boundary (TD-003 residual-cast pattern). |
