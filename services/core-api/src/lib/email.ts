@@ -36,10 +36,11 @@ function createTransport(): nodemailer.Transporter {
  * Throws on SMTP failure — the worker decides retry/dead-letter.
  * `timeoutMs` is a backstop on top of the transport's native socket timeouts
  * (8s, see createTransport) so a hung SMTP can never strand a claimed queue
- * row. Delivery semantics are at-least-once (ADR-035): on a truly uncertain
- * SMTP outcome (e.g. the server committed the message but the response was
- * lost) a duplicate email is possible — accepted, prefer a duplicate over a
- * lost email.
+ * row. Delivery is effectively-once at the queue level (CodeRabbit #10): the
+ * worker writes its delivered_at marker the moment this resolves. The only
+ * residual duplicate window is a crash between SMTP acceptance here and that
+ * marker write — milliseconds, accepted under ADR-035 at-least-once (prefer a
+ * duplicate over a lost email).
  */
 export async function sendMailNow(
   to: string,

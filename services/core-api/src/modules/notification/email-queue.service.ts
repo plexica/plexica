@@ -1,10 +1,10 @@
 // email-queue.service.ts
-// Durable SMTP retry queue over core.email_queue (ADR-035, feature 006-03).
-// enqueue/claim/settle with SKIP LOCKED claim semantics, a lease on claimed
-// rows (claimed_at + lease_expires_at, mirroring the outbox lease pattern in
-// events/outbox-repository.ts), and event_id-keyed idempotent enqueue. A crash
-// between claim and settle cannot orphan a row forever: the claim re-claims
-// `sending` rows whose lease expired. to_address is never logged (§6).
+// Durable SMTP retry queue over core.email_queue (ADR-035, feature 006-03):
+// SKIP LOCKED claim with a lease, event_id-keyed idempotent enqueue, and
+// effectively-once delivery (CodeRabbit #10) — markDelivered() stamps
+// delivered_at on send success, claim() never re-claims a delivered row, and
+// retireDelivered() retires delivered-but-unsettled rows without re-sending.
+// to_address is never logged (§6).
 
 import { Prisma } from '@prisma/client';
 
@@ -36,11 +36,9 @@ export interface RawSqlClient {
 }
 
 /**
- * Idempotent insert into core.email_queue usable from ANY client that can run
- * raw SQL — including inside a tenant `$transaction` (cross-schema write,
- * same pattern as outbox-repository.enqueueEvent). When `eventId` is set the
- * row is keyed by the unique `dedupe_key` with `ON CONFLICT DO NOTHING`, so a
- * consumer redelivery after a crash cannot double-enqueue (F6 recoverability).
+ * Idempotent insert into core.email_queue, usable from ANY raw-SQL client
+ * (core or tenant tx). With `eventId` the row is dedupe_key-keyed via
+ * ON CONFLICT DO NOTHING so a redelivery cannot double-enqueue.
  */
 export async function enqueueEmailRaw(
   client: RawSqlClient,
@@ -74,6 +72,7 @@ interface EmailQueueSqlRow {
   lastError: string | null;
   createdAt: Date;
   sentAt: Date | null;
+  deliveredAt: Date | null;
   claimedAt: Date | null;
   leaseExpiresAt: Date | null;
   leaseToken: string;
@@ -95,18 +94,15 @@ export class EmailQueueService {
   }
 
   /**
-   * Claims up to `batchSize` due rows atomically: `UPDATE ... RETURNING` with
-   * `FOR UPDATE SKIP LOCKED` moves them to `sending` so a concurrent worker or
-   * crash never double-sends. Candidates are `pending`/`failed` rows whose
-   * `next_attempt_at` is due PLUS `sending` rows whose lease has expired
-   * (crash between claim and settle). The lease mirrors the outbox pattern:
-   * `claimed_at` + `lease_expires_at` are stamped on claim and cleared on
-   * settle.
+   * Claims up to `batchSize` due rows atomically (UPDATE ... RETURNING, SKIP
+   * LOCKED): pending/failed rows whose next_attempt_at is due PLUS `sending`
+   * rows whose lease expired (crash recovery). Rows with delivered_at set are
+   * NEVER re-claimed (CodeRabbit #10) — a delivered email is never re-sent;
+   * retireDelivered() retires them instead.
    */
   async claim(batchSize = 10, now = new Date(), leaseMs = 60_000): Promise<EmailQueueRow[]> {
-    // Per-batch fencing token (mirrors event_outbox.claimOutboxEvents): every
-    // settle/retry later predicates on this token, so a stale holder cannot
-    // overwrite a row that a successor re-claimed after lease expiry.
+    // Per-batch fencing token: every settle/retry predicates on it, so a stale
+    // holder cannot overwrite a row a successor re-claimed after lease expiry.
     const leaseToken = crypto.randomUUID();
     const rows = await this.db.$queryRaw<EmailQueueSqlRow[]>(Prisma.sql`
       UPDATE core.email_queue AS queue
@@ -122,6 +118,7 @@ export class EmailQueueService {
             candidate.tenant_id IS NULL
             OR tenant.status::text = 'active'
           )
+          AND candidate.delivered_at IS NULL
           AND (
             (
               candidate.status IN ('pending', 'failed')
@@ -142,18 +139,51 @@ export class EmailQueueService {
         queue.subject, queue.html_body AS "htmlBody", queue.email_type AS "emailType",
         queue.status, queue.attempts, queue.next_attempt_at AS "nextAttemptAt",
         queue.last_error AS "lastError", queue.created_at AS "createdAt",
-        queue.sent_at AS "sentAt", queue.claimed_at AS "claimedAt",
-        queue.lease_expires_at AS "leaseExpiresAt", queue.lease_token AS "leaseToken",
-        queue.dedupe_key AS "dedupeKey"
+        queue.sent_at AS "sentAt", queue.delivered_at AS "deliveredAt",
+        queue.claimed_at AS "claimedAt", queue.lease_expires_at AS "leaseExpiresAt",
+        queue.lease_token AS "leaseToken", queue.dedupe_key AS "dedupeKey"
     `);
     return rows.map(toRow);
   }
 
   /**
-   * Settles a claimed row, fenced by the claim's lease_token (see
-   * settleEmailQueue in email-queue-settle.ts). Returns false on a stale claim
-   * so the caller ignores it instead of reclassifying state.
+   * Writes the delivered_at marker on send success, fenced by the lease_token
+   * (CodeRabbit #10): a crash or settle failure after delivery can never cause
+   * a re-claim re-send. False = stale claim — do NOT settle or re-send.
    */
+  async markDelivered(id: string, leaseToken: string): Promise<boolean> {
+    const count = await this.db.$executeRaw(Prisma.sql`
+      UPDATE core.email_queue
+      SET delivered_at = now()
+      WHERE id = ${id}::uuid
+        AND lease_token = ${leaseToken}::uuid
+        AND delivered_at IS NULL
+    `);
+    return count === 1;
+  }
+
+  /**
+   * Housekeeping (CodeRabbit #10): retires a delivered-but-unsettled row
+   * (delivered_at set, lease expired — the holder delivered then crashed before
+   * settle) to `sent` WITHOUT re-sending. Lease-expiry guard prevents racing a
+   * live holder mid-settle.
+   */
+  async retireDelivered(now = new Date()): Promise<number> {
+    return this.db.$executeRaw(Prisma.sql`
+      UPDATE core.email_queue
+      SET status = 'sent',
+          sent_at = COALESCE(sent_at, delivered_at),
+          claimed_at = NULL,
+          lease_expires_at = NULL,
+          lease_token = NULL
+      WHERE status = 'sending'
+        AND delivered_at IS NOT NULL
+        AND lease_expires_at IS NOT NULL
+        AND lease_expires_at <= ${now}::timestamptz
+    `);
+  }
+
+  /** Settles a claimed row, fenced by the lease_token (see email-queue-settle.ts). */
   async settle(id: string, leaseToken: string, update: EmailSettleUpdate): Promise<boolean> {
     return settleEmailQueue(this.db, id, leaseToken, update);
   }

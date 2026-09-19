@@ -254,6 +254,12 @@ model EmailQueue {
   lastError     String?   @map("last_error") @db.VarChar(512)
   createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz
   sentAt        DateTime? @map("sent_at") @db.Timestamptz
+  // Delivery marker (ADR-035, CodeRabbit #10): written by the worker the
+  // moment a send is confirmed, so a delivered email is never re-sent even if
+  // the settle('sent') fails or the process crashes before settling. claim()
+  // skips rows with delivered_at set; a delivered-but-unsettled row is retired
+  // to 'sent' by the worker housekeeping without re-sending.
+  deliveredAt    DateTime? @map("delivered_at") @db.Timestamptz
   // Worker lease (ADR-035): a `sending` row whose lease expired is re-claimed
   // after a crash between claim and settle (mirrors event_outbox lease).
   claimedAt       DateTime? @map("claimed_at") @db.Timestamptz

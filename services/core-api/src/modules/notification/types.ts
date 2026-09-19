@@ -81,6 +81,8 @@ export interface EmailQueueRow {
   lastError: string | null;
   createdAt: Date;
   sentAt: Date | null;
+  /** Delivery marker — set the moment a send is confirmed (CodeRabbit #10). */
+  deliveredAt: Date | null;
   /** Lease claim timestamp — set when a worker claims the row (ADR-035). */
   claimedAt: Date | null;
   /** Lease expiry — a `sending` row past this is re-claimable after a crash. */

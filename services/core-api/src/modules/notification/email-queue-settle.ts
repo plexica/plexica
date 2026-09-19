@@ -31,8 +31,12 @@ export async function settleEmailQueue(
   update: EmailSettleUpdate
 ): Promise<boolean> {
   if (update.status === 'sent') {
+    // The `deliveredAt` guard (CodeRabbit #10): a row may only be settled to
+    // 'sent' once the delivered_at marker is present — the worker writes it
+    // the moment the send is confirmed. Without it the settle would be a no-op,
+    // so a delivered email is never reclassified or re-sent.
     const result = await db.emailQueue.updateMany({
-      where: { id, leaseToken },
+      where: { id, leaseToken, deliveredAt: { not: null } },
       data: {
         status: 'sent',
         sentAt: update.sentAt,
@@ -45,7 +49,7 @@ export async function settleEmailQueue(
     if (result.count === 0) {
       logger.warn(
         { id, code: 'EMAIL_SETTLE_STALE' },
-        'Email settle(sent) ignored — stale claim (row re-claimed or purged)'
+        'Email settle(sent) ignored — stale claim or missing delivered_at marker (row re-claimed or purged)'
       );
       return false;
     }
