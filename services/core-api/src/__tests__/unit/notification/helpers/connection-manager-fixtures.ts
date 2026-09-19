@@ -15,6 +15,7 @@ export interface MockRes {
   end: ReturnType<typeof vi.fn>;
   write: ReturnType<typeof vi.fn>;
   listeners: { emit: (name: string) => void };
+  setWritableNeedDrain: (value: boolean) => void;
 }
 
 export function mockRes(
@@ -26,10 +27,15 @@ export function mockRes(
   } = {}
 ): MockRes {
   const listeners: Record<string, Listener[]> = {};
+  let needDrain = overrides.writableNeedDrain ?? false;
   const res = {
     destroyed: overrides.destroyed ?? false,
     writableEnded: overrides.writableEnded ?? false,
-    writableNeedDrain: overrides.writableNeedDrain ?? false,
+    // Getter-backed so tests can flip backpressure state (drain cleared vs
+    // pending) via setWritableNeedDrain — mirrors the real writableNeedDrain.
+    get writableNeedDrain() {
+      return needDrain;
+    },
     setHeader: vi.fn(),
     flushHeaders: vi.fn(),
     write: vi.fn(() => overrides.writeResult ?? true),
@@ -49,6 +55,9 @@ export function mockRes(
       emit: (name: string) => {
         for (const cb of listeners[name] ?? []) cb();
       },
+    },
+    setWritableNeedDrain: (value: boolean) => {
+      needDrain = value;
     },
   };
 }

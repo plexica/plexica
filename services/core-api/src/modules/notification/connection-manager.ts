@@ -27,19 +27,13 @@ type UserPool = Map<string, Set<ConnectionEntry>>;
 
 const HEARTBEAT_INTERVAL_MS = config.NOTIFICATION_SSE_HEARTBEAT_MS;
 const MAX_PER_USER = config.NOTIFICATION_SSE_MAX_CONNECTIONS_PER_USER;
-// Bound on frames queued per connection while the kernel buffer is backed up
-// (drain pending, ~a few KB); a reader stalled past the bound is evicted, not
-// buffered without limit — ≤ 160 frames per user.
+// Pending-frame bound per connection (~few KB) — a reader stalled past it is evicted.
 const PENDING_BOUND = config.NOTIFICATION_SSE_PENDING_QUEUE_BOUND;
 
 class ConnectionManager {
   private readonly tenants = new Map<string, UserPool>();
 
-  /**
-   * Registers a new SSE connection for the user in the tenant pool. Enforces
-   * the per-user cap (oldest evicted) and wires cleanup on `close`/`error`.
-   * Returns a handle whose `close()` removes the connection.
-   */
+  /** Registers an SSE connection (per-user cap, cleanup on close/error). */
   connect(tenantSlug: string, userId: string, res: ServerResponse): ConnectionHandle {
     writeSseHeaders(res);
     const entry: ConnectionEntry = {
@@ -48,9 +42,7 @@ class ConnectionManager {
       pending: new PendingFrameQueue(PENDING_BOUND, res),
     };
     const timer = setInterval(() => {
-      // A false heartbeat write is backpressure (kernel buffer full), NOT a
-      // failure: a slow-but-alive reader waits for drain. Only a socket that
-      // is actually dead (destroyed/ended/errored) is evicted.
+      // False heartbeat write = backpressure (buffer full), not failure; only a dead socket is evicted.
       if (res.destroyed || res.writableEnded) {
         this.evict(entry);
         return;
@@ -85,10 +77,9 @@ class ConnectionManager {
   }
 
   /**
-   * Writes the notification frame to every open connection of the user. Only
-   * dead sockets (destroyed/ended) are evicted; a backpressured connection
-   * queues the frame (flushed on `drain`) instead of dropping it. Returns true
-   * when at least one connection received the frame immediately.
+   * Writes the notification frame to every open connection of the user. Dead
+   * sockets are evicted; a backpressured write is delivered (never re-queued),
+   * a drain-pending skip is queued. Returns true if any connection got the frame.
    */
   publish(tenantSlug: string, userId: string, dto: NotificationDto): boolean {
     const userConnections = this.tenants.get(tenantSlug)?.get(userId);
@@ -101,12 +92,19 @@ class ConnectionManager {
         stale.push(entry);
         continue;
       }
-      // A false writeEvent result is backpressure — buffer instead of dropping
-      // (CodeRabbit); FIFO order preserved; a full queue evicts the reader.
-      if (entry.pending.size === 0 && writeEvent(entry.res, frame)) {
-        delivered = true;
-      } else {
+      // Queued frames: append for FIFO order; otherwise write. Only a
+      // drain-pending skip is queued, never a backpressured write (CodeRabbit).
+      if (entry.pending.size > 0) {
         this.queueOrEvict(tenantSlug, userId, entry, frame);
+        continue;
+      }
+      const result = writeEvent(entry.res, frame);
+      if (result.written) {
+        delivered = true;
+      } else if (result.reason === 'drain') {
+        this.queueOrEvict(tenantSlug, userId, entry, frame);
+      } else {
+        this.evict(entry);
       }
     }
     for (const entry of stale) this.evict(entry);

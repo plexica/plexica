@@ -2,8 +2,9 @@
 // Unit tests for SSE connection eviction semantics (CodeRabbit #5, round 2):
 // a false heartbeat/publish write result is BACKPRESSURE, not failure — the
 // connection survives and resumes after drain. Only a socket that is actually
-// dead (destroyed/ended) is evicted; a backpressured frame is queued, not
-// dropped (bound/overflow/flush tests live in connection-manager-backpressure.test.ts).
+// dead (destroyed/ended) is evicted; a frame skipped for a pending drain is
+// queued, while a frame WRITTEN under backpressure is delivered and never
+// re-queued (bound/overflow/flush tests live in connection-manager-backpressure.test.ts).
 // Uses fake timers so the heartbeat interval fires deterministically. Pure
 // unit tests — mock ServerResponse, no network.
 
@@ -79,16 +80,32 @@ describe('connectionManager — heartbeat backpressure (CodeRabbit #5, round 2)'
 });
 
 describe('connectionManager — publish backpressure (CodeRabbit #5, round 2)', () => {
-  it('queues a backpressured frame instead of dropping it, without evicting', () => {
-    const { res, write } = mockRes({ writeResult: false });
+  it('queues a frame skipped for a pending drain instead of dropping it, without evicting', () => {
+    const { res, write } = mockRes({ writableNeedDrain: true });
     const handle = connectionManager.connect('acme', 'user-1', res);
     expect(connectionManager.connectionCount).toBe(1);
 
     const delivered = connectionManager.publish('acme', 'user-1', DTO);
 
     expect(delivered).toBe(false);
+    expect(write).not.toHaveBeenCalled();
     expect(connectionManager.connectionCount).toBe(1);
-    expect(write).toHaveBeenCalled();
+    handle.close();
+    expect(connectionManager.connectionCount).toBe(0);
+  });
+
+  it('treats a write returning false as delivered — backpressured frame is NOT queued', () => {
+    // res.write() === false means the frame was ACCEPTED into the buffer. The
+    // publish must report delivery and leave the pending queue empty.
+    const { res, write } = mockRes({ writeResult: false });
+    const handle = connectionManager.connect('acme', 'user-1', res);
+    expect(connectionManager.connectionCount).toBe(1);
+
+    const delivered = connectionManager.publish('acme', 'user-1', DTO);
+
+    expect(delivered).toBe(true);
+    expect(write).toHaveBeenCalledTimes(1);
+    expect(connectionManager.connectionCount).toBe(1);
     handle.close();
     expect(connectionManager.connectionCount).toBe(0);
   });

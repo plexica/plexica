@@ -27,22 +27,36 @@ export function writeSseHeaders(res: ServerResponse): void {
 }
 
 /**
- * Writes a single SSE frame. Multi-line JSON is split across `data:` lines per
- * the SSE spec so a payload never truncates the stream. Returns false when the
- * socket is already closed OR the socket buffer is full (writableNeedDrain —
- * backpressure). A false result is backpressure, NOT a failure: the caller
- * queues the frame (bounded, per-connection) and flushes it on `drain` rather
- * than dropping it or disconnecting the slow reader. Only a destroyed/ended
- * socket warrants eviction.
+ * Result of a single SSE frame write, discriminating three states (CodeRabbit —
+ * res.write() semantics):
+ * - `{ written: true, backpressure: false }` — frame accepted, buffer has room.
+ * - `{ written: true, backpressure: true }` — frame ACCEPTED into the kernel
+ *   buffer; `res.write()` returned false, which only signals the buffer is now
+ *   full (writableNeedDrain). The frame is delivered — never re-send it.
+ * - `{ written: false, reason: 'drain' }` — frame NOT written; a drain was
+ *   already pending before the write, so the caller queues it for `drain`.
+ * - `{ written: false, reason: 'closed' }` — frame NOT written; the socket is
+ *   destroyed/ended, so the caller evicts the connection.
  */
-export function writeEvent(res: ServerResponse, frame: SseFrame): boolean {
-  if (res.destroyed || res.writableEnded) return false;
+export type SseWriteResult =
+  { written: true; backpressure: boolean } | { written: false; reason: 'drain' | 'closed' };
+
+/**
+ * Writes a single SSE frame. Multi-line JSON is split across `data:` lines per
+ * the SSE spec so a payload never truncates the stream. A `res.write()` that
+ * returns false is backpressure, NOT a skipped write: the frame is already in
+ * the buffer and must not be queued/flushed again (that would emit it twice).
+ * Only a drain-pending skip (checked before writing) leaves the frame unqueued
+ * for the caller; only a destroyed/ended socket warrants eviction.
+ */
+export function writeEvent(res: ServerResponse, frame: SseFrame): SseWriteResult {
+  if (res.destroyed || res.writableEnded) return { written: false, reason: 'closed' };
   if (res.writableNeedDrain) {
     logger.warn(
       { code: 'SSE_BACKPRESSURE' },
       'SSE socket buffer full — skipping frame for slow consumer'
     );
-    return false;
+    return { written: false, reason: 'drain' };
   }
   let payload = '';
   if (frame.event !== undefined) payload += `event: ${frame.event}\n`;
@@ -51,10 +65,11 @@ export function writeEvent(res: ServerResponse, frame: SseFrame): boolean {
   const json = JSON.stringify(frame.data);
   for (const line of json.split('\n')) payload += `data: ${line}\n`;
   payload += '\n';
-  // res.write() returns false when the kernel buffer is full (backpressure) —
-  // propagate it so connection-manager.publish can queue the frame for this
-  // connection (flushed on drain) instead of evicting the slow consumer.
-  return res.write(payload);
+  // res.write() returning false is backpressure, NOT a failed write — the frame
+  // is accepted into the buffer. Surface it as written+backpressure so callers
+  // never queue an already-delivered frame (duplicate emission on drain).
+  const accepted = res.write(payload);
+  return { written: true, backpressure: !accepted };
 }
 
 /**

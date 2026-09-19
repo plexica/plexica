@@ -34,15 +34,25 @@ export class PendingFrameQueue {
     return true;
   }
 
-  /** Writes queued frames; a false write is re-backpressure — stop, wait for next drain. */
+  /**
+   * Writes queued frames. Only a frame NOT written because a drain was already
+   * pending is re-queued (skipped before write). A frame written with
+   * backpressure (`res.write()` returned false) IS delivered and is never
+   * re-queued — that would emit it twice on the next drain (CodeRabbit fix).
+   */
   flush(): void {
     if (this.res.destroyed || this.res.writableEnded) return;
     let frame: SseFrame | undefined;
     while ((frame = this.frames.shift()) !== undefined) {
-      if (!writeEvent(this.res, frame)) {
-        this.frames.unshift(frame);
+      const result = writeEvent(this.res, frame);
+      if (!result.written) {
+        if (result.reason === 'drain') this.frames.unshift(frame);
         return;
       }
+      // Written (cleanly or into the backpressured buffer): keep flushing until
+      // the buffer backs up, then stop WITHOUT re-queueing — the next `drain`
+      // flushes the remainder.
+      if (result.backpressure) return;
     }
   }
 
