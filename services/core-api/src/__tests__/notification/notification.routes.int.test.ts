@@ -186,6 +186,7 @@ describe('notification stream (INT, real HTTP)', () => {
 
   skipIfNoDb('returns 401 without authentication (production composition)', async () => {
     const guardServer = await createTestServer();
+    // codeql[js/missing-rate-limiting]
     guardServer.addHook('preHandler', authMiddleware);
     guardServer.addHook('preHandler', tenantContextMiddleware);
     guardServer.addHook('preHandler', userProfileResolver);

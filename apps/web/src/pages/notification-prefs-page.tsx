@@ -84,7 +84,7 @@ export function NotificationPrefsPage(): JSX.Element {
 
   const typeDefinitions = typesData.types;
   // Real dirty flag (B2): enabled only while the draft differs from persisted.
-  const hasChanges = draft !== null && loaded !== null && prefsHaveChanges(draft, loaded);
+  const hasChanges = loaded !== null && prefsHaveChanges(draft, loaded);
 
   function handleChannelChange(key: string, channel: 'inApp' | 'email', checked: boolean): void {
     setJustSaved(false);
