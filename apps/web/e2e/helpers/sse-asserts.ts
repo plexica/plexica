@@ -85,6 +85,7 @@ export async function emitPluginNotification(
     userId: string;
     type: string;
     titleKey: string;
+    titleParams?: Record<string, string>;
     metadata?: Record<string, unknown>;
   }
 ): Promise<{ notificationId: string; latencyMs: number }> {
@@ -97,6 +98,7 @@ export async function emitPluginNotification(
         userId: opts.userId,
         type: opts.type,
         titleKey: opts.titleKey,
+        ...(opts.titleParams !== undefined ? { titleParams: opts.titleParams } : {}),
         metadata: opts.metadata ?? {},
         timestamp: new Date().toISOString(),
         correlationId: crypto.randomUUID(),

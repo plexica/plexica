@@ -1,10 +1,6 @@
 // notification.routes.int.test.ts
-// INT: notification routes (features 006-01/02/04) against a real stack — DB +
-// real HTTP. Covers: SSE stream connect < 1s + frame delivery, 401, list, mark
-// read, read-all, preferences < 300ms, types registry. The production
-// middleware composition (authMiddleware + tenantContextMiddleware +
-// userProfileResolver) is used for the 401 assertion; the authenticated suite
-// uses the standard makeFullStub injection (established pattern, AGENTS.md).
+// INT: notification routes (006-01/02/04) on a real stack — DB + real HTTP:
+// SSE, 401, list, mark read, read-all, prefs NFR, types, 422 validation.
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
@@ -67,6 +63,15 @@ describe('notification routes (INT)', () => {
     expect(body.data.some((n) => n.id === id)).toBe(true);
   });
 
+  skipIfNoDb('GET /notifications rejects a bad query with 422 VALIDATION_ERROR', async () => {
+    const res = await server.inject({
+      method: 'GET',
+      url: '/api/v1/notifications?page=0&pageSize=20&filter=bogus',
+    });
+    expect(res.statusCode).toBe(422);
+    expect(JSON.parse(res.body)).toMatchObject({ error: { code: 'VALIDATION_ERROR' } });
+  });
+
   skipIfNoDb('PATCH /notifications/:id/read marks the row read; unknown id → 404', async () => {
     const id = await seedNotification(ctx, ADMIN_ID);
     const res = await server.inject({ method: 'PATCH', url: `/api/v1/notifications/${id}/read` });
@@ -78,6 +83,13 @@ describe('notification routes (INT)', () => {
       url: '/api/v1/notifications/00000000-0000-0000-0000-000000000000/read',
     });
     expect(missing.statusCode).toBe(404);
+
+    const badId = await server.inject({
+      method: 'PATCH',
+      url: '/api/v1/notifications/not-a-uuid/read',
+    });
+    expect(badId.statusCode).toBe(422);
+    expect(JSON.parse(badId.body)).toMatchObject({ error: { code: 'VALIDATION_ERROR' } });
   });
 
   skipIfNoDb('POST /notifications/read-all returns the updated count', async () => {
@@ -104,6 +116,15 @@ describe('notification routes (INT)', () => {
       const get = await server.inject({ method: 'GET', url: '/api/v1/notifications/preferences' });
       expect(get.statusCode).toBe(200);
       expect(JSON.parse(get.body)).toMatchObject({ defaults: { inApp: true, email: true } });
+
+      const bad = await server.inject({
+        method: 'PATCH',
+        url: '/api/v1/notifications/preferences',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ defaults: { inApp: 'yes', email: true } }),
+      });
+      expect(bad.statusCode).toBe(422);
+      expect(JSON.parse(bad.body)).toMatchObject({ error: { code: 'VALIDATION_ERROR' } });
     }
   );
 
@@ -127,28 +148,27 @@ describe('notification stream (INT, real HTTP)', () => {
     expect(Date.now() - started).toBeLessThan(1_000);
 
     const reader = response.body?.getReader();
-    const received = (): Promise<void> =>
-      new Promise((resolve, reject) => {
-        const timer = setTimeout(() => reject(new Error('SSE frame timeout')), 2_000);
-        void (async () => {
-          if (reader === null || reader === undefined) {
-            reject(new Error('No response body'));
+    const received = new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('SSE frame timeout')), 2_000);
+      void (async () => {
+        if (!reader) {
+          reject(new Error('No response body'));
+          return;
+        }
+        const decoder = new TextDecoder();
+        let buffer = '';
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          if (buffer.includes('event: notification')) {
+            clearTimeout(timer);
+            resolve();
             return;
           }
-          const decoder = new TextDecoder();
-          let buffer = '';
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            buffer += decoder.decode(value, { stream: true });
-            if (buffer.includes('event: notification')) {
-              clearTimeout(timer);
-              resolve();
-              return;
-            }
-          }
-        })();
-      });
+        }
+      })();
+    });
 
     const dto = {
       id: crypto.randomUUID(),

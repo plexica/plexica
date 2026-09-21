@@ -52,6 +52,7 @@ grep -Fxe 'STORAGE_ENDPOINT=http://storage:9000' -e 'STORAGE_PUBLIC_ENDPOINT=htt
 # host-run suite raises RATE_LIMIT_MAX/ADMIN_RATE_LIMIT_MAX via coreApiEnv,
 # and rate-limit.spec requires XFF isolation through a trusted proxy hop.
 grep -Fxe 'RATE_LIMIT_MAX=10000' -e 'ADMIN_RATE_LIMIT_MAX=10000' -e 'RATE_LIMIT_RESOLVE_MAX=30' "$CI_RUNTIME_DIR/container.env" >/dev/null
+grep -Fx 'NOTIFICATION_SSE_CONNECT_RATE_LIMIT=100' "$CI_RUNTIME_DIR/container.env" >/dev/null
 grep -Fx 'TRUST_PROXY=127.0.0.1,::1,::ffff:127.0.0.1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16' "$CI_RUNTIME_DIR/container.env" >/dev/null
 if grep -Eq 'LOKI_HOST_URL|MAILPIT_(SMTP_URL|UI_BASE)|KEYCLOAK_HOST_ADMIN_BASE' "$CI_RUNTIME_DIR/container.env"; then
   echo 'Container contract exposed runner-only endpoints' >&2; exit 1

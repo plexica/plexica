@@ -32,3 +32,57 @@ describe('emitBodySchema — plugin type refinement (fix 13)', () => {
     expect(() => emitBodySchema.parse({ ...base, type: 'plugin.INVALID.type' })).toThrow();
   });
 });
+
+describe('emitBodySchema — metadata.link route-relative guard (N1)', () => {
+  const parseWithLink = (link: unknown): boolean => {
+    try {
+      emitBodySchema.parse({ ...base, type: 'plugin.crm.contact_created', metadata: { link } });
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  it('accepts a route-relative path', () => {
+    expect(parseWithLink('/contacts/123')).toBe(true);
+  });
+
+  it('accepts the bare root "/"', () => {
+    expect(parseWithLink('/')).toBe(true);
+  });
+
+  it('rejects an absolute https:// URL', () => {
+    expect(parseWithLink('https://evil.example')).toBe(false);
+  });
+
+  it('rejects a javascript: URL', () => {
+    expect(parseWithLink('javascript:alert(1)')).toBe(false);
+  });
+
+  it('rejects a protocol-relative //host link', () => {
+    expect(parseWithLink('//evil.example')).toBe(false);
+  });
+
+  it('rejects a backslash-normalized /\\host link', () => {
+    expect(parseWithLink('/\\evil.example')).toBe(false);
+  });
+
+  it('rejects non-string link values', () => {
+    expect(parseWithLink(42)).toBe(false);
+    expect(parseWithLink(null)).toBe(false);
+    expect(parseWithLink({ href: '/contacts/123' })).toBe(false);
+  });
+
+  it('rejects an empty-string link', () => {
+    expect(parseWithLink('')).toBe(false);
+  });
+
+  it('allows metadata without a link key', () => {
+    const parsed = emitBodySchema.parse({
+      ...base,
+      type: 'plugin.crm.contact_created',
+      metadata: { workspaceId: 'ws-1' },
+    });
+    expect(parsed.metadata).toEqual({ workspaceId: 'ws-1' });
+  });
+});

@@ -4,7 +4,7 @@
 // even when both tenants share the same userId (pools are keyed by
 // tenantSlug + userId). Cheap and deterministic — no DB, no Redis.
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 import { connectionManager } from '../../modules/notification/connection-manager.js';
 import {
@@ -28,11 +28,6 @@ function dto(id: string): NotificationDto {
 }
 
 describe('ConnectionManager tenant isolation (M1)', () => {
-  afterEach(() => {
-    // The manager is a singleton; close every handle so heartbeat intervals
-    // never leak between tests in this file.
-  });
-
   it('publish to tenant A never reaches tenant B connections', () => {
     const resA = createFakeSseResponse();
     const resB = createFakeSseResponse();

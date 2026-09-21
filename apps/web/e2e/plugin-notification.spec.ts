@@ -56,10 +56,15 @@ test.describe('E2E 006-05: Plugin notification emission', () => {
     await createWorkspace(page, { name: uniqueName('plugin-notif') });
 
     // Emission is acknowledged synchronously with a generated notificationId.
+    // titleParams ride the emit body → event payload → row metadata so the UI
+    // resolves the `{name}` placeholder (N2: previously the literal placeholder
+    // rendered because no params were sent and the old assertion passed
+    // vacuously on the prefix "New contact:").
     const { notificationId, latencyMs } = await emitPluginNotification(page, {
       userId,
       type: 'plugin.crm.contact_created',
       titleKey: 'notifications.plugin.crm.contact_created.title',
+      titleParams: { name: 'Ada' },
       metadata: { link: '/contacts/123' },
     });
     expect(notificationId).toMatch(/^[0-9a-f-]{36}$/i);
@@ -70,7 +75,7 @@ test.describe('E2E 006-05: Plugin notification emission', () => {
 
     await page.goto('/notifications');
     await expect(page.getByTestId('notification-item').first()).toBeVisible({ timeout: 5_000 });
-    await expect(page.getByText('New contact:').first()).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByText('New contact: Ada').first()).toBeVisible({ timeout: 5_000 });
   });
 
   test('unregistered plugin slug is rejected (422, VALIDATION_ERROR)', async ({ page }) => {

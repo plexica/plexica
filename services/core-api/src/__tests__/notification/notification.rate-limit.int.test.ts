@@ -13,7 +13,11 @@ import rateLimit from '@fastify/rate-limit';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { redis } from '../../lib/redis.js';
-import { GLOBAL_RATE_LIMIT, rateLimitErrorResponseBuilder } from '../../lib/rate-limit-config.js';
+import {
+  GLOBAL_RATE_LIMIT,
+  rateLimitErrorResponseBuilder,
+  SSE_CONNECT_RATE_LIMIT,
+} from '../../lib/rate-limit-config.js';
 import { notificationModuleRoutes } from '../../modules/notification/index.js';
 import { cleanupTenant, seedTenant } from '../helpers/db.helpers.js';
 import { createTestServer, isDbReachable } from '../helpers/server.helpers.js';
@@ -58,7 +62,7 @@ async function ensureRedis(): Promise<boolean> {
 
 describe('SSE connect rate limit (INT, M2)', () => {
   skipIfNoDb(
-    'is per-user (preHandler) — 11th same-user connect → 429, a second user on the same IP is unaffected',
+    'is per-user (preHandler) — (limit+1)-th same-user connect → 429, a second user on the same IP is unaffected',
     async (testContext) => {
       if (!(await ensureRedis())) {
         testContext.skip();
@@ -101,9 +105,12 @@ describe('SSE connect rate limit (INT, M2)', () => {
 
       const controllers: AbortController[] = [];
       try {
-        // 11 connects for the first user — the 11th must be rate-limited.
+        // Drive the assertion off the CONFIGURED limit (not a hardcoded 10):
+        // E2E/CI overrides NOTIFICATION_SSE_CONNECT_RATE_LIMIT to 100 (N3), and
+        // the suite must pass there too — the limit+1-th connect is 429.
+        const connectLimit = SSE_CONNECT_RATE_LIMIT.max;
         const statuses: number[] = [];
-        for (let i = 0; i < 11; i++) {
+        for (let i = 0; i < connectLimit + 1; i++) {
           const controller = new AbortController();
           controllers.push(controller);
           const res = await fetch(`${base}/api/v1/notifications/stream`, {
@@ -111,8 +118,8 @@ describe('SSE connect rate limit (INT, M2)', () => {
           });
           statuses.push(res.status);
         }
-        expect(statuses.slice(0, 10).every((s) => s === 200)).toBe(true);
-        expect(statuses[10]).toBe(429);
+        expect(statuses.slice(0, connectLimit).every((s) => s === 200)).toBe(true);
+        expect(statuses[connectLimit]).toBe(429);
 
         // Second user, same IP — must NOT be rate-limited (per-user keying).
         const secondController = new AbortController();

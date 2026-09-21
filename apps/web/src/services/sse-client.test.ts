@@ -94,4 +94,25 @@ describe('SseClient reconnect (B1)', () => {
     await new Promise((resolve) => setTimeout(resolve, 1_100));
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
+
+  it('does not resurrect the connection when stop() races an in-flight fetch', async () => {
+    let resolveFetch: (value: Response) => void = () => {};
+    fetchMock.mockImplementation(
+      () =>
+        new Promise<Response>((resolve) => {
+          resolveFetch = resolve;
+        })
+    );
+
+    const client = new SseClient();
+    client.start();
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    client.stop();
+
+    // The fetch resolves AFTER stop(): the stale generation must abort the
+    // orphaned controller and never reconnect (start-after-stop race, N-minor).
+    resolveFetch(fakeResponse(idleStream()));
+    await new Promise((resolve) => setTimeout(resolve, 1_200));
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
 });

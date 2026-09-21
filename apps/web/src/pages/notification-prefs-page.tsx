@@ -1,7 +1,6 @@
 // notification-prefs-page.tsx
-// Notification preferences (006-04): per-type inApp/email channel toggles fed
-// by GET /notifications/types, saved as a partial nested PATCH (NFR < 300ms
-// round-trip). Route: /notifications/preferences.
+// Per-type inApp/email channel toggles (006-04), saved as a partial nested
+// PATCH (NFR < 300ms round-trip). Route: /notifications/preferences.
 
 import { useEffect, useState } from 'react';
 import { FormattedMessage, useIntl } from 'react-intl';
@@ -20,15 +19,15 @@ function usePrefsDraft(): {
   draft: PrefsDraft | null;
   loaded: PrefsDraft | null;
   setChannel: (key: string, channel: 'inApp' | 'email', checked: boolean) => void;
-  reset: () => void;
 } {
   const { data: prefs } = useNotificationPreferences();
   const [draft, setDraft] = useState<PrefsDraft | null>(null);
 
-  // Snapshot of the persisted prefs — the dirty-check baseline (B2).
+  // Dirty-check baseline (B2): snapshot of the persisted prefs.
   const loaded: PrefsDraft | null = prefs === undefined ? null : buildDraft(prefs);
 
-  // Rebuild the draft whenever the persisted prefs change and no edit is in flight.
+  // The draft is NEVER nulled on save (B2'): it stays mounted through the
+  // post-save refetch, killing the loading flash (button disables again).
   useEffect(() => {
     if (prefs === undefined) return;
     setDraft((current) => current ?? buildDraft(prefs));
@@ -48,10 +47,9 @@ function usePrefsDraft(): {
     });
   }
 
-  return { draft, loaded, setChannel, reset: () => setDraft(null) };
+  return { draft, loaded, setChannel };
 }
 
-/** Deep-copies the persisted prefs into a mutable draft (type channels cloned). */
 function buildDraft(prefs: NotificationPreferences): PrefsDraft {
   return {
     defaults: { ...prefs.defaults },
@@ -65,7 +63,10 @@ export function NotificationPrefsPage(): JSX.Element {
   const intl = useIntl();
   const { data: typesData, isPending, isError } = useNotificationTypes();
   const save = useSaveNotificationPreferences();
-  const { draft, loaded, setChannel, reset } = usePrefsDraft();
+  const { draft, loaded, setChannel } = usePrefsDraft();
+  // Local confirmation flag (B2'): set on save success — never read from the
+  // mutation's isSuccess (which reset() wiped synchronously).
+  const [justSaved, setJustSaved] = useState(false);
 
   if (isPending || draft === null) {
     return (
@@ -74,32 +75,27 @@ export function NotificationPrefsPage(): JSX.Element {
       </p>
     );
   }
-  if (isError || typesData === undefined) {
+  if (isError || typesData === undefined)
     return (
       <p className="p-6 text-sm text-red-600">
         <FormattedMessage id="notifications.prefs.error" />
       </p>
     );
-  }
 
   const typeDefinitions = typesData.types;
-  // Real dirty flag (B2): enabled only while the draft differs from the
-  // persisted prefs — `save.isSuccess` never reset after the first save.
+  // Real dirty flag (B2): enabled only while the draft differs from persisted.
   const hasChanges = draft !== null && loaded !== null && prefsHaveChanges(draft, loaded);
+
+  function handleChannelChange(key: string, channel: 'inApp' | 'email', checked: boolean): void {
+    setJustSaved(false);
+    setChannel(key, channel, checked);
+  }
 
   function handleSave(): void {
     if (draft === null) return;
     save.mutate(
-      {
-        defaults: draft.defaults,
-        types: draft.types,
-      },
-      {
-        onSuccess: () => {
-          reset();
-          save.reset();
-        },
-      }
+      { defaults: draft.defaults, types: draft.types },
+      { onSuccess: () => setJustSaved(true) }
     );
   }
 
@@ -117,13 +113,13 @@ export function NotificationPrefsPage(): JSX.Element {
         <div className="rounded-lg border border-neutral-200 p-4">
           <ToggleSwitch
             checked={draft.defaults.inApp}
-            onCheckedChange={(checked) => setChannel('defaults', 'inApp', checked)}
+            onCheckedChange={(checked) => handleChannelChange('defaults', 'inApp', checked)}
             label={intl.formatMessage({ id: 'notifications.prefs.channel.inApp' })}
           />
           <div className="h-3" />
           <ToggleSwitch
             checked={draft.defaults.email}
-            onCheckedChange={(checked) => setChannel('defaults', 'email', checked)}
+            onCheckedChange={(checked) => handleChannelChange('defaults', 'email', checked)}
             label={intl.formatMessage({ id: 'notifications.prefs.channel.email' })}
           />
         </div>
@@ -159,14 +155,18 @@ export function NotificationPrefsPage(): JSX.Element {
                     {definition.channels.includes('inApp') && (
                       <ToggleSwitch
                         checked={channel.inApp}
-                        onCheckedChange={(checked) => setChannel(definition.key, 'inApp', checked)}
+                        onCheckedChange={(checked) =>
+                          handleChannelChange(definition.key, 'inApp', checked)
+                        }
                         label={intl.formatMessage({ id: 'notifications.prefs.channel.inApp' })}
                       />
                     )}
                     {definition.channels.includes('email') && (
                       <ToggleSwitch
                         checked={channel.email}
-                        onCheckedChange={(checked) => setChannel(definition.key, 'email', checked)}
+                        onCheckedChange={(checked) =>
+                          handleChannelChange(definition.key, 'email', checked)
+                        }
                         label={intl.formatMessage({ id: 'notifications.prefs.channel.email' })}
                       />
                     )}
@@ -184,11 +184,11 @@ export function NotificationPrefsPage(): JSX.Element {
           size="sm"
           onClick={handleSave}
           loading={save.isPending}
-          disabled={hasChanges}
+          disabled={!hasChanges || save.isPending}
         >
           <FormattedMessage id="notifications.prefs.save" />
         </Button>
-        {hasChanges && (
+        {!hasChanges && justSaved && (
           <span className="text-sm text-emerald-600">
             <FormattedMessage id="notifications.prefs.saved" />
           </span>

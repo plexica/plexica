@@ -29,13 +29,11 @@ export function NotificationItem({ notification, onMarkRead }: NotificationItemP
   const metadata = (notification.metadata ?? {}) as Record<string, unknown>;
   const titleParams = metadata['titleParams'] as Record<string, string> | undefined;
   const rawLink = typeof metadata['link'] === 'string' ? metadata['link'] : undefined;
-  // Only route-relative links may render as router <Link>. Anything else (an
-  // absolute URL, a scheme) is rendered as plain text — never a raw anchor to a
-  // potentially external destination (metadata.link guard, review finding).
-  const link =
-    rawLink !== undefined && rawLink.startsWith('/') && !/^[a-z][a-z0-9+.-]*:/i.test(rawLink)
-      ? rawLink
-      : undefined;
+  // Only route-relative links may render as router <Link>. Mirror of the emit
+  // schema guard (N1): reject absolute URLs, schemes, and protocol-relative /
+  // backslash-normalized forms (`//host`, `/\host`) — anything else is
+  // rendered as plain text, never a raw anchor to an external destination.
+  const link = rawLink !== undefined && /^\/(?:[^/\\]|$)/.test(rawLink) ? rawLink : undefined;
 
   const title = intl.formatMessage(
     { id: notification.titleKey, defaultMessage: notification.titleKey },

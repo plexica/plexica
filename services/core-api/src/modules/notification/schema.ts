@@ -63,23 +63,20 @@ export const emitBodySchema = z
     correlationId: z.string().uuid(),
   })
   .superRefine((value, context) => {
-    // metadata.link must be a route-relative path — never an absolute URL or a
-    // scheme-carrying string (review finding: the UI renders it as a router
-    // Link). Rejects javascript:/http:/mailto:… and any non-slash prefix.
+    // metadata.link must be a route-relative path — never an absolute URL, a
+    // scheme, or a protocol-relative / backslash-normalized form (review N1:
+    // `//evil.com` and `/\evil.com` bypassed the old startsWith('/') guard and
+    // the browser normalizes both to `//`, letting a compromised plugin link
+    // off-platform). Accepted: `/contacts/123`, `/`. Rejected: `https://`,
+    // `javascript:`, `//host`, `/\host`, empty and non-string values.
     const link = value.metadata?.['link'];
-    if (typeof link !== 'string' || link.length === 0) return;
-    if (!link.startsWith('/')) {
+    if (link === undefined) return;
+    if (typeof link !== 'string' || !/^\/(?:[^/\\]|$)/.test(link)) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['metadata', 'link'],
-        message: 'metadata.link must be a route-relative path starting with "/"',
-      });
-    }
-    if (/^[a-z][a-z0-9+.-]*:/i.test(link)) {
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['metadata', 'link'],
-        message: 'metadata.link must not carry a URL scheme',
+        message:
+          'metadata.link must be a route-relative path starting with a single "/" (e.g. /contacts/123)',
       });
     }
   });

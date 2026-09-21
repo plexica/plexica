@@ -60,10 +60,10 @@ const PLUGIN_DB_ENCRYPTION_VALUE = requiredRunValue('PLUGIN_DB_ENCRYPTION_KEY', 
 // the NODE_EXTRA_CA_CERTS / SSL_CERT_FILE exports, and Core runs containerized
 // with the project CA mounted at CI_RUNTIME_CA_FILE (see ci-runtime-env.sh).
 const PLUGIN_DB_CA_PATH = CI_RUNTIME
-  ? process.env['PLUGIN_DB_SSL_ROOT_CERT_PATH'] ??
+  ? (process.env['PLUGIN_DB_SSL_ROOT_CERT_PATH'] ??
     (process.env['E2E_POSTGRES_TLS_SOURCE']
       ? `${process.env['E2E_POSTGRES_TLS_SOURCE']}/postgres-ca.crt`
-      : '')
+      : ''))
   : requiredRunValue('PLUGIN_DB_SSL_ROOT_CERT_PATH', RUN_HINT);
 
 // ── Hardcoded E2E defaults ────────────────────────────────────────────────────
@@ -94,6 +94,7 @@ if (CI_RUNTIME) {
 setDefault('PLAYWRIGHT_E2E', 'true');
 setDefault('PLAYWRIGHT_RATE_LIMIT_RESOLVE_MAX', '30');
 setDefault('PLAYWRIGHT_GENERAL_RATE_LIMIT_MAX', '10000');
+setDefault('PLAYWRIGHT_NOTIFICATION_SSE_CONNECT_RATE_LIMIT', '100');
 setDefault('PLAYWRIGHT_TENANT_SLUG', 'e2e');
 setDefault('PLAYWRIGHT_KEYCLOAK_USER', 'test@e2e.local');
 setDefault('PLAYWRIGHT_KEYCLOAK_PASS', 'PlexicaE2e!1');
@@ -131,54 +132,61 @@ export default defineConfig({
     },
   ],
   // CRM is installed by the production API flow and launched by DockerContainerManager.
-  webServer: CI_RUNTIME ? [] : [
-    {
-      // Core-api backend — required for tenant resolution and auth
-      command: coreApiCommand,
-      url: 'http://localhost:3001/health',
-      reuseExistingServer: false,
-      timeout: 60_000,
-      env: coreApiEnv({
-        // Forward all infra env vars so core-api can connect to services
-        NODE_ENV: 'production',
-        PORT: '3001',
-        NODE_OPTIONS: '--trace-warnings',
-        EVENT_KEY_ENCRYPTION_KEY: EVENT_ENCRYPTION_KEY,
-        PLUGIN_DB_ENCRYPTION_KEY: PLUGIN_DB_ENCRYPTION_VALUE,
-        PLUGIN_DB_SSL_MODE: 'verify-full',
-        PLUGIN_DB_SSL_ROOT_CERT_PATH: PLUGIN_DB_CA_PATH,
-        PLUGIN_DB_HOST: process.env['PLUGIN_DB_HOST'] ?? 'postgres',
-        PLUGIN_DB_PORT: process.env['PLUGIN_DB_PORT'] ?? '5432',
-        PLUGIN_DOCKER_NETWORK: requiredRunValue('PLUGIN_DOCKER_NETWORK', RUN_HINT),
-        PLUGIN_CORE_API_URL:
-          process.env['PLUGIN_CORE_API_URL'] ?? 'http://host.docker.internal:3001',
-        PLUGIN_RUNTIME_SCOPE: requiredRunValue('PLUGIN_RUNTIME_SCOPE', RUN_HINT),
-        PLUGIN_CREDENTIAL_PEPPER: CREDENTIAL_PEPPER,
-        APP_URL: 'http://e2e.localhost:3000',
-        // Feature tests use isolated proxy IPs, while this high global ceiling
-        // prevents unrelated direct API setup calls sharing one CI socket from
-        // exhausting the generic budget. Resolve keeps its dedicated limit.
-        RATE_LIMIT_MAX: process.env['PLAYWRIGHT_GENERAL_RATE_LIMIT_MAX'] ?? '10000',
-        ADMIN_RATE_LIMIT_MAX: process.env['PLAYWRIGHT_GENERAL_RATE_LIMIT_MAX'] ?? '10000',
-        RATE_LIMIT_RESOLVE_MAX: process.env['PLAYWRIGHT_RATE_LIMIT_RESOLVE_MAX'] ?? '30',
-        // fastify 5.12+ fails closed on numeric hop counts, so '1' no longer
-        // trusts the immediate peer. Trust loopback only: the E2E stack runs on
-        // the host, so every request's direct peer is localhost and the
-        // feature tests' isolated X-Forwarded-For IPs are honoured again.
-        TRUST_PROXY: '127.0.0.1,::1,::ffff:127.0.0.1',
-        LOKI_URL: process.env['LOKI_URL'] ?? 'http://localhost:3100',
-      }),
-    },
-    {
-      // Vite frontend
-      command: webCommand,
-      url: 'http://localhost:3000',
-      reuseExistingServer: false,
-      timeout: 30_000,
-      env: {
-        VITE_KEYCLOAK_URL: keycloakUrl(),
-        VITE_PLUGIN_ASSET_ORIGIN: requiredRunValue('VITE_PLUGIN_ASSET_ORIGIN', RUN_HINT),
-      },
-    },
-  ],
+  webServer: CI_RUNTIME
+    ? []
+    : [
+        {
+          // Core-api backend — required for tenant resolution and auth
+          command: coreApiCommand,
+          url: 'http://localhost:3001/health',
+          reuseExistingServer: false,
+          timeout: 60_000,
+          env: coreApiEnv({
+            // Forward all infra env vars so core-api can connect to services
+            NODE_ENV: 'production',
+            PORT: '3001',
+            NODE_OPTIONS: '--trace-warnings',
+            EVENT_KEY_ENCRYPTION_KEY: EVENT_ENCRYPTION_KEY,
+            PLUGIN_DB_ENCRYPTION_KEY: PLUGIN_DB_ENCRYPTION_VALUE,
+            PLUGIN_DB_SSL_MODE: 'verify-full',
+            PLUGIN_DB_SSL_ROOT_CERT_PATH: PLUGIN_DB_CA_PATH,
+            PLUGIN_DB_HOST: process.env['PLUGIN_DB_HOST'] ?? 'postgres',
+            PLUGIN_DB_PORT: process.env['PLUGIN_DB_PORT'] ?? '5432',
+            PLUGIN_DOCKER_NETWORK: requiredRunValue('PLUGIN_DOCKER_NETWORK', RUN_HINT),
+            PLUGIN_CORE_API_URL:
+              process.env['PLUGIN_CORE_API_URL'] ?? 'http://host.docker.internal:3001',
+            PLUGIN_RUNTIME_SCOPE: requiredRunValue('PLUGIN_RUNTIME_SCOPE', RUN_HINT),
+            PLUGIN_CREDENTIAL_PEPPER: CREDENTIAL_PEPPER,
+            APP_URL: 'http://e2e.localhost:3000',
+            // Feature tests use isolated proxy IPs, while this high global ceiling
+            // prevents unrelated direct API setup calls sharing one CI socket from
+            // exhausting the generic budget. Resolve keeps its dedicated limit.
+            RATE_LIMIT_MAX: process.env['PLAYWRIGHT_GENERAL_RATE_LIMIT_MAX'] ?? '10000',
+            ADMIN_RATE_LIMIT_MAX: process.env['PLAYWRIGHT_GENERAL_RATE_LIMIT_MAX'] ?? '10000',
+            RATE_LIMIT_RESOLVE_MAX: process.env['PLAYWRIGHT_RATE_LIMIT_RESOLVE_MAX'] ?? '30',
+            // The shared member@e2e.local user re-establishes the SSE stream across
+            // specs within one 60s window; raise the ADR-035 10/min/user connect
+            // cap so those reconnects never 429 (N3).
+            NOTIFICATION_SSE_CONNECT_RATE_LIMIT:
+              process.env['PLAYWRIGHT_NOTIFICATION_SSE_CONNECT_RATE_LIMIT'] ?? '100',
+            // fastify 5.12+ fails closed on numeric hop counts, so '1' no longer
+            // trusts the immediate peer. Trust loopback only: the E2E stack runs on
+            // the host, so every request's direct peer is localhost and the
+            // feature tests' isolated X-Forwarded-For IPs are honoured again.
+            TRUST_PROXY: '127.0.0.1,::1,::ffff:127.0.0.1',
+            LOKI_URL: process.env['LOKI_URL'] ?? 'http://localhost:3100',
+          }),
+        },
+        {
+          // Vite frontend
+          command: webCommand,
+          url: 'http://localhost:3000',
+          reuseExistingServer: false,
+          timeout: 30_000,
+          env: {
+            VITE_KEYCLOAK_URL: keycloakUrl(),
+            VITE_PLUGIN_ASSET_ORIGIN: requiredRunValue('VITE_PLUGIN_ASSET_ORIGIN', RUN_HINT),
+          },
+        },
+      ],
 });

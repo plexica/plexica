@@ -14,7 +14,11 @@ import {
   DropdownMenuTrigger,
 } from '@plexica/ui';
 
-import { useNotifications, useSseNotificationInvalidation, useUnreadCount } from '../../hooks/use-notifications.js';
+import {
+  useNotifications,
+  useSseNotificationInvalidation,
+  useUnreadCount,
+} from '../../hooks/use-notifications.js';
 
 import { NotificationItem } from './notification-item.js';
 
@@ -65,7 +69,10 @@ export function NotificationBell(): JSX.Element {
               {intl.formatMessage({ id: 'notifications.bell.empty' })}
             </p>
           ) : (
-            <ul className="max-h-80 overflow-y-auto" aria-label={intl.formatMessage({ id: 'notifications.bell.title' })}>
+            <ul
+              className="max-h-80 overflow-y-auto"
+              aria-label={intl.formatMessage({ id: 'notifications.bell.title' })}
+            >
               {preview.map((notification) => (
                 <NotificationItem key={notification.id} notification={notification} />
               ))}

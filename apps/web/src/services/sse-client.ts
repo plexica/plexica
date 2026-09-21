@@ -1,8 +1,7 @@
 // sse-client.ts
 // Fetch-based authenticated SSE client (006-01, plan D-12). NOT EventSource:
-// the Bearer token must ride the Authorization header, never the query string
-// (Security §2). The ONE sanctioned exception to "api-client is the single
-// fetch pipeline" — a long-lived stream, not a request/response round-trip.
+// the Bearer token rides the Authorization header, never the query string
+// (Security §2). One exception to "api-client is the single fetch pipeline".
 
 import { useAuthStore } from '../stores/auth-store.js';
 
@@ -12,7 +11,7 @@ import type { NotificationDto } from '../types/notification.js';
 
 type NotificationListener = (notification: NotificationDto) => void;
 
-/** In-memory bus for incoming SSE notification frames (Rule 3 — one pattern). */
+/** In-memory bus for incoming SSE notification frames (Rule 3). */
 class NotificationEventBus {
   private readonly listeners = new Set<NotificationListener>();
 
@@ -47,14 +46,17 @@ export class SseClient {
   private staleTimer: ReturnType<typeof setInterval> | null = null;
   private lastActivityAt = 0;
   private running = false;
+  // Bumped on start()/stop(): post-stop in-flight fetches are stale (race guard).
+  private generation = 0;
 
   /** Starts the connection loop. Safe to call once per app boot (idempotent). */
   start(): void {
     if (this.running) return;
     this.running = true;
-    // connect() is internally guarded so it never rejects; the catch defends a
-    // future escape path that would otherwise leave the retry loop dead (B1).
-    void this.connect().catch(() => {
+    this.generation += 1;
+    const gen = this.generation;
+    // connect() never rejects; the catch defends a future escape path (B1).
+    void this.connect(gen).catch(() => {
       this.clearStaleWatchdog();
       this.scheduleRetry();
     });
@@ -63,38 +65,41 @@ export class SseClient {
   /** Stops the connection loop and aborts any in-flight stream. */
   stop(): void {
     this.running = false;
+    this.generation += 1;
     if (this.retryTimer !== null) clearTimeout(this.retryTimer);
     this.clearStaleWatchdog();
     this.controller?.abort();
     this.controller = null;
   }
 
-  private async connect(): Promise<void> {
-    if (!this.running) return;
+  private async connect(gen: number): Promise<void> {
+    if (!this.running || gen !== this.generation) return;
     const accessToken = useAuthStore.getState().accessToken;
     if (accessToken === null || accessToken.length === 0) {
-      // Not authenticated yet — poll quietly for a session, then reconnect.
-      this.scheduleRetry(5_000);
+      this.scheduleRetry(5_000); // Not authenticated yet — poll for a session.
       return;
     }
 
-    this.controller = new AbortController();
+    const controller = new AbortController();
+    this.controller = controller;
     let response: Response;
     try {
       response = await fetch(`${API_BASE}/api/v1/notifications/stream`, {
         headers: { Authorization: `Bearer ${accessToken}` },
-        signal: this.controller.signal,
+        signal: controller.signal,
       });
     } catch {
-      // Abort (stop/stale) or network failure — both reconnect after backoff.
-      this.scheduleRetry();
+      this.scheduleRetry(); // Abort (stop/stale) or network failure.
       return;
     }
-    if (!this.running) return;
+    // A stop() during the fetch bumped the generation — bail, don't continue.
+    if (!this.running || gen !== this.generation) {
+      controller.abort();
+      return;
+    }
 
     if (response.status === 401) {
-      // Token expired/revoked — back off hard and let the api-client's refresh
-      // pipeline (or re-login) restore a session before reconnecting.
+      // Token expired/revoked — back off hard for the refresh pipeline.
       this.scheduleRetry(15_000);
       return;
     }
@@ -110,17 +115,13 @@ export class SseClient {
     try {
       await this.readStream(response.body);
     } catch {
-      // Stale-watchdog abort or mid-read stream error: connection is dead —
-      // clear the watchdog and reconnect (previously the rejection escaped
-      // connect() and killed the channel until a reload, B1).
+      // Stale-watchdog abort or mid-read stream error — clear and reconnect (B1).
       this.clearStaleWatchdog();
       this.scheduleRetry();
       return;
     }
     this.clearStaleWatchdog();
-
-    // Stream ended (server closed) — reconnect.
-    this.scheduleRetry();
+    this.scheduleRetry(); // Stream ended (server closed) — reconnect.
   }
 
   private async readStream(stream: ReadableStream<Uint8Array>): Promise<void> {
@@ -151,7 +152,6 @@ export class SseClient {
     return buffer;
   }
 
-  /** Parses a single SSE frame; `event: notification` payloads are dispatched. */
   private handleFrame(rawFrame: string): void {
     if (rawFrame.trim() === ':ping' || rawFrame.startsWith(':')) return;
     let event = 'message';
@@ -165,7 +165,7 @@ export class SseClient {
       const dto = JSON.parse(dataLines.join('\n')) as NotificationDto;
       if (typeof dto.id === 'string' && dto.id.length > 0) notificationEventBus.emit(dto);
     } catch {
-      // Malformed frame — skip; the heartbeat watchdog still guards liveness.
+      // Malformed frame — skip; the heartbeat watchdog guards liveness.
     }
   }
 
@@ -186,12 +186,12 @@ export class SseClient {
     }
   }
 
-  private scheduleRetry(delay = jitter(this.retryMs)): void {
+  private scheduleRetry(delay = jitter(this.retryMs), gen = this.generation): void {
     if (!this.running || this.retryTimer !== null) return;
     this.retryTimer = setTimeout(() => {
       this.retryTimer = null;
       this.retryMs = Math.min(this.retryMs * 2, MAX_RETRY_MS);
-      void this.connect();
+      void this.connect(gen);
     }, delay);
   }
 }
