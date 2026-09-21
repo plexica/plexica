@@ -51,16 +51,38 @@ const pluginTypeSchema = z
 
 // POST /api/v1/notifications/emit (feature 006-05). The SDK pre-prefixes `type`
 // and adds `timestamp` + `correlationId` (plan §5.1) — the route does not.
-export const emitBodySchema = z.object({
-  userId: z.string().uuid(),
-  type: pluginTypeSchema,
-  titleKey: z.string().min(1).max(255),
-  titleParams: z.record(z.string(), z.string()).optional(),
-  bodyKey: z.string().min(1).max(255).nullable().optional(),
-  metadata: z.record(z.string(), z.unknown()).optional(),
-  timestamp: z.string().datetime({ offset: true }),
-  correlationId: z.string().uuid(),
-});
+export const emitBodySchema = z
+  .object({
+    userId: z.string().uuid(),
+    type: pluginTypeSchema,
+    titleKey: z.string().min(1).max(255),
+    titleParams: z.record(z.string(), z.string()).optional(),
+    bodyKey: z.string().min(1).max(255).nullable().optional(),
+    metadata: z.record(z.string(), z.unknown()).optional(),
+    timestamp: z.string().datetime({ offset: true }),
+    correlationId: z.string().uuid(),
+  })
+  .superRefine((value, context) => {
+    // metadata.link must be a route-relative path — never an absolute URL or a
+    // scheme-carrying string (review finding: the UI renders it as a router
+    // Link). Rejects javascript:/http:/mailto:… and any non-slash prefix.
+    const link = value.metadata?.['link'];
+    if (typeof link !== 'string' || link.length === 0) return;
+    if (!link.startsWith('/')) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['metadata', 'link'],
+        message: 'metadata.link must be a route-relative path starting with "/"',
+      });
+    }
+    if (/^[a-z][a-z0-9+.-]*:/i.test(link)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['metadata', 'link'],
+        message: 'metadata.link must not carry a URL scheme',
+      });
+    }
+  });
 
 // i18n keys stored in notifications.title/body (Security §6 — keys, not PII).
 export const translationKeySchema = z.string().min(1).max(255);

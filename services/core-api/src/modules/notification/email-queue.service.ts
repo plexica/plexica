@@ -84,7 +84,7 @@ function toRow(row: EmailQueueSqlRow): EmailQueueRow {
 }
 
 export class EmailQueueService {
-  constructor(private readonly db: PrismaClient) {}
+  constructor(protected readonly db: PrismaClient) {}
 
   /** Idempotent enqueue (dedupe_key = eventId); returns null on conflict. */
   async enqueue(input: EmailEnqueueInput): Promise<string | null> {

@@ -437,7 +437,9 @@ every input (Security §4).
   **`202 { status: "accepted", notificationId }`** — verbatim per ADR-035
   Decision 5. There is **no** `200 { status: "queued" }` alternative; the
   `202`/`200` open choice is settled by the Accepted ADR.
-- **Errors**: 400, 401, 403, 429 `RATE_LIMIT_EXCEEDED`, 503.
+- **Errors**: 400, 401, 403, 422 `VALIDATION_ERROR` (bad body — incl. an
+  unregistered/impersonating plugin slug and a non-route-relative
+  `metadata.link`), 429 `RATE_LIMIT_EXCEEDED`, 503.
 
 ### 5.2 Notification Consumer Topology (internal, not HTTP)
 

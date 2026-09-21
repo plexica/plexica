@@ -13,6 +13,7 @@ import { useIntl } from 'react-intl';
 import { useMediaQuery } from '@plexica/ui';
 
 import { WorkspaceSelectorDropdown } from '../workspace/workspace-selector-dropdown.js';
+import { NotificationBell } from '../notifications/notification-bell.js';
 
 import { Breadcrumb } from './breadcrumb.js';
 import { UserMenu } from './user-menu.js';
@@ -61,7 +62,7 @@ export function Header({
         <Breadcrumb />
       </div>
 
-      {/* Right: workspace selector + search placeholder + user menu */}
+      {/* Right: workspace selector + search placeholder + notifications + user menu */}
       <div className="flex items-center gap-3">
         <WorkspaceSelectorDropdown />
 
@@ -80,6 +81,7 @@ export function Header({
           />
         </div>
 
+        <NotificationBell />
         <UserMenu />
       </div>
     </header>

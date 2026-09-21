@@ -30,6 +30,7 @@ export const NotificationListSchema = z.object({
   total: z.number().int().min(0),
   page: z.number().int().min(1),
   pageSize: z.number().int().min(1).max(100),
+  totalPages: z.number().int().min(0),
 });
 export type NotificationList = z.infer<typeof NotificationListSchema>;
 

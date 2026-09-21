@@ -9,9 +9,12 @@
 // entire AppShell. Header and sidebar stay visible when a route component throws.
 // The boundary is keyed by pathname so it automatically resets on route changes.
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Outlet, useLocation } from '@tanstack/react-router';
 import { useMediaQuery, RouteErrorBoundary, SkipLink } from '@plexica/ui';
+
+import { sseClient } from '../../services/sse-client.js';
+import { useAuthStore } from '../../stores/auth-store.js';
 
 import { Sidebar } from './sidebar.js';
 import { Header } from './header.js';
@@ -34,6 +37,14 @@ export function AppShell(): JSX.Element {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const isDesktop = useMediaQuery('(min-width: 1024px)');
+
+  // Real-time notification stream lifecycle: connected while authenticated,
+  // torn down on logout. The client itself is idempotent and self-reconnects.
+  const accessToken = useAuthStore((s) => s.accessToken);
+  useEffect(() => {
+    if (accessToken !== null) sseClient.start();
+    else sseClient.stop();
+  }, [accessToken]);
 
   function handleToggleSidebar(): void {
     // On mobile: toggle open/close drawer

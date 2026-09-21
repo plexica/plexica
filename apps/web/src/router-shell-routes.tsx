@@ -21,6 +21,8 @@ import { TenantBrandingPage } from './pages/tenant-branding-page.js';
 import { TenantAuthConfigPage } from './pages/tenant-auth-config-page.js';
 import { ProfilePage } from './pages/profile-page.js';
 import { AuditLogPage } from './pages/audit-log-page.js';
+import { NotificationCenterPage } from './pages/notification-center-page.js';
+import { NotificationPrefsPage } from './pages/notification-prefs-page.js';
 
 export const dashboardRoute = createRoute({
   getParentRoute: () => shellRoute,
@@ -106,6 +108,18 @@ export const auditLogRoute = createRoute({
   component: AuditLogPage,
 });
 
+export const notificationCenterRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: '/notifications',
+  component: NotificationCenterPage,
+});
+
+export const notificationPrefsRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: '/notifications/preferences',
+  component: NotificationPrefsPage,
+});
+
 // ── Plugin system routes (Spec 004) ───────────────────────────────────────────
 
 export const marketplaceRoute = createRoute({
@@ -137,4 +151,6 @@ export const shellChildRoutes = [
   tenantAuthConfigRoute,
   profileRoute,
   auditLogRoute,
+  notificationCenterRoute,
+  notificationPrefsRoute,
 ];
