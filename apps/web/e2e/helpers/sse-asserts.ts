@@ -121,10 +121,16 @@ export async function emitPluginNotification(
  * then reload the page so the unread-count query refetches.
  */
 export async function clearNotifications(page: Page): Promise<void> {
+  // Send an explicit empty-JSON body (`{}`) like notifications-api.ts
+  // markAllRead does: freshBearer() always sets Content-Type: application/json,
+  // and Fastify v5 rejects a JSON content type with a truly empty body as 400
+  // FST_ERR_CTP_EMPTY_JSON_BODY (the exact failure this helper hit in CI).
   const res = await page.request.post(
     tenantApiUrl(ADMIN_TENANT_SLUG, '/api/v1/notifications/read-all'),
     {
       headers: { ...(await freshBearer(page)), 'X-Tenant-Slug': ADMIN_TENANT_SLUG },
+      data: {},
+      timeout: API_TIMEOUT_MS,
     }
   );
   expect(res.status()).toBe(200);
