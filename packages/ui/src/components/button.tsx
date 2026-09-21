@@ -13,20 +13,16 @@ import { cn } from '../lib/cn.js';
 const buttonVariants = cva(
   // Base styles: focus ring (WCAG), transitions, disabled state
   'inline-flex items-center justify-center gap-2 rounded-md text-sm font-medium ' +
-  'transition-colors focus-visible:outline-none focus-visible:ring-2 ' +
-  'focus-visible:ring-primary-500 focus-visible:ring-offset-2 ' +
-  'disabled:pointer-events-none disabled:opacity-50',
+    'transition-colors focus-visible:outline-none focus-visible:ring-2 ' +
+    'focus-visible:ring-primary-500 focus-visible:ring-offset-2 ' +
+    'disabled:pointer-events-none disabled:opacity-50',
   {
     variants: {
       variant: {
-        primary:
-          'bg-primary-600 text-white hover:bg-primary-700 active:bg-primary-800',
-        secondary:
-          'bg-neutral-100 text-neutral-900 hover:bg-neutral-200 active:bg-neutral-300',
-        destructive:
-          'bg-error text-white hover:bg-error-dark active:bg-error-dark',
-        ghost:
-          'hover:bg-neutral-100 text-neutral-700 active:bg-neutral-200',
+        primary: 'bg-primary-600 text-white hover:bg-primary-700 active:bg-primary-800',
+        secondary: 'bg-neutral-100 text-neutral-900 hover:bg-neutral-200 active:bg-neutral-300',
+        destructive: 'bg-error text-white hover:bg-error-dark active:bg-error-dark',
+        ghost: 'hover:bg-neutral-100 text-neutral-700 active:bg-neutral-200',
         outline:
           'border border-neutral-300 bg-transparent text-neutral-700 ' +
           'hover:bg-neutral-50 active:bg-neutral-100',
@@ -45,19 +41,41 @@ const buttonVariants = cva(
 );
 
 export interface ButtonProps
-  extends React.ButtonHTMLAttributes<HTMLButtonElement>,
-    VariantProps<typeof buttonVariants> {
+  extends React.ButtonHTMLAttributes<HTMLButtonElement>, VariantProps<typeof buttonVariants> {
   asChild?: boolean;
   loading?: boolean;
 }
 
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant, size, asChild = false, loading = false, disabled, children, ...props }, ref) => {
-    const Comp = asChild ? Slot : 'button';
+  (
+    { className, variant, size, asChild = false, loading = false, disabled, children, ...props },
+    ref
+  ) => {
     const isDisabled = disabled === true || loading;
 
+    if (asChild) {
+      // asChild (Radix Slot): the slot MUST receive exactly one element child.
+      // Injecting the Loader2 sibling (as the plain-button path does) makes
+      // Slot receive an array, which fails React.isValidElement and throws
+      // "Expected a single React element child or `Slottable`" — crashing every
+      // asChild Button. The loader is inapplicable to non-button children, and
+      // `disabled` (button-only) is intentionally omitted: disabled state is
+      // conveyed via aria-disabled (valid on any element).
+      return (
+        <Slot
+          ref={ref}
+          className={cn(buttonVariants({ variant, size }), className)}
+          aria-disabled={isDisabled}
+          aria-busy={loading}
+          {...props}
+        >
+          {children}
+        </Slot>
+      );
+    }
+
     return (
-      <Comp
+      <button
         ref={ref}
         className={cn(buttonVariants({ variant, size }), className)}
         disabled={isDisabled}
@@ -67,7 +85,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       >
         {loading && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
         {children}
-      </Comp>
+      </button>
     );
   }
 );
