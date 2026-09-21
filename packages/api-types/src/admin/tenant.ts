@@ -77,6 +77,7 @@ export interface TenantDetail {
 
 export type DeletionStepName =
   | 'event_data_purge'
+  | 'email_queue_purge'
   | 'schema_drop'
   | 'realm_delete'
   | 'bucket_delete';

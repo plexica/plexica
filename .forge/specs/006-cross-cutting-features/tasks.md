@@ -146,7 +146,7 @@
 - [ ] **2.4** `[M]` `[FR-006-02]` `[FR-006-04]` Notification repository
   - **File**: `services/core-api/src/modules/notification/repository.ts` (Create)
   - **Type**: backend — persistence
-  - **Description**: notifications CRUD — `list` (page + `filter=unread|all`, `(user_id, read, created_at DESC)` index), `markRead`, `markAllRead`, `insert` with **insert-ignore** (`ON CONFLICT (event_id) DO NOTHING` — F6); prefs read/write with legacy flat-boolean normalization (`true` → `{inApp:true, email:false}`, plan D-6).
+  - **Description**: notifications CRUD — `list` (page + `filter=unread|all`, `(user_id, read, created_at DESC)` index), `markRead`, `markAllRead`, `insert` with **insert-ignore** (`ON CONFLICT DO NOTHING` — F6, covers both `event_id` and row `id` conflicts); prefs read/write with legacy normalization (`true` → `{inApp:true, email:false}` + **category shape** `invite_received`/`workspace_changes`/`role_changes`, plan D-6, review fix 2). **Column ownership (fix 2 reconciliation)**: the notification module owns `notification_prefs` writes (D-6 nested shape); the user-profile module is read-only (its PATCH schema no longer accepts `notificationPrefs`).
   - **Spec Reference**: spec 006-02/04; plan §6.1, §4.2, §5.2
   - **Dependencies**: 1.2, 2.3
   - **Estimated**: M
@@ -166,11 +166,12 @@
   - **Spec Reference**: spec 006-01/05; plan §5.2, §6.1
   - **Dependencies**: 2.1, 2.4, 2.5, 2.7
   - **Estimated**: L
+  - **Review fixes**: email enqueue is **event_id-keyed and idempotent** (`core.email_queue.dedupe_key`, `ON CONFLICT DO NOTHING`) — a duplicate redelivery after a crash between step 1 and step 4 re-attempts it (email never permanently lost, fix 5); decrypt failures dead-letter from wire metadata (fix 12); over-length plugin types (>63, `notifications.type` bound) throw → DLQ (fix 9); `titleParams` thread through row metadata → SSE DTO (fix 8).
 
 - [ ] **2.7** `[M]` `[FR-006-03]` `[P]` Email queue service
   - **File**: `services/core-api/src/modules/notification/email-queue.service.ts` (Create)
   - **Type**: backend — persistence
-  - **Description**: `EmailQueueService.enqueue/claim/settle` on `core.email_queue`. Claim via `UPDATE ... WHERE id ... RETURNING` (SKIP LOCKED, `(status, next_attempt_at)` index); settle to `sent`/`failed`/`dead`; `to_address` redacted in logs (Security §6).
+  - **Description**: `EmailQueueService.enqueue/claim/settle` on `core.email_queue`. Claim via `UPDATE ... WHERE id ... RETURNING` (SKIP LOCKED, `(status, next_attempt_at)` index); **worker lease (fix 4)**: `claimed_at` + `lease_expires_at` columns stamped on claim, cleared on settle, and the claim re-claims `sending` rows whose lease expired (mirrors `outbox-repository.ts` lease) — a crash between claim and settle orphans nothing; settle to `sent`/`failed`/`dead`; `enqueue` is idempotent (`dedupe_key` = consumer `event_id`, `ON CONFLICT DO NOTHING`); `to_address` redacted in logs (Security §6).
   - **Spec Reference**: spec 006-03; plan §6.1
   - **Dependencies**: 1.1
   - **Estimated**: M
@@ -178,7 +179,7 @@
 - [ ] **2.8** `[M]` `[FR-006-03]` Email queue worker
   - **File**: `services/core-api/src/modules/notification/email-queue-worker.ts` (Create)
   - **Type**: backend — delivery
-  - **Description**: Retry worker — claim batch, `nodemailer` send, **3 attempts with 1s/4s/16s backoff** (`next_attempt_at` scheduling), dead-letter logging; `runTick()` → `{sent, failed, dead}`. Mailpit in dev/test.
+  - **Description**: Retry worker — claim batch, `nodemailer` send (bounded by a 10s `Promise.race` timeout in `sendMailNow` — a hung SMTP cannot strand a claim, fix 4), **4 attempts = 1 send + 3 retries with 1s/4s/16s backoff** (`NOTIFICATION_EMAIL_MAX_ATTEMPTS = 4`; `next_attempt_at` scheduling), dead-letter logging; `runTick()` → `{sent, failed, dead}`. Mailpit in dev/test.
   - **Spec Reference**: spec 006-03 (risk: email reliability); plan §6.1, §2.3
   - **Dependencies**: 2.7
   - **Estimated**: M
@@ -291,6 +292,7 @@
   - **File**: `services/core-api/src/bootstrap.ts` (Modify)
   - **Type**: backend — integration
   - **Description**: Start/stop notification consumer (2.6), email queue worker (2.8), kafka metrics poller (6.6) — reverse order on teardown, mirroring the documented start/stop pattern in bootstrap.ts.
+  - **Note (re-review tracking)**: the bootstrap wiring (`startNotificationConsumer` / `startEmailQueueWorker`) must land **in the same PR as the emit route (3.3)** so the consumer and worker are exercisable end-to-end once the emit endpoint ships. Tracked here, not blocking Phase 2.
   - **Spec Reference**: plan §6.1, §7.8
   - **Dependencies**: 2.6, 2.8
   - **Estimated**: S
@@ -330,7 +332,7 @@
 - [ ] **3.14** `[L]` `[FR-006-03]` Integration tests — email queue + GDPR purge
   - **File**: `services/core-api/src/modules/notification/__tests__/email-queue.service.test.ts` (Create), `services/core-api/src/__tests__/admin/email-queue-purge.int.test.ts` (Create)
   - **Type**: test — integration (real SMTP/Mailpit)
-  - **Description**: Email queue: retry 3× with backoff, dead-letter after attempts, claim idempotency. **F8**: tenant deletion saga with pending `core.email_queue` rows succeeds and purges them.
+  - **Description**: Email queue: 1 send + 3 retries (4 attempts) with backoff, dead-letter after attempts, claim idempotency. **F8**: tenant deletion saga with pending `core.email_queue` rows succeeds and purges them.
   - **Spec Reference**: plan §10.2
   - **Dependencies**: 2.8, 2.12
   - **Estimated**: L

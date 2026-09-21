@@ -12,12 +12,17 @@ export const featuresConfigShape = z.object({
   NOTIFICATION_SSE_HEARTBEAT_MS: z.coerce.number().int().min(1000).default(20_000),
   // Per-user open SSE connection cap (oldest evicted).
   NOTIFICATION_SSE_MAX_CONNECTIONS_PER_USER: z.coerce.number().int().min(1).default(5),
+  // Per-connection bounded queue for frames published while the SSE socket
+  // buffer is backed up: queued (not dropped) and flushed on `drain`. A reader
+  // stalled past the bound is evicted rather than buffering unbounded memory.
+  NOTIFICATION_SSE_PENDING_QUEUE_BOUND: z.coerce.number().int().min(1).default(32),
   // Defense-in-depth consumer cap: max notification events per user per minute.
   NOTIFICATION_CONSUMER_CAP_PER_MIN: z.coerce.number().int().min(1).default(100),
   // Emission cap: max notifications per plugin per user per minute (Redis counter).
   NOTIFICATION_EMIT_RATE_LIMIT_PER_PLUGIN_USER_PER_MIN: z.coerce.number().int().min(1).default(10),
-  // Email queue retry worker (006-03): max attempts and base backoff.
-  NOTIFICATION_EMAIL_MAX_ATTEMPTS: z.coerce.number().int().min(1).max(10).default(3),
+  // Email queue retry worker (006-03): max attempts (4 = 1 send + 3 retries
+  // at 1s/4s/16s backoff, ADR-035) and base backoff.
+  NOTIFICATION_EMAIL_MAX_ATTEMPTS: z.coerce.number().int().min(1).max(10).default(4),
   NOTIFICATION_EMAIL_BACKOFF_MS: z.coerce.number().int().min(100).default(1_000),
   NOTIFICATION_EMAIL_WORKER_INTERVAL_MS: z.coerce.number().int().min(100).default(1_000),
 

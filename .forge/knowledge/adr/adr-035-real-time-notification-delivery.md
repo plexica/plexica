@@ -119,7 +119,7 @@ to trigger the flow.
 | Alternative | Pros | Cons | Verdict |
 | ----------- | ---- | ---- | ------- |
 | **Direct `sendMailNow`** (current `lib/email.ts` sync path) | No new table; minimal change | Failed sends are lost or retried only in-process; no durable retry across restarts; spec risk table demands retry + dead-letter for email | Rejected — fails the "Email delivery reliability" risk mitigation |
-| **`core.email_queue` outbox table + worker** | Durable retry (3 attempts, 1s/4s/16s backoff), `sent`/`failed`/`dead` statuses, dead-letter logging, `tenant_id` FK for GDPR purge (ADR-016 pattern), testable against Mailpit | New core table (this ADR covers it); worker lifecycle to manage in bootstrap | **Chosen** — matches spec risk mitigation and ADR-016 conventions |
+| **`core.email_queue` outbox table + worker** | Durable retry (**4 attempts = 1 send + 3 retries**, 1s/4s/16s backoff), `sent`/`failed`/`dead` statuses, dead-letter logging, `tenant_id` FK for GDPR purge (ADR-016 pattern), testable against Mailpit | New core table (this ADR covers it); worker lifecycle to manage in bootstrap | **Chosen** — matches spec risk mitigation and ADR-016 conventions |
 
 ## Decision
 
@@ -154,8 +154,8 @@ notification Kafka consumer topology. Concretely:
    stack/PII), `created_at`, `sent_at`; index `(status, next_attempt_at)`.
    An in-process worker claims batches (SKIP LOCKED), sends via the existing
    `nodemailer` (`lib/email.ts` gains an `enqueueEmail` path; invitation email
-   reroutes through the queue), retries 3× with 1s/4s/16s backoff, and
-   dead-letter logs on exhaustion. Mailpit in dev/test.
+   reroutes through the queue), retries 3× (1s/4s/16s — 4 attempts total = 1
+   send + 3 retries), and dead-letter logs on exhaustion. Mailpit in dev/test.
 4. **Event flow**: the invitation service gains one outbox enqueue (in the
    existing `withTenantDb` transaction): `plexica.workspace.invite` →
    `core.event_outbox` → leased publisher → Kafka. Consumer group

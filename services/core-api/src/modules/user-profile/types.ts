@@ -1,11 +1,15 @@
 // types.ts
 // Domain types for the user-profile module.
 
-export interface NotificationPrefs {
-  invite_received?: { email: boolean };
-  workspace_changes?: { email: boolean };
-  role_changes?: { email: boolean };
-}
+/**
+ * notification_prefs JSONB column, passed through read-only. The notification
+ * module is the authoritative writer of this column (D-6 nested shape
+ * `{ defaults:{inApp,email}, types:{ "<type>":{inApp,email} } }`, feature
+ * 006-04); the user-profile module never writes it. Typed loosely because the
+ * canonical shape lives in the notification module's PreferenceMap — importing
+ * it here would couple two modules for a read-only passthrough.
+ */
+export type NotificationPrefs = Record<string, unknown>;
 
 export interface UserProfileDto {
   userId: string;
@@ -27,5 +31,7 @@ export interface UpdateProfileInput {
   displayName?: string | null;
   timezone?: string;
   language?: string;
-  notificationPrefs?: NotificationPrefs;
+  // notificationPrefs is read-only here (the raw column is passed through).
+  // Writes belong to the notification module's PATCH /notifications/preferences
+  // (feature 006-04).
 }
