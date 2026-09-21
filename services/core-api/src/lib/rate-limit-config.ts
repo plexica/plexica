@@ -24,16 +24,19 @@ export const GLOBAL_RATE_LIMIT = {
 
 // ---------------------------------------------------------------------------
 // User-keyed keyGenerator for authenticated routes.
-// Prefer user ID (stable across IPs) when available; fall back to IP.
-// Guards against empty-string IDs which could collapse all anonymous
-// traffic into a single bucket.
+// Prefer tenant + user ID (stable across IPs, isolated across tenants) when
+// both are available; fall back to just the user ID (admin/master scopes have
+// no tenant context), then to IP. Guards against empty-string IDs which could
+// collapse all anonymous traffic into a single bucket.
 // Only usable where the rate-limit hook runs at 'preHandler' (route-level
 // hooks execute after scope-level preHandler hooks), so authMiddleware has
 // already populated request.user.
 // ---------------------------------------------------------------------------
 export function rateLimitKey(request: FastifyRequest): string {
   const uid = request.user?.id?.trim();
-  return uid !== undefined && uid.length > 0 ? uid : request.ip;
+  if (uid === undefined || uid.length === 0) return request.ip;
+  const tenantId = request.tenantContext?.tenantId?.trim();
+  return tenantId !== undefined && tenantId.length > 0 ? `${tenantId}:${uid}` : uid;
 }
 
 // ---------------------------------------------------------------------------

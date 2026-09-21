@@ -6,7 +6,12 @@
 // integration suite (email-queue.service.test.ts, real SMTP).
 
 import { expect, test } from './helpers/base-fixture.js';
-import { loginAsAdmin, requireKeycloakInCI, uniqueName, hasKeycloak } from './helpers/admin-login.js';
+import {
+  loginAsAdmin,
+  requireKeycloakInCI,
+  uniqueName,
+  hasKeycloak,
+} from './helpers/admin-login.js';
 import { isApiReachable, isMailpitReachable } from './helpers/api-check.js';
 import { clearInbox, getMessage, waitForEmail } from './helpers/mailpit.js';
 import { createWorkspace } from './helpers/workspace.js';
@@ -18,13 +23,13 @@ test.describe('E2E 006-03: Notification email delivery', () => {
   test.beforeAll(async () => {
     requireKeycloakInCI();
     stackReady = hasKeycloak && (await isApiReachable()) && (await isMailpitReachable());
-    if (process.env['CI'] !== undefined && !stackReady) {
-      throw new Error('CI requires live Keycloak + core-api + Mailpit for the email flow.');
+    // Missing infra is a hard FAILURE, never a silent skip (false-green guard).
+    if (!stackReady) {
+      throw new Error('Requires live Keycloak + core-api + Mailpit for the email flow.');
     }
   });
 
   test.beforeEach(async ({ page }) => {
-    test.skip(!stackReady, 'Requires live Keycloak + core-api + Mailpit');
     await clearInbox();
     await loginAsAdmin(page);
   });

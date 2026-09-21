@@ -1,7 +1,6 @@
-// sse-client.ts
-// Fetch-based authenticated SSE client (006-01, plan D-12). NOT EventSource:
-// the Bearer token rides the Authorization header, never the query string
-// (Security §2). One exception to "api-client is the single fetch pipeline".
+// sse-client.ts — fetch-based authenticated SSE client (006-01, plan D-12).
+// NOT EventSource: the Bearer token rides the Authorization header, never the
+// query string (Security §2).
 
 import { useAuthStore } from '../stores/auth-store.js';
 
@@ -62,11 +61,15 @@ export class SseClient {
     });
   }
 
-  /** Stops the connection loop and aborts any in-flight stream. */
+  /** Stops the loop, nulling the pending retry timer (a stale id would kill
+   * reconnection after the next start()) and aborting any in-flight stream. */
   stop(): void {
     this.running = false;
     this.generation += 1;
-    if (this.retryTimer !== null) clearTimeout(this.retryTimer);
+    if (this.retryTimer !== null) {
+      clearTimeout(this.retryTimer);
+      this.retryTimer = null;
+    }
     this.clearStaleWatchdog();
     this.controller?.abort();
     this.controller = null;
@@ -79,7 +82,6 @@ export class SseClient {
       this.scheduleRetry(5_000); // Not authenticated yet — poll for a session.
       return;
     }
-
     const controller = new AbortController();
     this.controller = controller;
     let response: Response;
@@ -99,8 +101,7 @@ export class SseClient {
     }
 
     if (response.status === 401) {
-      // Token expired/revoked — back off hard for the refresh pipeline.
-      this.scheduleRetry(15_000);
+      this.scheduleRetry(15_000); // Token expired — back off hard for the refresh pipeline.
       return;
     }
     if (!response.ok || response.body === null) {
@@ -108,7 +109,6 @@ export class SseClient {
       return;
     }
 
-    // Connection established — reset the backoff ladder.
     this.retryMs = INITIAL_RETRY_MS;
     this.lastActivityAt = Date.now();
     this.startStaleWatchdog();

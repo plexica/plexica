@@ -61,13 +61,33 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       // asChild Button. The loader is inapplicable to non-button children, and
       // `disabled` (button-only) is intentionally omitted: disabled state is
       // conveyed via aria-disabled (valid on any element).
+      //
+      // Disabled activation guard: a native <button disabled> cannot be
+      // activated (click/keyboard), but a slot non-button child (e.g. a router
+      // Link anchor) has NO native disabled — without a guard a "disabled"
+      // asChild anchor still navigates and its onClick still fires. Radix Slot
+      // merges every prop onto the single child element, so the capture-phase
+      // onClickCapture below runs BEFORE the child's own bubble-phase onClick
+      // on the same element: preventDefault() blocks native navigation (anchor
+      // href / form submit) and stopPropagation() suppresses the child's onClick
+      // entirely. tabIndex={-1} also removes the disabled child from the tab
+      // order (its native focusability cannot be switched off).
       return (
         <Slot
           ref={ref}
           className={cn(buttonVariants({ variant, size }), className)}
           aria-disabled={isDisabled}
           aria-busy={loading}
+          tabIndex={isDisabled ? -1 : undefined}
           {...props}
+          {...(isDisabled
+            ? {
+                onClickCapture: (event: React.MouseEvent<HTMLElement>) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                },
+              }
+            : {})}
         >
           {children}
         </Slot>

@@ -100,8 +100,12 @@ describe('email queue retry state machine (INT, real DB + rejecting SMTP)', () =
       expect(row.nextAttemptAt.getTime()).toBeGreaterThan(Date.now());
       expect(row.lastError).not.toBeNull();
 
-      // Ticks 2–3 — attempts increment on each retry after backoff elapses.
-      for (let expected = 2; expected <= 3; expected++) {
+      // Ticks 2..maxAttempts-1 — attempts increment on each retry after
+      // backoff elapses. Derived from config (default 4 → ticks 2-3), never
+      // hardcoded (review finding): CI overrides NOTIFICATION_EMAIL_MAX_ATTEMPTS
+      // and the suite must trace the same state machine there.
+      const maxAttempts = config.NOTIFICATION_EMAIL_MAX_ATTEMPTS;
+      for (let expected = 2; expected < maxAttempts; expected++) {
         await makeDue(rowId);
         const tick = await runTick(10, service);
         expect(tick.failed).toBe(1);
@@ -110,13 +114,13 @@ describe('email queue retry state machine (INT, real DB + rejecting SMTP)', () =
         expect(row.attempts).toBe(expected);
       }
 
-      // Tick 4 — attempts 4 >= max (4) → dead-lettered.
+      // Final tick — attempts maxAttempts >= max → dead-lettered.
       await makeDue(rowId);
-      const t4 = await runTick(10, service);
-      expect(t4.dead).toBe(1);
+      const tLast = await runTick(10, service);
+      expect(tLast.dead).toBe(1);
       row = await prisma.emailQueue.findUniqueOrThrow({ where: { id: rowId } });
       expect(row.status).toBe('dead');
-      expect(row.attempts).toBe(config.NOTIFICATION_EMAIL_MAX_ATTEMPTS);
+      expect(row.attempts).toBe(maxAttempts);
       expect(row.lastError).not.toBeNull();
 
       // A dead row is never re-claimed by the worker.

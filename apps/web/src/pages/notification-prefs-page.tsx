@@ -1,6 +1,6 @@
 // notification-prefs-page.tsx
-// Per-type inApp/email channel toggles (006-04), saved as a partial nested
-// PATCH (NFR < 300ms round-trip). Route: /notifications/preferences.
+// Per-type inApp/email toggles (006-04), saved as a partial nested PATCH
+// (NFR < 300ms). Route: /notifications/preferences.
 
 import { useEffect, useState } from 'react';
 import { FormattedMessage, useIntl } from 'react-intl';
@@ -19,8 +19,9 @@ function usePrefsDraft(): {
   draft: PrefsDraft | null;
   loaded: PrefsDraft | null;
   setChannel: (key: string, channel: 'inApp' | 'email', checked: boolean) => void;
+  isError: boolean; // prefs query failure — the draft never builds on reject
 } {
-  const { data: prefs } = useNotificationPreferences();
+  const { data: prefs, isError } = useNotificationPreferences();
   const [draft, setDraft] = useState<PrefsDraft | null>(null);
 
   // Dirty-check baseline (B2): snapshot of the persisted prefs.
@@ -47,40 +48,40 @@ function usePrefsDraft(): {
     });
   }
 
-  return { draft, loaded, setChannel };
+  return { draft, loaded, setChannel, isError };
 }
 
 function buildDraft(prefs: NotificationPreferences): PrefsDraft {
-  return {
-    defaults: { ...prefs.defaults },
-    types: Object.fromEntries(
-      Object.entries(prefs.types).map(([key, channel]) => [key, { ...channel }])
-    ),
-  };
+  const clone = (channels: Record<string, { inApp: boolean; email: boolean }>) =>
+    Object.fromEntries(Object.entries(channels).map(([key, c]) => [key, { ...c }]));
+  return { defaults: { ...prefs.defaults }, types: clone(prefs.types) };
 }
 
 export function NotificationPrefsPage(): JSX.Element {
   const intl = useIntl();
-  const { data: typesData, isPending, isError } = useNotificationTypes();
+  const { data: typesData, isPending, isError: typesError } = useNotificationTypes();
   const save = useSaveNotificationPreferences();
-  const { draft, loaded, setChannel } = usePrefsDraft();
+  const { draft, loaded, setChannel, isError: prefsError } = usePrefsDraft();
   // Local confirmation flag (B2'): set on save success — never read from the
   // mutation's isSuccess (which reset() wiped synchronously).
   const [justSaved, setJustSaved] = useState(false);
 
-  if (isPending || draft === null) {
+  // Error first — a failed PREFS query never builds the draft (the old loading
+  // branch rendered forever); TYPES and PREFS share one error UX.
+  if (prefsError || typesError) {
+    return (
+      <p className="p-6 text-sm text-red-600">
+        <FormattedMessage id="notifications.prefs.error" />
+      </p>
+    );
+  }
+  if (isPending || draft === null || typesData === undefined) {
     return (
       <p className="p-6 text-sm text-neutral-500">
         <FormattedMessage id="notifications.prefs.loading" />
       </p>
     );
   }
-  if (isError || typesData === undefined)
-    return (
-      <p className="p-6 text-sm text-red-600">
-        <FormattedMessage id="notifications.prefs.error" />
-      </p>
-    );
 
   const typeDefinitions = typesData.types;
   // Real dirty flag (B2): enabled only while the draft differs from persisted.

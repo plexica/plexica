@@ -27,8 +27,9 @@ test.describe('E2E 006-01: Notification SSE delivery', () => {
   test.beforeAll(async () => {
     requireKeycloakInCI();
     stackReady = hasKeycloak && (await isApiReachable());
-    if (process.env['CI'] !== undefined && !stackReady) {
-      throw new Error('CI requires live Keycloak + core-api for the SSE flow.');
+    // Missing infra is a hard FAILURE, never a silent skip (false-green guard).
+    if (!stackReady) {
+      throw new Error('Requires live Keycloak + core-api for the SSE flow.');
     }
   });
 
@@ -36,8 +37,6 @@ test.describe('E2E 006-01: Notification SSE delivery', () => {
     page,
     browser,
   }, testInfo) => {
-    test.skip(!stackReady, 'Requires live Keycloak + core-api');
-
     await loginAsAdmin(page);
 
     // Member session in its OWN context — the fixture page stays the admin.
@@ -73,8 +72,6 @@ test.describe('E2E 006-01: Notification SSE delivery', () => {
     page,
     browser,
   }, testInfo) => {
-    test.skip(!stackReady, 'Requires live Keycloak + core-api');
-
     await loginAsAdmin(page);
     const memberContext = await browser.newContext({
       extraHTTPHeaders: {

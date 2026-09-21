@@ -41,11 +41,13 @@ export async function notificationRoutes(fastify: FastifyInstance): Promise<void
     {
       config: {
         // Establishment only: a connection is one request; sustained frames are
-        // pushed, never counted per-frame. Per-user keying (ADR-012) — the
-        // scope-level authMiddleware has already populated request.user.
+        // pushed, never counted per-frame. Per-tenant-per-user keying (ADR-012)
+        // — the scope-level authMiddleware has already populated request.user
+        // (and tenantContextMiddleware request.tenantContext), so rateLimitKey
+        // resolves tenant:user, never a bare IP or a cross-tenant user bucket.
         // hook:'preHandler' (not the @fastify/rate-limit default onRequest)
-        // ensures the check runs AFTER authMiddleware so rateLimitKey resolves
-        // the user, not the IP (review M2 — 10/min/user was 10/min/IP).
+        // ensures the check runs AFTER the auth middleware populate request.user
+        // (review M2 — 10/min/user was 10/min/IP).
         rateLimit: { ...SSE_CONNECT_RATE_LIMIT, keyGenerator: rateLimitKey, hook: 'preHandler' },
       },
     },

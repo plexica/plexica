@@ -32,14 +32,13 @@ test.describe('E2E 006-05: Plugin notification emission', () => {
   test.beforeAll(async () => {
     requireKeycloakInCI();
     stackReady = hasKeycloak && (await isApiReachable());
-    if (process.env['CI'] !== undefined && !stackReady) {
-      throw new Error('CI requires live Keycloak + core-api for the plugin flow.');
+    // Missing infra is a hard FAILURE, never a silent skip (false-green guard).
+    if (!stackReady) {
+      throw new Error('Requires live Keycloak + core-api for the plugin flow.');
     }
   });
 
   test('CRM plugin emits on contact → 202 accepted, row + SSE in the UI', async ({ page }) => {
-    test.skip(!stackReady, 'Requires live Keycloak + core-api');
-
     await loginAsAdmin(page);
 
     // Deterministic unread state (M5) so the badge presence below proves the
@@ -79,8 +78,6 @@ test.describe('E2E 006-05: Plugin notification emission', () => {
   });
 
   test('unregistered plugin slug is rejected (422, VALIDATION_ERROR)', async ({ page }) => {
-    test.skip(!stackReady, 'Requires live Keycloak + core-api');
-
     await loginAsAdmin(page);
     const userId = await currentUserId(page);
 

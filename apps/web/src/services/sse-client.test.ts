@@ -115,4 +115,23 @@ describe('SseClient reconnect (B1)', () => {
     await new Promise((resolve) => setTimeout(resolve, 1_200));
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
+
+  it('clears a pending retry on stop() so a later start() can schedule retries again', async () => {
+    // Every attempt errors mid-read → a ~1s retry timer stays pending. A
+    // stop() during that pending retry must null the timer reference
+    // (scheduleRetry() bails while retryTimer !== null) — otherwise the next
+    // start()'s retry is silently dropped and reconnection dies forever.
+    fetchMock.mockImplementation(async () => fakeResponse(halfOpenStream()));
+
+    const client = new SseClient();
+    client.start();
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1)); // attempt #1, retry pending
+    client.stop();
+    await new Promise((resolve) => setTimeout(resolve, 1_200));
+    expect(fetchMock).toHaveBeenCalledTimes(1); // stopped — no resurrection
+
+    client.start(); // attempt #2 — must be able to schedule retries again
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    await waitFor(() => fetchMock.mock.calls.length >= 3, 5_000); // its retry fires
+  });
 });

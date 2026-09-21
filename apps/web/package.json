@@ -41,6 +41,7 @@
     "autoprefixer": "catalog:",
     "dotenv": "catalog:",
     "eslint-plugin-formatjs": "^8.0.3",
+    "jsdom": "^26.0.0",
     "postcss": "catalog:",
     "tailwindcss": "catalog:",
     "typescript": "catalog:",

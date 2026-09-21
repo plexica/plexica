@@ -50,8 +50,9 @@ test.describe('E2E 006-04: Notification preferences', () => {
   test.beforeAll(async () => {
     requireKeycloakInCI();
     stackReady = hasKeycloak && (await isApiReachable()) && (await isMailpitReachable());
-    if (process.env['CI'] !== undefined && !stackReady) {
-      throw new Error('CI requires live Keycloak + core-api + Mailpit for the prefs flow.');
+    // Missing infra is a hard FAILURE, never a silent skip (false-green guard).
+    if (!stackReady) {
+      throw new Error('Requires live Keycloak + core-api + Mailpit for the prefs flow.');
     }
   });
 
@@ -59,7 +60,6 @@ test.describe('E2E 006-04: Notification preferences', () => {
     page,
     browser,
   }, testInfo) => {
-    test.skip(!stackReady, 'Requires live Keycloak + core-api + Mailpit');
     await loginAsAdmin(page);
     await clearInbox();
 
@@ -104,7 +104,6 @@ test.describe('E2E 006-04: Notification preferences', () => {
     page,
     browser,
   }, testInfo) => {
-    test.skip(!stackReady, 'Requires live Keycloak + core-api + Mailpit');
     await loginAsAdmin(page);
     await clearInbox();
 

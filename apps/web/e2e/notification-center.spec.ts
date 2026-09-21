@@ -25,13 +25,13 @@ test.describe('E2E 006-02: Notification center', () => {
   test.beforeAll(async () => {
     requireKeycloakInCI();
     stackReady = hasKeycloak && (await isApiReachable());
-    if (process.env['CI'] !== undefined && !stackReady) {
-      throw new Error('CI requires live Keycloak + core-api for the center flow.');
+    // Missing infra is a hard FAILURE, never a silent skip (false-green guard).
+    if (!stackReady) {
+      throw new Error('Requires live Keycloak + core-api for the center flow.');
     }
   });
 
   test('open center, see the invite, mark it read', async ({ page, browser }, testInfo) => {
-    test.skip(!stackReady, 'Requires live Keycloak + core-api');
     await loginAsAdmin(page);
 
     const member = await openMemberSession(browser, testInfo);
@@ -62,7 +62,6 @@ test.describe('E2E 006-02: Notification center', () => {
   });
 
   test('mark all as read clears the badge', async ({ page, browser }, testInfo) => {
-    test.skip(!stackReady, 'Requires live Keycloak + core-api');
     await loginAsAdmin(page);
 
     const member = await openMemberSession(browser, testInfo);
