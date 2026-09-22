@@ -5,15 +5,13 @@ export const messagesItPlugins = {
   // Slot plugin
   'plugin.unavailable': 'Il plugin "{slug}" non è al momento disponibile',
   'plugin.crashed': 'Il plugin "{slug}" ha riscontrato un errore ed è stato arrestato',
-  'plugin.degraded':
-    'Il plugin "{slug}" è permanentemente degradato. Ricarica la pagina.',
+  'plugin.degraded': 'Il plugin "{slug}" è permanentemente degradato. Ricarica la pagina.',
   'plugin.retry': 'Riprova',
 
   // Marketplace
   'marketplace.title': 'Marketplace',
   'marketplace.search': 'Cerca plugin...',
-  'marketplace.empty':
-    'Nessun plugin disponibile nel marketplace per ora. Riprova più tardi.',
+  'marketplace.empty': 'Nessun plugin disponibile nel marketplace per ora. Riprova più tardi.',
   'marketplace.emptyFiltered': 'Nessun plugin corrisponde alla ricerca o al filtro.',
   'marketplace.loading': 'Caricamento plugin...',
   'marketplace.error': 'Impossibile caricare il marketplace.',
@@ -33,8 +31,7 @@ export const messagesItPlugins = {
   'marketplace.categories.devTools': 'Strumenti di sviluppo',
   'marketplace.categories.communication': 'Comunicazione',
   'marketplace.categories.automation': 'Automazione',
-  'marketplace.emptyHint':
-    'Prova a modificare la ricerca o a rimuovere il filtro per categoria.',
+  'marketplace.emptyHint': 'Prova a modificare la ricerca o a rimuovere il filtro per categoria.',
   'marketplace.installCount': '{count} installazioni',
   'marketplace.permissions': 'Autorizzazioni e azioni',
   'marketplace.dataTables': 'Tabelle dati',
@@ -44,8 +41,7 @@ export const messagesItPlugins = {
 
   // Plugin installati
   'plugins.installed.title': 'Plugin installati',
-  'plugins.installed.empty':
-    'Nessun plugin installato. Sfoglia il Marketplace per trovarne.',
+  'plugins.installed.empty': 'Nessun plugin installato. Sfoglia il Marketplace per trovarne.',
   'plugins.installed.loading': 'Caricamento plugin installati...',
   'plugins.installed.error': 'Impossibile caricare i plugin installati.',
   'plugins.installed.version': 'v{version}',
@@ -79,36 +75,4 @@ export const messagesItPlugins = {
   'plugins.installProgress.step.consumer': 'Creazione del consumer di eventi',
   'plugins.installProgress.leave':
     'Potrebbero volerci alcuni secondi. Puoi uscire da questa pagina.',
-
-  // Remote d\'esempio CRM
-  'crm.list.title': 'Contatti',
-  'crm.list.name': 'Nome',
-  'crm.list.email': 'Email',
-  'crm.list.phone': 'Telefono',
-  'crm.list.actions': 'Azioni',
-  'crm.list.error': 'Impossibile caricare i contatti.',
-  'crm.list.retry': 'Riprova',
-  'crm.list.empty': 'Nessun contatto in questo workspace.',
-  'crm.list.addContact': 'Aggiungi contatto',
-  'crm.list.edit': 'Modifica {name}',
-  'crm.list.delete': 'Elimina {name}',
-  'crm.form.addTitle': 'Aggiungi contatto',
-  'crm.form.editTitle': 'Modifica contatto',
-  'crm.form.name': 'Nome',
-  'crm.form.namePlaceholder': 'Ada Lovelace',
-  'crm.form.email': 'Email',
-  'crm.form.emailPlaceholder': 'ada@esempio.com',
-  'crm.form.phone': 'Telefono',
-  'crm.form.phonePlaceholder': '+39 555 0100',
-  'crm.form.notes': 'Note',
-  'crm.form.notesPlaceholder': 'Note sulla relazione',
-  'crm.form.cancel': 'Annulla',
-  'crm.form.add': 'Aggiungi contatto',
-  'crm.form.save': 'Salva contatto',
-  'crm.delete.title': 'Eliminare il contatto?',
-  'crm.delete.description': 'Eliminare definitivamente {name}?',
-  'crm.delete.confirm': 'Elimina contatto',
-  'crm.delete.cancel': 'Annulla',
-  'crm.sidebar.dealsLabel': 'Offerte CRM',
-  'crm.sidebar.deals': 'Offerte',
 } as const;

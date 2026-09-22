@@ -25,15 +25,23 @@ export const declaredTableSchema = z.object({
   name: z.string().regex(/^[a-z][a-z0-9_]{1,63}$/, 'Table name must be snake_case'),
   description: z.string().optional(),
   // Reject path traversal: no absolute paths, no ".." components, no null bytes.
-  migrationFile: z.string().min(1).refine(
-    (v) => !v.includes('\0') && !v.includes('..') && !path.isAbsolute(v),
-    'migrationFile must be a relative path without ".." or null bytes',
-  ),
+  migrationFile: z
+    .string()
+    .min(1)
+    .refine(
+      (v) => !v.includes('\0') && !v.includes('..') && !path.isAbsolute(v),
+      'migrationFile must be a relative path without ".." or null bytes'
+    ),
   content: z.string().optional(), // Inline SQL — preferred over filesystem read
 });
 
 export const actionSchema = z.object({
-  action: z.string().regex(/^[a-z][a-z0-9-]*:[a-z][a-z0-9-]*:[a-z][a-z0-9-]*$/, 'Plugin actions must be 3-part: slug:resource:verb'),
+  action: z
+    .string()
+    .regex(
+      /^[a-z][a-z0-9-]*:[a-z][a-z0-9-]*:[a-z][a-z0-9-]*$/,
+      'Plugin actions must be 3-part: slug:resource:verb'
+    ),
   label: z.string().min(1),
   description: z.string().optional(),
   defaultRole: z.enum(['admin', 'member', 'viewer']),
@@ -46,7 +54,12 @@ export const actionSchema = z.object({
 export const apiMappingSchema = z.object({
   method: z.enum(['GET', 'POST', 'PUT', 'PATCH', 'DELETE']),
   path: z.string().min(1),
-  action: z.string().regex(/^[a-z][a-z0-9-]*:[a-z][a-z0-9-]*:[a-z][a-z0-9-]*$/, 'apiMapping action must be 3-part: slug:resource:verb'),
+  action: z
+    .string()
+    .regex(
+      /^[a-z][a-z0-9-]*:[a-z][a-z0-9-]*:[a-z][a-z0-9-]*$/,
+      'apiMapping action must be 3-part: slug:resource:verb'
+    ),
 });
 
 export const manifestSchema = z.object({
@@ -67,10 +80,16 @@ export const manifestSchema = z.object({
   // i18n bundle locales shipped next to the MF asset base (006-09, D-8):
   // the shell fetches `i18n/{locale}.json` from the remote asset origin and
   // merges it under `plugin.{slug}.` keys. Additive — plugins without bundles
-  // keep working with only the `defaultMessage` fallbacks.
+  // keep working with only the `defaultMessage` fallbacks. Locale strings are
+  // constrained to BCP-47-lite (`en`, `pt-BR`) so a bundle cannot smuggle a
+  // path into the presigned key (006-09 follow-up MINOR).
   i18n: z
     .object({
-      bundles: z.array(z.string()).default([]),
+      bundles: z
+        .array(
+          z.string().regex(/^[a-z]{2,3}(-[A-Z]{2})?$/, 'Bundle locale must be like "en" or "pt-BR"')
+        )
+        .default([]),
     })
     .optional(),
   events: z

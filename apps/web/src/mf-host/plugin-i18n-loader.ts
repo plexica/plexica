@@ -12,7 +12,7 @@
 // Failures are SURFACE-CONTAINED: a bad bundle logs and is dropped — the UI
 // keeps rendering with `defaultMessage` EN fallbacks (spec risk mitigation).
 
-import { registerPluginBundle } from '../i18n/plugin-message-registry.js';
+import { hasPluginBundle, registerPluginBundle } from '../i18n/plugin-message-registry.js';
 import { parsePluginBundle } from '../i18n/plugin-bundle-schema.js';
 
 import { isOriginAllowed } from './remote-origin.js';
@@ -56,12 +56,16 @@ function prefixUnderSlug(slug: string, record: Record<string, string>): Record<s
 
 /**
  * Ensures the bundle for (`slug`, `locale`) is loaded. Concurrent callers of
- * the same URL share one in-flight promise; once loaded, subsequent calls are
- * no-ops (the registry keeps the bundle for the shell lifespan).
+ * the same URL share one in-flight promise. Once the bundle is registered the
+ * call is a true no-op — no re-fetch AND no registry write (006-09 loop fix:
+ * slot effects re-fire whenever the entries-array identity changes; without
+ * this guard every re-fire would re-fetch and bump the registry version,
+ * re-rendering the whole IntlProvider subtree in a loop).
  */
 export function loadPluginI18n(input: PluginI18nLoadInput): Promise<void> {
   const { slug, remoteEntryUrl, bundles, locale, bundleUrls } = input;
   if (!bundles.includes(locale)) return Promise.resolve();
+  if (hasPluginBundle(slug, locale)) return Promise.resolve();
 
   const url = bundleUrl(remoteEntryUrl, locale, bundleUrls);
   const cacheKey = `${url}#${locale}`;

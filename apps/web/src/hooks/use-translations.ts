@@ -6,6 +6,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { translationsApi } from '../services/translations-api.js';
+import { useAuthStore } from '../stores/auth-store.js';
 
 import type { TranslationLocale, UpsertTranslationPayload } from '../services/translations-api.js';
 
@@ -17,11 +18,15 @@ export interface UpsertTranslationInput {
 }
 
 export function useTranslationOverrides() {
+  const accessToken = useAuthStore((state) => state.accessToken);
   return useQuery({
     queryKey: TRANSLATION_OVERRIDES_KEY,
     queryFn: () => translationsApi.list(),
     // Shell boot fetch — cached for 10 minutes (plan §5.5).
     staleTime: 10 * 60 * 1000,
+    // Anonymous visits (login page) must not fire a 401-ing request (006-09
+    // follow-up); IntlProvider then merges static cached catalogs only.
+    enabled: accessToken !== null,
   });
 }
 
@@ -33,8 +38,7 @@ export function useTranslationOverrides() {
 export function useUpsertTranslation() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ key, payload }: UpsertTranslationInput) =>
-      translationsApi.upsert(key, payload),
+    mutationFn: ({ key, payload }: UpsertTranslationInput) => translationsApi.upsert(key, payload),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: TRANSLATION_OVERRIDES_KEY });
     },

@@ -21,9 +21,38 @@ type Listener = () => void;
 const bundles = new Map<string, PluginBundle>();
 const listeners = new Set<Listener>();
 
+/**
+ * Monotonic per-locale snapshot version. A flat counter instead of summing
+ * `loadedAt` — two failure modes:
+ *  1. N bundles for the same locale loaded within the same millisecond summed
+ *     to the same value, so a LATER load did not bump the version (stale UI);
+ *  2. ANY re-registration bumped the version even when the merged message set
+ *     was byte-identical, re-rendering the whole IntlProvider subtree in a
+ *     loop (006-09 follow-up HIGH: slot effects re-fire on render).
+ */
+const versions = new Map<string, number>();
+
+function messagesEqual(a: Record<string, string>, b: Record<string, string>): boolean {
+  const aKeys = Object.keys(a);
+  if (aKeys.length !== Object.keys(b).length) return false;
+  for (const key of aKeys) {
+    if (a[key] !== b[key]) return false; // b lacking the key → undefined ≠ value
+  }
+  return true;
+}
+
 /** Registers (or replaces) one plugin locale bundle. */
 export function registerPluginBundle(bundle: PluginBundle): void {
-  bundles.set(`${bundle.slug}:${bundle.locale}`, bundle);
+  const key = `${bundle.slug}:${bundle.locale}`;
+  const existing = bundles.get(key);
+  // Idempotent registration: a re-fetched bundle whose merged messages did not
+  // change must NOT bump the version and re-render every consumer. Together
+  // with `hasPluginBundle` in the loader this breaks the fetch/re-render loop.
+  if (existing !== undefined && messagesEqual(existing.messages, bundle.messages)) {
+    return;
+  }
+  bundles.set(key, bundle);
+  versions.set(bundle.locale, (versions.get(bundle.locale) ?? 0) + 1);
   for (const listener of listeners) listener();
 }
 
@@ -45,19 +74,13 @@ export function getPluginMessages(locale: string): Record<string, string> {
 }
 
 /**
- * Snapshot version for `useSyncExternalStore`: increments only when the set of
- * messages for `locale` actually changes, so consumers re-render on bundle
- * load without re-rendering on unrelated locales.
+ * Snapshot version for `useSyncExternalStore`: monotonic counter per locale,
+ * incremented only when a bundle for that locale is inserted or replaced with
+ * DIFFERENT content. Consumers re-render on bundle load without re-rendering
+ * on unrelated locales or on identical re-registrations.
  */
 export function getPluginMessagesVersion(locale: string): number {
-  let version = 0;
-  let seen = false;
-  for (const bundle of bundles.values()) {
-    if (bundle.locale !== locale) continue;
-    seen = true;
-    version += bundle.loadedAt;
-  }
-  return seen ? version : 0;
+  return versions.get(locale) ?? 0;
 }
 
 /** Total bundles held (diagnostics/tests). */
@@ -76,5 +99,6 @@ export function subscribePluginMessages(listener: Listener): () => void {
 /** Test/diagnostic helper: clears every bundle (memory owned by the shell). */
 export function clearPluginBundles(): void {
   bundles.clear();
+  versions.clear();
   for (const listener of listeners) listener();
 }

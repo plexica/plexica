@@ -36,7 +36,9 @@ export const translationKeyParamSchema = z.object({
 
 export const putTranslationSchema = z.object({
   locale: z.enum(['en', 'it']),
-  // Empty value = delete row (revert to default). Non-empty capped at the
-  // column width (VARCHAR(1024)).
-  value: z.string().max(1024),
+  // Empty value = delete row (revert to default). Trim first so whitespace-only
+  // payloads ALSO take the revert path instead of persisting blank text, and so
+  // stored values never carry leading/trailing whitespace. Non-empty values are
+  // capped after trimming at the column width (VARCHAR(1024)).
+  value: z.string().trim().max(1024),
 });
