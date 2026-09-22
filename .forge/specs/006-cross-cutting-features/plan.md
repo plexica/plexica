@@ -366,14 +366,14 @@ every input (Security §4).
   { "data": [ { "id":"…", "type":"workspace.invite", "titleKey":"…", "bodyKey":null,
                "metadata":{} , "read":false, "createdAt":"…" } ], "total": 12, "page": 1, "pageSize": 20 }
   ```
-- **Errors**: 400 `VALIDATION_ERROR` (bad query), 401, 429.
+- **Errors**: 422 `VALIDATION_ERROR` (bad query), 401, 429.
 
 #### [PATCH] `/api/v1/notifications/:id/read` — mark read (006-02)
 
 - **Auth**: Required. **Params**: `id` (UUID, must belong to caller).
 - **Response (200)**: `{ id, read: true }`.
-- **Errors**: 400, 401, 404 `NOT_FOUND` (not found **or** not owned — no
-  enumeration), 429.
+- **Errors**: 422 `VALIDATION_ERROR` (bad id), 401, 404 `NOT_FOUND` (not found
+  **or** not owned — no enumeration), 429.
 
 #### [POST] `/api/v1/notifications/read-all` — mark all read (006-02, plan addition)
 
@@ -397,7 +397,7 @@ every input (Security §4).
     "types": { "plugin.crm.contact_created": { "inApp": true, "email": false } } }
   ```
 - **Response (200)**: saved prefs. **NFR**: round-trip < 300 ms (integration
-  test). **Errors**: 400, 401, 429.
+  test). **Errors**: 422 `VALIDATION_ERROR` (bad body), 401, 429.
 
 #### [GET] `/api/v1/notifications/types` — type registry (006-04/006-05)
 
@@ -437,7 +437,9 @@ every input (Security §4).
   **`202 { status: "accepted", notificationId }`** — verbatim per ADR-035
   Decision 5. There is **no** `200 { status: "queued" }` alternative; the
   `202`/`200` open choice is settled by the Accepted ADR.
-- **Errors**: 400, 401, 403, 429 `RATE_LIMIT_EXCEEDED`, 503.
+- **Errors**: 400, 401, 403, 422 `VALIDATION_ERROR` (bad body — incl. an
+  unregistered/impersonating plugin slug and a non-route-relative
+  `metadata.link`), 429 `RATE_LIMIT_EXCEEDED`, 503.
 
 ### 5.2 Notification Consumer Topology (internal, not HTTP)
 

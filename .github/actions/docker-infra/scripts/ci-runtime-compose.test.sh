@@ -49,9 +49,9 @@ grep -Fxe 'SMTP_HOST=mailpit' -e 'LOKI_URL=http://loki:3100' -e 'NODE_ENV=produc
 # mapping while storage ops keep the container-internal endpoint.
 grep -Fxe 'STORAGE_ENDPOINT=http://storage:9000' -e 'STORAGE_PUBLIC_ENDPOINT=http://127.0.0.1:32003' "$CI_RUNTIME_DIR/container.env" >/dev/null
 # Canonical E2E rate-limit tuning must reach the contract Core container: the
-# host-run suite raises RATE_LIMIT_MAX/ADMIN_RATE_LIMIT_MAX via coreApiEnv,
-# and rate-limit.spec requires XFF isolation through a trusted proxy hop.
-grep -Fxe 'RATE_LIMIT_MAX=10000' -e 'ADMIN_RATE_LIMIT_MAX=10000' -e 'RATE_LIMIT_RESOLVE_MAX=30' "$CI_RUNTIME_DIR/container.env" >/dev/null
+# host-run suite raises RATE_LIMIT_MAX/ADMIN_RATE_LIMIT_MAX via coreApiEnv and
+# rate-limit.spec requires XFF isolation through a trusted proxy hop.
+for expected in RATE_LIMIT_MAX=10000 ADMIN_RATE_LIMIT_MAX=10000 RATE_LIMIT_RESOLVE_MAX=30 NOTIFICATION_SSE_CONNECT_RATE_LIMIT=100; do grep -Fqx "$expected" "$CI_RUNTIME_DIR/container.env" >/dev/null; done
 grep -Fx 'TRUST_PROXY=127.0.0.1,::1,::ffff:127.0.0.1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16' "$CI_RUNTIME_DIR/container.env" >/dev/null
 if grep -Eq 'LOKI_HOST_URL|MAILPIT_(SMTP_URL|UI_BASE)|KEYCLOAK_HOST_ADMIN_BASE' "$CI_RUNTIME_DIR/container.env"; then
   echo 'Container contract exposed runner-only endpoints' >&2; exit 1

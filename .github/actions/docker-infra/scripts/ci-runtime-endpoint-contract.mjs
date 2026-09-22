@@ -67,6 +67,9 @@ const containerScalars = {
   RATE_LIMIT_MAX: (input) => input === '10000',
   ADMIN_RATE_LIMIT_MAX: (input) => input === '10000',
   RATE_LIMIT_RESOLVE_MAX: (input) => input === '30',
+  // SSE connect cap raised for the shared E2E member user (N3): the default
+  // ADR-035 10/min/user would 429 the cross-spec reconnects in one 60s window.
+  NOTIFICATION_SSE_CONNECT_RATE_LIMIT: (input) => input === '100',
   TRUST_PROXY: (input) =>
     input === '127.0.0.1,::1,::ffff:127.0.0.1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16',
 };

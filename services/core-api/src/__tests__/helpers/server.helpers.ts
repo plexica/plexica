@@ -16,6 +16,7 @@ import type { TenantContext } from '../../lib/tenant-context-store.js';
 // Reachability probes live in reachability.helpers.ts (Rule 4); re-exported
 // here so existing imports from server.helpers.js keep working.
 export {
+  ensureRedis,
   isDbReachable,
   isKeycloakReachable,
   isRedisReachable,

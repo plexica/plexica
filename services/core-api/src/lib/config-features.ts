@@ -10,6 +10,10 @@ export const featuresConfigShape = z.object({
   // Notifications (ADR-035, features 006-01…006-05)
   // SSE heartbeat keepalive interval.
   NOTIFICATION_SSE_HEARTBEAT_MS: z.coerce.number().int().min(1000).default(20_000),
+  // SSE connection-establishment rate limit (ADR-035 Decision 1): max connects
+  // per user per minute. Default 10; E2E/CI overrides raise it because a shared
+  // test member user re-establishes the stream across specs within one window.
+  NOTIFICATION_SSE_CONNECT_RATE_LIMIT: z.coerce.number().int().min(1).default(10),
   // Per-user open SSE connection cap (oldest evicted).
   NOTIFICATION_SSE_MAX_CONNECTIONS_PER_USER: z.coerce.number().int().min(1).default(5),
   // Per-connection bounded queue for frames published while the SSE socket

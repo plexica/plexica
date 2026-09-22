@@ -51,16 +51,35 @@ const pluginTypeSchema = z
 
 // POST /api/v1/notifications/emit (feature 006-05). The SDK pre-prefixes `type`
 // and adds `timestamp` + `correlationId` (plan §5.1) — the route does not.
-export const emitBodySchema = z.object({
-  userId: z.string().uuid(),
-  type: pluginTypeSchema,
-  titleKey: z.string().min(1).max(255),
-  titleParams: z.record(z.string(), z.string()).optional(),
-  bodyKey: z.string().min(1).max(255).nullable().optional(),
-  metadata: z.record(z.string(), z.unknown()).optional(),
-  timestamp: z.string().datetime({ offset: true }),
-  correlationId: z.string().uuid(),
-});
+export const emitBodySchema = z
+  .object({
+    userId: z.string().uuid(),
+    type: pluginTypeSchema,
+    titleKey: z.string().min(1).max(255),
+    titleParams: z.record(z.string(), z.string()).optional(),
+    bodyKey: z.string().min(1).max(255).nullable().optional(),
+    metadata: z.record(z.string(), z.unknown()).optional(),
+    timestamp: z.string().datetime({ offset: true }),
+    correlationId: z.string().uuid(),
+  })
+  .superRefine((value, context) => {
+    // metadata.link must be a route-relative path — never an absolute URL, a
+    // scheme, or a protocol-relative / backslash-normalized form (review N1:
+    // `//evil.com` and `/\evil.com` bypassed the old startsWith('/') guard and
+    // the browser normalizes both to `//`, letting a compromised plugin link
+    // off-platform). Accepted: `/contacts/123`, `/`. Rejected: `https://`,
+    // `javascript:`, `//host`, `/\host`, empty and non-string values.
+    const link = value.metadata?.['link'];
+    if (link === undefined) return;
+    if (typeof link !== 'string' || !/^\/(?:[^/\\]|$)/.test(link)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['metadata', 'link'],
+        message:
+          'metadata.link must be a route-relative path starting with a single "/" (e.g. /contacts/123)',
+      });
+    }
+  });
 
 // i18n keys stored in notifications.title/body (Security §6 — keys, not PII).
 export const translationKeySchema = z.string().min(1).max(255);
