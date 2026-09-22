@@ -124,14 +124,20 @@ describe('SseClient reconnect (B1)', () => {
     fetchMock.mockImplementation(async () => fakeResponse(halfOpenStream()));
 
     const client = new SseClient();
-    client.start();
-    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1)); // attempt #1, retry pending
-    client.stop();
-    await new Promise((resolve) => setTimeout(resolve, 1_200));
-    expect(fetchMock).toHaveBeenCalledTimes(1); // stopped — no resurrection
+    try {
+      client.start();
+      await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1)); // attempt #1, retry pending
+      client.stop();
+      await new Promise((resolve) => setTimeout(resolve, 1_200));
+      expect(fetchMock).toHaveBeenCalledTimes(1); // stopped — no resurrection
 
-    client.start(); // attempt #2 — must be able to schedule retries again
-    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
-    await waitFor(() => fetchMock.mock.calls.length >= 3, 5_000); // its retry fires
+      client.start(); // attempt #2 — must be able to schedule retries again
+      await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+      await waitFor(() => fetchMock.mock.calls.length >= 3, 5_000); // its retry fires
+    } finally {
+      // The retry spawned by the third fetch would keep invoking the fetch mock
+      // after the test returns — stop the client before exiting (review).
+      client.stop();
+    }
   });
 });
