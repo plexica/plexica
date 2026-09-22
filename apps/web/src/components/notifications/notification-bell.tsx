@@ -47,6 +47,8 @@ export function NotificationBell(): JSX.Element {
               data-testid="notification-badge"
               className="absolute right-0 top-0 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-semibold text-white"
             >
+              {/* Overflow badge cap ("99+") is a count threshold, not UI copy */}
+              {/* eslint-disable-next-line formatjs/no-literal-string-in-jsx -- numeric badge cap */}
               {unread > 99 ? '99+' : String(unread)}
             </span>
           )}

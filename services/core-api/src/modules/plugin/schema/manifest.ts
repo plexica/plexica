@@ -64,6 +64,15 @@ export const manifestSchema = z.object({
       extensionPoints: z.array(z.string()).default([]),
     })
     .optional(),
+  // i18n bundle locales shipped next to the MF asset base (006-09, D-8):
+  // the shell fetches `i18n/{locale}.json` from the remote asset origin and
+  // merges it under `plugin.{slug}.` keys. Additive — plugins without bundles
+  // keep working with only the `defaultMessage` fallbacks.
+  i18n: z
+    .object({
+      bundles: z.array(z.string()).default([]),
+    })
+    .optional(),
   events: z
     .object({
       subscribes: z.array(z.string()).default([]),

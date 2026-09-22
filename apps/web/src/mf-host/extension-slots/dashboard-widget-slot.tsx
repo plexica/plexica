@@ -3,13 +3,10 @@
 
 import { PluginSlot } from './plugin-slot.js';
 
+import type { PluginSlotEntry } from './plugin-slot.js';
+
 interface DashboardWidgetSlotProps {
-  pluginEntries: Array<{
-    slug: string;
-    installId: string;
-    remoteEntryUrl: string;
-    extensionPoint: string;
-  }>;
+  pluginEntries: PluginSlotEntry[];
 }
 
 export function DashboardWidgetSlot({ pluginEntries }: DashboardWidgetSlotProps): JSX.Element | null {

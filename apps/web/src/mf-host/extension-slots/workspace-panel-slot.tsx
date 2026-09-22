@@ -3,17 +3,17 @@
 
 import { PluginSlot } from './plugin-slot.js';
 
+import type { PluginSlotEntry } from './plugin-slot.js';
+
 interface WorkspacePanelSlotProps {
-  pluginEntries: Array<{
-    slug: string;
-    installId: string;
-    remoteEntryUrl: string;
-    extensionPoint: string;
-  }>;
+  pluginEntries: PluginSlotEntry[];
   workspaceId: string;
 }
 
-export function WorkspacePanelSlot({ pluginEntries, workspaceId }: WorkspacePanelSlotProps): JSX.Element | null {
+export function WorkspacePanelSlot({
+  pluginEntries,
+  workspaceId,
+}: WorkspacePanelSlotProps): JSX.Element | null {
   const panelPlugins = pluginEntries.filter((p) => p.extensionPoint === 'workspace-panel:main');
 
   if (panelPlugins.length === 0) {

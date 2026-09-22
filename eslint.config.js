@@ -1,5 +1,6 @@
 // For more info, see https://github.com/storybookjs/eslint-plugin-storybook#configuration-flat-config-format
 import storybook from 'eslint-plugin-storybook';
+import formatjs from 'eslint-plugin-formatjs';
 
 import js from '@eslint/js';
 import tsPlugin from '@typescript-eslint/eslint-plugin';
@@ -86,6 +87,41 @@ export default [
     },
   },
   ...storybook.configs['flat/recommended'],
+  // apps/web (006-06): every UI-facing string must go through react-intl.
+  // `formatjs/no-literal-string-in-jsx` (the v8 successor of the legacy
+  // `no-hardcoded-string`) flags untranslated JSX text children; the prop
+  // exclude-list covers props whose values legitimately come from data or
+  // existing localized calls. Scope is apps/web/src only — the plugin
+  // devDep lives at the repository ROOT (single declaration, used by this
+  // root flat config; apps/web imports it indirectly through eslint).
+  {
+    files: ['apps/web/src/**/*.{ts,tsx}'],
+    plugins: { formatjs },
+    rules: {
+      'formatjs/no-literal-string-in-jsx': [
+        'error',
+        {
+          props: {
+            exclude: [
+              ['*', 'title'],
+              ['*', 'aria-label'],
+              ['*', 'placeholder'],
+              ['*', 'alt'],
+              ['*', 'label'],
+              ['*', 'helperText'],
+              ['*', 'error'],
+              ['*', 'description'],
+            ],
+          },
+        },
+      ],
+      // Object-literal labels/strings are report-only off by default; message
+      // catalogs (i18n/*) and data files (role-options, profile-options) are
+      // intentionally not JSX and stay out of scope.
+      'formatjs/no-literal-string-in-object': 'off',
+      'formatjs/enforce-id': 'off',
+    },
+  },
   // Test files — allow non-null assertions (common in test assertions with mocks)
   {
     files: ['**/*.test.ts', '**/*.test.tsx', '**/*.spec.ts', '**/*.spec.tsx', '**/e2e/**/*.ts'],

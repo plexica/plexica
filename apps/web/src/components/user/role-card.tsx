@@ -1,6 +1,7 @@
 // role-card.tsx
 // Card component for displaying a role's name, scope and description.
 
+import { useIntl } from 'react-intl';
 import { Shield } from 'lucide-react';
 import { Badge } from '@plexica/ui';
 
@@ -11,6 +12,7 @@ interface RoleCardProps {
 }
 
 export function RoleCard({ role }: RoleCardProps): JSX.Element {
+  const intl = useIntl();
   return (
     <div className="rounded-lg border border-neutral-200 bg-white p-4 shadow-sm">
       <div className="flex items-start justify-between gap-2">
@@ -20,11 +22,15 @@ export function RoleCard({ role }: RoleCardProps): JSX.Element {
         </div>
         <Badge
           variant={role.scope === 'tenant' ? 'admin' : 'member'}
-          label={role.scope === 'tenant' ? 'Tenant' : 'Workspace'}
+          label={intl.formatMessage({
+            id: role.scope === 'tenant' ? 'roles.scope.tenant' : 'roles.scope.workspace',
+          })}
         />
       </div>
       <p className="mt-1 text-sm text-neutral-500">{role.description}</p>
-      <p className="mt-2 text-xs text-neutral-500">{role.actionCount} actions</p>
+      <p className="mt-2 text-xs text-neutral-500">
+        {intl.formatMessage({ id: 'roles.actionCount' }, { count: role.actionCount })}
+      </p>
     </div>
   );
 }

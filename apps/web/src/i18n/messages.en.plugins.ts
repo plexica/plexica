@@ -43,6 +43,8 @@ export const messagesPlugins = {
   'plugins.installed.empty': 'No plugins installed yet. Browse the Marketplace to find plugins.',
   'plugins.installed.loading': 'Loading installed plugins...',
   'plugins.installed.error': 'Failed to load installed plugins.',
+  'plugins.installed.version': 'v{version}',
+  'marketplace.detail.meta': '{author} · v{version}',
   'plugins.status.active': 'Active',
   'plugins.status.degraded': 'Degraded',
   'plugins.status.deactivated': 'Deactivated',

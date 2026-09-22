@@ -81,4 +81,10 @@ export const messagesAuthNav = {
 
   // User menu
   'user.menu.signOut': 'Sign out',
+
+  // Language switcher (006-07)
+  'language.switcher.label': 'Language',
+  'language.switcher.menu': 'Change language',
+  'language.en': 'English',
+  'language.it': 'Italiano',
 } as const;

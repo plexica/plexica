@@ -42,6 +42,8 @@ export function Breadcrumb(): JSX.Element {
           const isLast = index === breadcrumbs.length - 1;
           return (
             <li key={crumb.pathname} className="flex items-center gap-1.5">
+              {/* Decorative breadcrumb separator — aria-hidden, not translatable */}
+              {/* eslint-disable-next-line formatjs/no-literal-string-in-jsx -- separator glyph */}
               <span aria-hidden="true" className="text-neutral-300">
                 /
               </span>

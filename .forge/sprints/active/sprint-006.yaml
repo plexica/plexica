@@ -4,18 +4,23 @@ sprint_goal: 'Deliver Spec 006 — Cross-Cutting Features: real-time notificatio
 start_date: '2026-09-17'
 end_date: '2026-10-08'
 velocity_target: 27
-actual_velocity: null
+actual_velocity: 11
 kanban_phase: 'Phase 5'
 spec_id: '006-cross-cutting-features'
 spec_path: '.forge/specs/006-cross-cutting-features/spec.md'
-plan_path: null
-tasks_path: null
+plan_path: '.forge/specs/006-cross-cutting-features/plan.md'
+tasks_path: '.forge/specs/006-cross-cutting-features/tasks.md'
 retrospective_path: '.forge/sprints/retrospectives/sprint-006.md'
 
 # Scaling note: this is the first sprint on the normalized S/M/L velocity
 # scale (S=1, M=2, L=3). See .forge/sprints/velocity.md. Target 27 pts =
 # 3 weeks × ~9 pts/wk normalized baseline. 13 stories, 27 pts planned.
 # Deferred to Sprint 7: spec 006-19 OpenTelemetry tracing (optional).
+# Progress (2026-09-22): Phases 1-3 (notifications) merged — stories
+# 006-01..006-05 DONE (11 pts earned): PR #178 (aba7900, 2026-09-17),
+# PR #180 (c1abdc7, 2026-09-21), PR #195 (6f1923c, 2026-09-22).
+# Remaining: 8 stories / 16 pts (i18n → profile → observability).
+# Phase 4 (i18n) kickoff = next step.
 
 stories:
   # ── Phase 1 — Notifications (1.5 wks) ─────────────────────────────
@@ -23,7 +28,8 @@ stories:
     title: 'Real-time notification infrastructure (SSE)'
     forge_story_id: 'E06-S001'
     phase: 'Phase 1 — Notifications'
-    status: pending
+    status: done
+    completed_on: '2026-09-22'
     size: L
     points: 3
     spec_features: ['006-01']
@@ -32,7 +38,8 @@ stories:
   - id: '006-02'
     title: 'Notification center UI'
     phase: 'Phase 1 — Notifications'
-    status: pending
+    status: done
+    completed_on: '2026-09-22'
     size: M
     points: 2
     spec_features: ['006-02']
@@ -41,7 +48,8 @@ stories:
   - id: '006-03'
     title: 'Email notifications with retry queue'
     phase: 'Phase 1 — Notifications'
-    status: pending
+    status: done
+    completed_on: '2026-09-22'
     size: M
     points: 2
     spec_features: ['006-03']
@@ -50,7 +58,8 @@ stories:
   - id: '006-04'
     title: 'Per-user notification preferences'
     phase: 'Phase 1 — Notifications'
-    status: pending
+    status: done
+    completed_on: '2026-09-22'
     size: M
     points: 2
     spec_features: ['006-04']
@@ -59,7 +68,8 @@ stories:
   - id: '006-05'
     title: 'Plugin notification emission via SDK'
     phase: 'Phase 1 — Notifications'
-    status: pending
+    status: done
+    completed_on: '2026-09-22'
     size: M
     points: 2
     spec_features: ['006-05']

@@ -20,6 +20,10 @@ export interface PluginManifest {
     remoteEntry: string;
     extensionPoints: string[];
   };
+  /** Locale codes shipped as `i18n/{locale}.json` bundles (006-09). */
+  i18n?: {
+    bundles: string[];
+  };
   events: { subscribes: string[] };
   actions: PluginAction[];
   declaredTables: PluginTable[];
@@ -80,6 +84,8 @@ export type PluginInstallStatus =
 export interface WorkspacePluginEntry {
   installId: string;
   slug: string;
+  /** Locales the plugin ships i18n bundles for (006-09). */
+  i18nBundles: string[];
   remoteEntryUrl: string;
   extensionPoint: string;
 }

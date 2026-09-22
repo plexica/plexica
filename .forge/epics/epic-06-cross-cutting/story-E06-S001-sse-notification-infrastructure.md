@@ -10,7 +10,13 @@
 | Sprint   | 6 (sprint story `006-01`) |
 | Points   | 3                 |
 | Priority | High              |
-| Status   | Ready             |
+| Status   | Done (2026-09-22) |
+
+> **Completion**: delivered via PR #178 (Phase 1 Foundation, `aba7900`,
+> 2026-09-17) + PR #180 (Phase 2 core, `c1abdc7`, 2026-09-21) + PR #195
+> (Phase 3 interface/tests, `6f1923c`, 2026-09-22). E2E
+> `notification-sse.spec.ts` + integration + unit suites green in CI;
+> confirmatory stories 006-02..006-05 built on this foundation.
 
 ---
 
@@ -126,14 +132,14 @@ This is the foundation story of Phase 1 — Notifications. Stories `006-02`
 
 ## Definition of Done
 
-- [ ] All acceptance criteria pass
-- [ ] Unit tests written and passing
-- [ ] Integration tests written and passing
-- [ ] Code passes `/forge-review` adversarial review
-- [ ] No HIGH severity findings unresolved
-- [ ] Code follows constitution conventions (Rule 4: no file > 200 lines)
-- [ ] Documentation updated (if user-facing changes)
-- [ ] PR created with spec/story reference (`006-01` / `E06-S001`)
+- [x] All acceptance criteria pass
+- [x] Unit tests written and passing
+- [x] Integration tests written and passing
+- [x] Code passes `/forge-review` adversarial review
+- [x] No HIGH severity findings unresolved
+- [x] Code follows constitution conventions (Rule 4: no file > 200 lines)
+- [x] Documentation updated (if user-facing changes)
+- [x] PR created with spec/story reference (`006-01` / `E06-S001`)
 
 ## Dependencies
 

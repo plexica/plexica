@@ -12,12 +12,20 @@ import { clearAuthQueryCache } from '../services/auth-query-cache.js';
 import { keycloakClient, REDIRECT_URI } from '../services/keycloak-auth.js';
 
 import type { UserProfile, AuthState } from '../types/auth.js';
+import type { LocaleCode } from '../i18n/locales.js';
 
 interface WebAuthState extends AuthState {
   tenantSlug: string | null;
   tenantUuid: string | null;
   realm: string | null;
+  /**
+   * Active UI locale (006-07, D-7). Persisted with the auth state so a page
+   * reload keeps the user's choice; `user_profile.language` on the profile
+   * endpoint remains the source of truth (synced via PATCH /profile).
+   */
+  locale: LocaleCode;
   setTenantContext: (slug: string, realm: string, uuid?: string) => void;
+  setLocale: (locale: LocaleCode) => void;
 }
 
 export const useAuthStore = createAuthStore<UserProfile, WebAuthState>({
@@ -45,17 +53,23 @@ export const useAuthStore = createAuthStore<UserProfile, WebAuthState>({
     tenantSlug: state.tenantSlug,
     tenantUuid: state.tenantUuid,
     realm: state.realm,
+    locale: state.locale,
   }),
 
   extraState: {
     tenantSlug: null,
     tenantUuid: null,
     realm: null,
+    // Default locale: 'en' is the EN-default catalog (006-06 risk fallback).
+    locale: 'en' as LocaleCode,
   },
 
-  extraActions: (set: (partial: Partial<WebAuthState>) => void) => ({
+  extraActions: (set) => ({
     setTenantContext: (tenantSlug: string, realm: string, tenantUuid?: string) => {
       set({ tenantSlug, tenantUuid: tenantUuid ?? null, realm });
+    },
+    setLocale: (locale: LocaleCode) => {
+      set({ locale });
     },
   }),
 

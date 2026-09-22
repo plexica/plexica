@@ -6,7 +6,37 @@
 > For lessons learned from the v1 codebase, see
 > [lessons-learned.md](./lessons-learned.md).
 
-**Last Updated**: 2026-09-17 (Phase 1 Spec 006: review fixes + schema.prisma line-gate exemption)
+**Last Updated**: 2026-09-22 (Spec 006 Phases 1-3 merged — notifications delivered)
+
+---
+
+## Spec 006 — Phases 1-3 Merged: Notifications Delivered (2026-09-22)
+
+**Status**: `completed`
+**Tags**: `spec-006`, `notifications`, `sse`, `email-queue`, `ui-fix`, `test-isolation`
+**Spec Refs**: `006-cross-cutting-features` (stories 006-01..006-05, 11 pts)
+
+**Issue**: Spec 006 Phases 1-3 (notifications workstream) shipped and merged
+behind three PRs; sprint artifacts updated to match reality.
+**Resolved by**: Build agent PRs below; phased merges verified on `main`.
+
+| Merged | PR / commit | Scope |
+| ------ | ----------- | ----- |
+| 2026-09-17 | #178 `aba7900` | Phase 1 Foundation: `EmailQueue` model + lease/purge/delivered migrations (012-016), tenant `notifications` + `translation_overrides` raw-SQL migrations, prom-client `15.1.3`, env config, `SSE_CONNECT_RATE_LIMIT`, shared api-types (`notification.ts`), SDK `emitNotification` |
+| 2026-09-21 | #180 `c1abdc7` | Phase 2 Core: ConnectionManager (cap 5/heartbeat/gauge), manual SSE framing, consumer dedupe-first pipeline, email queue (lease + `delivered_at` effectively-once marker), emit rate limiter, invitation transactional outbox, GDPR email-queue purge step, bootstrap wiring + consumer supervisor |
+| 2026-09-22 | #195 `6f1923c` | Phase 3 Interface/UI/tests: SSE stream + center + prefs + emit (202) routes, frontend (fetch-streaming sse-client, bell/center/prefs pages, i18n EN/IT), 5 E2E specs + 6 integration test files |
+
+**Key discoveries**:
+1. `packages/ui/button.tsx` `asChild` Radix Slot bug — Slot must receive exactly one child; fixed system-wide (`b7ba2db`). Any future `asChild` misuse is a design-system regression, not a component-local issue.
+2. Test isolation: the shared Redis alpha client must be stopped with `redis.quit()` (never `.disconnect()`/force-kill) — pattern extracted and reused across suites (`af28efd`).
+3. Notification dead-letter behavior: rate-limit breaches **never DLQ** — delivery suppressed, row persisted, counter incremented (prevents redelivery quota inflation); only processing failures, decrypt failures, and over-length plugin types DLQ.
+4. Email is effectively-once: `delivered_at` marker (`c58925b`) on top of `dedupe_key` `ON CONFLICT DO NOTHING`.
+5. Consumer pipeline is dedupe-first: insert-ignore before cap check so at-least-once redeliveries never consume quota.
+6. Test layout drifted from plan: INT tests landed in `services/core-api/src/__tests__/notification/` + `__tests__/admin/` (not `modules/notification/__tests__/`); unit tests in `__tests__/unit/notification/`. Reflect in Phase 4 planning + retro.
+
+**Outstanding follow-ups**: issue #179 (flake E2E `plugin-system` ac-06-dlq / ac-02); health-probe flake note; ADR-035 `titleParams` PII note (thread via row metadata → SSE DTO, never in logs); prom-client deprecation follow-up ADR (`^15` registry → `@prometheus-io/client`) before Phase 6 Observability.
+
+**Verified**: core-api unit 678 · web unit 73 · notification+admin INT 334 · notifications + pre-existing E2E suites green in CI. CodeQL alerts dismissed; 9 CodeRabbit comments closed.
 
 ---
 

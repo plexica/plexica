@@ -72,13 +72,13 @@ export function ContactList(context: CrmApiContext): React.JSX.Element {
 
   if (isLoading) {
     return (
-      <Table aria-label={intl.formatMessage({ id: 'crm.list.title' })}>
+      <Table aria-label={intl.formatMessage({ id: 'plugin.crm.list.title', defaultMessage: 'Contacts' })}>
         <TableHeader>
           <TableRow>
-            <TableHead>{intl.formatMessage({ id: 'crm.list.name' })}</TableHead>
-            <TableHead>{intl.formatMessage({ id: 'crm.list.email' })}</TableHead>
-            <TableHead>{intl.formatMessage({ id: 'crm.list.phone' })}</TableHead>
-            <TableHead><span className="sr-only">{intl.formatMessage({ id: 'crm.list.actions' })}</span></TableHead>
+            <TableHead>{intl.formatMessage({ id: 'plugin.crm.list.name', defaultMessage: 'Name' })}</TableHead>
+            <TableHead>{intl.formatMessage({ id: 'plugin.crm.list.email', defaultMessage: 'Email' })}</TableHead>
+            <TableHead>{intl.formatMessage({ id: 'plugin.crm.list.phone', defaultMessage: 'Phone' })}</TableHead>
+            <TableHead><span className="sr-only">{intl.formatMessage({ id: 'plugin.crm.list.actions', defaultMessage: 'Actions' })}</span></TableHead>
           </TableRow>
         </TableHeader>
         <TableBody><SkeletonRows /></TableBody>
@@ -89,9 +89,9 @@ export function ContactList(context: CrmApiContext): React.JSX.Element {
   if (isError) {
     return (
       <div className="flex flex-col items-center gap-4 rounded-lg border border-error bg-error-light p-8 text-center" role="alert">
-        <p className="text-sm text-error-dark">{intl.formatMessage({ id: 'crm.list.error' })}</p>
-        <Button variant="outline" onClick={() => refetch()} aria-label={intl.formatMessage({ id: 'crm.list.retry' })}>
-          {intl.formatMessage({ id: 'crm.list.retry' })}
+        <p className="text-sm text-error-dark">{intl.formatMessage({ id: 'plugin.crm.list.error', defaultMessage: 'Contacts could not be loaded.' })}</p>
+        <Button variant="outline" onClick={() => refetch()} aria-label={intl.formatMessage({ id: 'plugin.crm.list.retry', defaultMessage: 'Retry' })}>
+          {intl.formatMessage({ id: 'plugin.crm.list.retry', defaultMessage: 'Retry' })}
         </Button>
       </div>
     );
@@ -100,15 +100,15 @@ export function ContactList(context: CrmApiContext): React.JSX.Element {
   if (!contacts || contacts.length === 0) {
     return (
       <div className="space-y-4">
-        <h2 className="text-lg font-semibold text-neutral-900">{intl.formatMessage({ id: 'crm.list.title' })}</h2>
+        <h2 className="text-lg font-semibold text-neutral-900">{intl.formatMessage({ id: 'plugin.crm.list.title', defaultMessage: 'Contacts' })}</h2>
         <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-neutral-300 p-8 text-center">
-          <p className="text-sm text-neutral-500">{intl.formatMessage({ id: 'crm.list.empty' })}</p>
+          <p className="text-sm text-neutral-500">{intl.formatMessage({ id: 'plugin.crm.list.empty', defaultMessage: 'No contacts in this workspace yet.' })}</p>
           <Button
             variant="primary"
             onClick={() => setShowForm(true)}
-            aria-label={intl.formatMessage({ id: 'crm.list.addContact' })}
+            aria-label={intl.formatMessage({ id: 'plugin.crm.list.addContact', defaultMessage: 'Add Contact' })}
           >
-            {intl.formatMessage({ id: 'crm.list.addContact' })}
+            {intl.formatMessage({ id: 'plugin.crm.list.addContact', defaultMessage: 'Add Contact' })}
           </Button>
         </div>
         {showForm && (
@@ -121,14 +121,14 @@ export function ContactList(context: CrmApiContext): React.JSX.Element {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-neutral-900">{intl.formatMessage({ id: 'crm.list.title' })}</h2>
+        <h2 className="text-lg font-semibold text-neutral-900">{intl.formatMessage({ id: 'plugin.crm.list.title', defaultMessage: 'Contacts' })}</h2>
         <Button
           variant="primary"
           size="sm"
           onClick={() => { setEditingContact(null); setShowForm(true); }}
-          aria-label={intl.formatMessage({ id: 'crm.list.addContact' })}
+          aria-label={intl.formatMessage({ id: 'plugin.crm.list.addContact', defaultMessage: 'Add Contact' })}
         >
-          {intl.formatMessage({ id: 'crm.list.addContact' })}
+          {intl.formatMessage({ id: 'plugin.crm.list.addContact', defaultMessage: 'Add Contact' })}
         </Button>
       </div>
 
@@ -141,14 +141,14 @@ export function ContactList(context: CrmApiContext): React.JSX.Element {
         />
       )}
 
-      <div role="region" aria-label={intl.formatMessage({ id: 'crm.list.title' })}>
+      <div role="region" aria-label={intl.formatMessage({ id: 'plugin.crm.list.title', defaultMessage: 'Contacts' })}>
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>{intl.formatMessage({ id: 'crm.list.name' })}</TableHead>
-              <TableHead>{intl.formatMessage({ id: 'crm.list.email' })}</TableHead>
-              <TableHead>{intl.formatMessage({ id: 'crm.list.phone' })}</TableHead>
-              <TableHead><span className="sr-only">{intl.formatMessage({ id: 'crm.list.actions' })}</span></TableHead>
+              <TableHead>{intl.formatMessage({ id: 'plugin.crm.list.name', defaultMessage: 'Name' })}</TableHead>
+              <TableHead>{intl.formatMessage({ id: 'plugin.crm.list.email', defaultMessage: 'Email' })}</TableHead>
+              <TableHead>{intl.formatMessage({ id: 'plugin.crm.list.phone', defaultMessage: 'Phone' })}</TableHead>
+              <TableHead><span className="sr-only">{intl.formatMessage({ id: 'plugin.crm.list.actions', defaultMessage: 'Actions' })}</span></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -163,17 +163,17 @@ export function ContactList(context: CrmApiContext): React.JSX.Element {
                       variant="ghost"
                       size="sm"
                       onClick={() => handleEdit(contact)}
-                      aria-label={intl.formatMessage({ id: 'crm.list.edit' }, { name: contact.name })}
+                      aria-label={intl.formatMessage({ id: 'plugin.crm.list.edit', defaultMessage: 'Edit {name}' }, { name: contact.name })}
                     >
-                      {intl.formatMessage({ id: 'crm.list.edit' })}
+                      {intl.formatMessage({ id: 'plugin.crm.list.edit', defaultMessage: 'Edit {name}' })}
                     </Button>
                     <Button
                       variant="ghost"
                       size="sm"
                       onClick={() => setDeleting(contact)}
-                      aria-label={intl.formatMessage({ id: 'crm.list.delete' }, { name: contact.name })}
+                      aria-label={intl.formatMessage({ id: 'plugin.crm.list.delete', defaultMessage: 'Delete {name}' }, { name: contact.name })}
                     >
-                      {intl.formatMessage({ id: 'crm.list.delete' })}
+                      {intl.formatMessage({ id: 'plugin.crm.list.delete', defaultMessage: 'Delete {name}' })}
                     </Button>
                   </div>
                 </TableCell>
@@ -186,10 +186,10 @@ export function ContactList(context: CrmApiContext): React.JSX.Element {
       <ConfirmDialog
         open={deleting !== null}
         onOpenChange={(open) => { if (!open) setDeleting(null); }}
-        title={intl.formatMessage({ id: 'crm.delete.title' })}
-        description={intl.formatMessage({ id: 'crm.delete.description' }, { name: deleting?.name ?? '' })}
-        confirmLabel={intl.formatMessage({ id: 'crm.delete.confirm' })}
-        cancelLabel={intl.formatMessage({ id: 'crm.delete.cancel' })}
+        title={intl.formatMessage({ id: 'plugin.crm.delete.title', defaultMessage: 'Delete contact?' })}
+        description={intl.formatMessage({ id: 'plugin.crm.delete.description', defaultMessage: 'Delete {name} permanently?' }, { name: deleting?.name ?? '' })}
+        confirmLabel={intl.formatMessage({ id: 'plugin.crm.delete.confirm', defaultMessage: 'Delete contact' })}
+        cancelLabel={intl.formatMessage({ id: 'plugin.crm.delete.cancel', defaultMessage: 'Cancel' })}
         variant="destructive"
         onConfirm={() => { if (deleting) deleteMutation.mutate(deleting.id); }}
         loading={deleteMutation.isPending}

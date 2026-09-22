@@ -101,4 +101,27 @@ export const messagesSettingsCommon = {
   'workspace.members.empty.description': 'Invite users to give them access to this workspace.',
   'workspace.children.empty': 'No sub-workspaces',
   'workspace.children.empty.description': 'Sub-workspaces created under this workspace will appear here.',
+
+  // Tenant translation overrides (006-10)
+  'translations.title': 'Translations',
+  'translations.description':
+    "Override interface strings at the tenant level. Precedence: overrides > plugin > core.",
+  'translations.overrides.heading': 'Active overrides',
+  'translations.loading': 'Loading translations...',
+  'translations.error': 'Failed to load translations.',
+  'translations.empty': 'No overrides configured. Default strings remain active.',
+  'translations.key.label': 'Message key',
+  'translations.value.label': 'Value ({locale})',
+  'translations.locale.en': 'English',
+  'translations.locale.it': 'Italiano',
+  'translations.save': 'Save',
+  'translations.add': 'Add override',
+  'translations.revert': 'Revert',
+  'translations.revert.confirm': 'Revert this override?',
+  'translations.revert.confirm.description':
+    'The default {locale} string will be active again.',
+  'translations.saved': 'Override saved',
+  'translations.reverted': 'Override reverted',
+  'translations.notAdmin': 'Only tenant administrators can edit translations.',
+  'translations.key.invalid': 'Enter a valid key (e.g. common.save).',
 } as const;

@@ -31,6 +31,7 @@ import { invitationRoutes, invitationPublicRoutes } from './modules/invitation/r
 import { userManagementRoutes } from './modules/user-management/routes.js';
 import { userProfileRoutes } from './modules/user-profile/routes.js';
 import { tenantSettingsRoutes } from './modules/tenant-settings/routes.js';
+import { translationRoutes } from './modules/tenant-settings/translation-routes.js';
 import { auditLogRoutes } from './modules/audit-log/routes.js';
 import {
   pluginAdminRoutes,
@@ -158,6 +159,7 @@ await server.register(async (tenantScope) => {
   await tenantScope.register(userManagementRoutes);
   await tenantScope.register(userProfileRoutes);
   await tenantScope.register(tenantSettingsRoutes);
+  await tenantScope.register(translationRoutes);
   await tenantScope.register(auditLogRoutes);
   await tenantScope.register(pluginTenantRoutes);
   await tenantScope.register(notificationModuleRoutes);

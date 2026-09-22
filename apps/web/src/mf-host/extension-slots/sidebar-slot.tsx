@@ -4,13 +4,10 @@
 
 import { PluginSlot } from './plugin-slot.js';
 
+import type { PluginSlotEntry } from './plugin-slot.js';
+
 interface SidebarSlotProps {
-  pluginEntries: Array<{
-    slug: string;
-    installId: string;
-    remoteEntryUrl: string;
-    extensionPoint: string;
-  }>;
+  pluginEntries: PluginSlotEntry[];
 }
 
 export function SidebarSlot({ pluginEntries }: SidebarSlotProps): JSX.Element | null {
