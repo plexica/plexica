@@ -32,8 +32,8 @@ ReactDOM.createRoot(rootElement).render(
         <ToastProvider>
           <SessionExpiredHandler />
           <RouterProvider router={router} />
+          <ToastViewport />
         </ToastProvider>
-        <ToastViewport />
       </IntlMessageProvider>
     </QueryClientProvider>
   </React.StrictMode>
