@@ -24,7 +24,7 @@ import {
 } from '../../lib/rate-limit-config.js';
 import { notificationModuleRoutes } from '../../modules/notification/index.js';
 import { cleanupTenant, seedTenant } from '../helpers/db.helpers.js';
-import { createTestServer, isDbReachable } from '../helpers/server.helpers.js';
+import { createTestServer, ensureRedis, isDbReachable } from '../helpers/server.helpers.js';
 
 import type { FastifyInstance } from 'fastify';
 import type { FastifyRequest } from 'fastify';
@@ -49,19 +49,6 @@ afterAll(async () => {
 async function prismaDisconnect(): Promise<void> {
   const { prisma } = await import('../../lib/database.js');
   await prisma.$disconnect();
-}
-
-/** Reconnects the shared Redis client (a prior file may have quit() it). */
-async function ensureRedis(): Promise<boolean> {
-  try {
-    if (redis.status === 'ready' || redis.status === 'connect') {
-      return (await redis.ping()) === 'PONG';
-    }
-    await redis.connect();
-    return (await redis.ping()) === 'PONG';
-  } catch {
-    return false;
-  }
 }
 
 describe('SSE connect rate limit (INT, M2)', () => {

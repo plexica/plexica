@@ -1,9 +1,7 @@
 // notification.emit.routes.int.test.ts
 // INT (feature 006-05, review M4): POST /api/v1/notifications/emit service
-// identity path — the X-Plugin-Service-Token branch (tenantId / scope
-// 'events:emit' / plugin-slug type-prefix impersonation guard), mirroring
-// plugin-service-event-auth.test.ts; wrong-tenant/wrong-scope use a crafted
-// identity (unreachable via a valid credential).
+// identity path — X-Plugin-Service-Token branch (tenantId/scope 'events:emit'/
+// plugin-slug impersonation guard); wrong-tenant/scope use a crafted identity.
 
 import { randomUUID } from 'node:crypto';
 
@@ -24,8 +22,7 @@ import {
 import { cleanupTenant, seedTenant } from '../helpers/db.helpers.js';
 import { isDbReachable } from '../helpers/server.helpers.js';
 
-import type { FastifyInstance } from 'fastify';
-import type { FastifyRequest } from 'fastify';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { PluginServiceIdentity } from '../../modules/plugin/services/service-credential.service.js';
 import type { TenantContext } from '../../lib/tenant-context-store.js';
 
@@ -109,12 +106,12 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await server?.close();
+  // Ack outbox rows before cleanupTenant — a pending row leaks into the live pipeline (Bug 2).
   await prisma.eventOutbox.deleteMany({ where: { tenantId: contextA?.tenantId } });
   await prisma.pluginServiceCredential.deleteMany({ where: { pluginId } });
   await prisma.plugin.deleteMany({ where: { id: pluginId } });
   await cleanupTenant(SLUG_A);
   await cleanupTenant(SLUG_B);
-  await prisma.$disconnect();
 });
 
 describe('notification emit — plugin service identity (M4)', () => {
@@ -140,6 +137,9 @@ describe('notification emit — plugin service identity (M4)', () => {
         producerId: INSTALL_ID,
         eventType: 'plexica.notification',
       });
+
+      // Ack now — a pending row is claimed by the 1s live publisher and leaks (Bug 2).
+      await prisma.eventOutbox.deleteMany({ where: { correlationId } });
     }
   );
 

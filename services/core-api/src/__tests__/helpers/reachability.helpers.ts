@@ -39,6 +39,40 @@ export async function isRedisReachable(): Promise<boolean> {
   }
 }
 
+/**
+ * Ensures the shared Redis client is usable, reconnecting it if a prior test
+ * file quit() it. The integration project runs in a single isolate:false fork,
+ * so teardown in one file can end the singleton for every later file (Bug 1).
+ * Returns false only when the Redis server itself is unreachable.
+ */
+export async function ensureRedis(): Promise<boolean> {
+  try {
+    const { redis } = await import('../../lib/redis.js');
+    if (redis.status === 'ready' || redis.status === 'connect') {
+      try {
+        return (await redis.ping()) === 'PONG';
+      } catch {
+        // ping failed although status reads ready/connect — a quit() is still
+        // draining the client (ioredis keeps status='ready' until the socket
+        // fully closes). Wait for the status to settle before reconnecting.
+        await waitForRedisEnd(redis);
+      }
+    }
+    await redis.connect();
+    return (await redis.ping()) === 'PONG';
+  } catch {
+    return false;
+  }
+}
+
+/** Waits (bounded) for an ioredis client to leave the ready/connect states. */
+async function waitForRedisEnd(redis: { status: string }): Promise<void> {
+  for (let attempt = 0; attempt < 50; attempt++) {
+    if (redis.status !== 'ready' && redis.status !== 'connect') return;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+}
+
 /** Returns true when object storage is reachable. */
 export async function isStorageReachable(): Promise<boolean> {
   try {
@@ -62,6 +96,8 @@ export async function requireInfra(suiteName: string): Promise<void> {
     isStorageReachable(),
   ]);
   if (!dbOk || !kcOk || !storageOk) {
-    throw new Error(`PostgreSQL + Keycloak + object storage must all be reachable for ${suiteName}.`);
+    throw new Error(
+      `PostgreSQL + Keycloak + object storage must all be reachable for ${suiteName}.`
+    );
   }
 }

@@ -13,7 +13,7 @@ import { prisma } from '../../lib/database.js';
 import { redis } from '../../lib/redis.js';
 import { connectionManager } from '../../modules/notification/connection-manager.js';
 import { cleanupTenant, seedTenant, seedUserProfile } from '../helpers/db.helpers.js';
-import { isDbReachable, isRedisReachable } from '../helpers/server.helpers.js';
+import { ensureRedis, isDbReachable } from '../helpers/server.helpers.js';
 import {
   asServerResponse,
   createFakeSseResponse,
@@ -35,7 +35,11 @@ import type { TenantContext } from '../../lib/tenant-context-store.js';
 
 const SLUG = 'notif-int-consumer';
 
-const skipIfNoStack = it.skipIf(!(await isDbReachable()) || !(await isRedisReachable()));
+// ensureRedis() reconnects the shared ioredis singleton if an earlier
+// isolate:false file quit() it — the consumer pipeline drives the SSE cap
+// counter (F5) through Redis, so the suite must not silently skip on a client
+// that merely ended.
+const skipIfNoStack = it.skipIf(!(await isDbReachable()) || !(await ensureRedis()));
 
 let ctx: TenantContext;
 let keyVersion: number;
@@ -51,10 +55,14 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  // Do NOT teardown the shared prisma/redis singletons here: the integration
+  // project runs in one isolate:false fork, so $disconnect()/quit() would kill
+  // the shared client for every later test file (Bug 1 — health.routes.int
+  // broke because the redis probe got "Connection is closed."). Prisma reconnects
+  // lazily and the next ensureRedis() reconnects Redis, so dropping the calls is
+  // safe; cleanupTenant still purges the tenant + tenant-scoped outbox/DLQ rows.
   await prisma.emailQueue.deleteMany({ where: { tenantId: ctx.tenantId } });
   await cleanupTenant(SLUG);
-  await prisma.$disconnect();
-  await redis.quit();
 });
 
 describe('notification consumer (INT)', () => {

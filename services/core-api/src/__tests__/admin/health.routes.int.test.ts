@@ -5,7 +5,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { healthRoutes } from '../../modules/admin/routes/health.routes.js';
-import { createAdminTestServer, isDbReachable } from '../helpers/server.helpers.js';
+import { createAdminTestServer, ensureRedis, isDbReachable } from '../helpers/server.helpers.js';
 
 import type { FastifyInstance } from 'fastify';
 
@@ -19,6 +19,11 @@ beforeAll(async () => {
       'Database is not reachable — tests cannot run. Ensure PostgreSQL is running and DATABASE_URL is configured.'
     );
   }
+
+  // Defense-in-depth: an earlier isolate:false test file must never be able to
+  // take the redis health probe down by quitting the shared client. Reconnect
+  // if a prior file ended it so `GET /health` reports redis::healthy here.
+  await ensureRedis();
 
   server = await createAdminTestServer([healthRoutes]);
   unauthServer = await createAdminTestServer([healthRoutes], { auth: false });
