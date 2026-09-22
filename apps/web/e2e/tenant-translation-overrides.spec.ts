@@ -82,11 +82,13 @@ test.describe('E2E 006-10: tenant translation overrides', () => {
     const member = await openMemberSession(browser, testInfo);
     try {
       // Boot merge fetched the overrides → the sidebar label is overridden.
+      // Role-scoped: nav labels render twice in the DOM (desktop aside + hidden
+      // mobile drawer); getByRole sees only the visible sidebar link.
       await expect(
-        member.page.getByText('Team Areas', { exact: true }),
+        member.page.getByRole('link', { name: 'Team Areas', exact: true }),
         'member must see the tenant override'
       ).toBeVisible({ timeout: 15_000 });
-      await expect(member.page.getByText('Workspaces', { exact: true })).toBeHidden();
+      await expect(member.page.getByRole('link', { name: 'Workspaces', exact: true })).toBeHidden();
 
       // ── Admin reverts; a fresh member load restores the default ─────────────
       await page.goto('/settings/translations');
@@ -96,10 +98,10 @@ test.describe('E2E 006-10: tenant translation overrides', () => {
 
       await member.page.reload();
       await expect(
-        member.page.getByText('Workspaces', { exact: true }),
+        member.page.getByRole('link', { name: 'Workspaces', exact: true }),
         'revert must restore the default string'
       ).toBeVisible({ timeout: 15_000 });
-      await expect(member.page.getByText('Team Areas', { exact: true })).toBeHidden();
+      await expect(member.page.getByRole('link', { name: 'Team Areas', exact: true })).toBeHidden();
     } finally {
       await member.close();
     }

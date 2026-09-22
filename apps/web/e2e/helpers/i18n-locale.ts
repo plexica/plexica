@@ -67,10 +67,14 @@ export async function switchLocaleViaUi(page: Page, locale: UiLocale): Promise<n
   await trigger.click();
 
   const menuItem = page.getByRole('menuitem', { name: LOCALE_LABEL[locale], exact: true });
-  const flippedNav = page.getByText(
-    locale === 'it' ? 'Registro di controllo' : 'Audit Log',
-    { exact: true }
-  );
+  // The nav label renders TWICE in the DOM (desktop aside + mobile drawer, the
+  // latter display:none). getByText would strict-mode-fail on both; scoping to
+  // the link role keeps only the desktop sidebar item (getByRole skips the
+  // hidden drawer), which is exactly the "sidebar label flipped" signal.
+  const flippedNav = page.getByRole('link', {
+    name: locale === 'it' ? 'Registro di controllo' : 'Audit Log',
+    exact: true,
+  });
 
   const started = Date.now();
   await menuItem.click();
