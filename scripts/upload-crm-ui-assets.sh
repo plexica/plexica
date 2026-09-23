@@ -26,10 +26,20 @@ manifest_file="$(dirname "$dist_root")/manifest.json"
 
 # Locales declared by the plugin manifest (`i18n.bundles`); empty when the
 # plugin ships no bundles. Parsed once, used for upload + existence assertions.
-mapfile -t declared_locales < <(
-  node -e 'const m = require(process.argv[1]); process.stdout.write((m.i18n?.bundles ?? []).join("\n"))' \
+# Read/parse explicitly — never require() a relative path (Node resolves it as a
+# package name → MODULE_NOT_FOUND) — and fail loudly: a silent parse gap would
+# upload nothing and leave every i18n/{locale}.json fetch 404ing in E2E/prod.
+[[ -f "$manifest_file" ]] || fail "Missing $manifest_file — cannot read i18n.bundles"
+declared_locales_raw=$(
+  node -e 'const { readFileSync } = require("node:fs");
+           const m = JSON.parse(readFileSync(process.argv[1], "utf8"));
+           process.stdout.write((m.i18n?.bundles ?? []).join("\n"));' \
     "$manifest_file"
-)
+) || fail "Failed to parse $manifest_file"
+declared_locales=()
+if [[ -n "$declared_locales_raw" ]]; then
+  mapfile -t declared_locales <<< "$declared_locales_raw"
+fi
 
 docker exec "$storage_container" rm -rf /tmp/crm-assets
 docker cp "$asset_root/." "$storage_container:/tmp/crm-assets"

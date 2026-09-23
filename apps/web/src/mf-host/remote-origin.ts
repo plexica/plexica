@@ -13,10 +13,9 @@ export const ALLOWED_ORIGINS = [
   'http://127.0.0.1:4001',
 ];
 
-// Allow-list fallback for the object-storage asset origin in production. The
-// exact configured origin is matched via configuredAssetOrigin above; this
-// pattern tolerates any neutral storage host (legacy vendor domains dropped).
-const STORAGE_ORIGIN_PATTERN = /^https:\/\/storage\./;
+// Exact object-storage asset origin in production (VITE_PLUGIN_ASSET_ORIGIN).
+// Local dev still uses the storage default below; there is deliberately NO
+// broad `storage.*` pattern — an attacker-controlled host must never pass.
 const configuredAssetOrigin = import.meta.env.VITE_PLUGIN_ASSET_ORIGIN as string | undefined;
 
 // CI runtime contract builds serve plugin assets from a per-project object
@@ -27,9 +26,7 @@ const configuredAssetOrigin = import.meta.env.VITE_PLUGIN_ASSET_ORIGIN as string
 declare const __PLEXICA_CI_RUNTIME_CONTRACT__: boolean;
 
 export function ciRuntimeContractBuild(): boolean {
-  return (
-    typeof __PLEXICA_CI_RUNTIME_CONTRACT__ !== 'undefined' && __PLEXICA_CI_RUNTIME_CONTRACT__
-  );
+  return typeof __PLEXICA_CI_RUNTIME_CONTRACT__ !== 'undefined' && __PLEXICA_CI_RUNTIME_CONTRACT__;
 }
 
 const CI_LOOPBACK_ORIGIN_PATTERN = /^http:\/\/127\.0\.0\.1:[1-9][0-9]*$/;
@@ -41,7 +38,6 @@ export function isOriginAllowed(url: string): boolean {
       ALLOWED_ORIGINS.includes(parsed.origin) ||
       parsed.origin === configuredAssetOrigin ||
       parsed.origin === 'http://localhost:9000' ||
-      STORAGE_ORIGIN_PATTERN.test(parsed.origin) ||
       (ciRuntimeContractBuild() && CI_LOOPBACK_ORIGIN_PATTERN.test(parsed.origin))
     );
   } catch {

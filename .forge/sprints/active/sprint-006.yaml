@@ -19,8 +19,9 @@ retrospective_path: '.forge/sprints/retrospectives/sprint-006.md'
 # Progress (2026-09-22): Phases 1-3 (notifications) merged — stories
 # 006-01..006-05 DONE (11 pts earned): PR #178 (aba7900, 2026-09-17),
 # PR #180 (c1abdc7, 2026-09-21), PR #195 (6f1923c, 2026-09-22).
-# Remaining: 8 stories / 16 pts (i18n → profile → observability).
-# Phase 4 (i18n) kickoff = next step.
+# Progress (2026-09-23): Phase 4 (i18n) merged — stories 006-06..006-09
+# DONE (8 pts earned): PR #196 (2026-09-23).
+# Remaining: 4 stories / 8 pts (profile → observability).
 
 stories:
   # ── Phase 1 — Notifications (1.5 wks) ─────────────────────────────
@@ -79,7 +80,8 @@ stories:
   - id: '006-06'
     title: 'Full react-intl migration (no hardcoded strings)'
     phase: 'Phase 2 — Internationalization'
-    status: pending
+    status: done
+    completed_on: '2026-09-23'
     size: L
     points: 3
     spec_features: ['006-06']
@@ -88,7 +90,8 @@ stories:
   - id: '006-07'
     title: 'Language switch (EN/IT) + locale-aware formatting'
     phase: 'Phase 2 — Internationalization'
-    status: pending
+    status: done
+    completed_on: '2026-09-23'
     size: M
     points: 2
     spec_features: ['006-07', '006-08']
@@ -97,7 +100,8 @@ stories:
   - id: '006-08'
     title: 'Plugin translation registration via SDK'
     phase: 'Phase 2 — Internationalization'
-    status: pending
+    status: done
+    completed_on: '2026-09-23'
     size: M
     points: 2
     spec_features: ['006-09']
@@ -106,7 +110,8 @@ stories:
   - id: '006-09'
     title: 'Tenant translation overrides'
     phase: 'Phase 2 — Internationalization'
-    status: pending
+    status: done
+    completed_on: '2026-09-23'
     size: S
     points: 1
     spec_features: ['006-10']

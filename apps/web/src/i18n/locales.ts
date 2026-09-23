@@ -18,18 +18,28 @@ export const SUPPORTED_LOCALES = ['en', 'it'] as const;
 
 export type LocaleCode = (typeof SUPPORTED_LOCALES)[number];
 
+/**
+ * Compile-time exact key parity: `T` must expose every EN key and no extras.
+ * Assigned to the IT catalog below so a missing or stray key fails `tsc`
+ * (the runtime parity check lives in __tests__/i18n-keys.test.ts).
+ */
+type ExactMessageCatalog<T extends Record<string, string>> = T &
+  Record<Exclude<keyof typeof messages, keyof T>, string> &
+  Record<Exclude<keyof T, keyof typeof messages>, never>;
+
+const messagesItExact: ExactMessageCatalog<typeof messagesIt> = messagesIt;
+
 /** Registry: static core catalogs keyed by locale code. */
 export const locales: Record<LocaleCode, Record<string, string>> = {
   en: messages,
-  it: messagesIt,
+  it: messagesItExact,
 };
 
 /**
- * Message catalog type — every entry is `{ [key]: string }`. Both catalogs
- * satisfy it, so swapping `en`/`it` keeps the exact same key set at compile
- * time (the runtime parity check lives in __tests__/i18n-keys.test.ts).
+ * Message catalog type — keys are exactly the EN keys, values are strings, so
+ * a catalog typed against it fails to compile when a key is missing.
  */
-export type MessageCatalog = (typeof locales)[LocaleCode];
+export type MessageCatalog = Record<keyof typeof messages, string>;
 
 /** True when a stored profile `language` value maps to a supported UI locale. */
 export function isSupportedLocale(value: string | undefined): value is LocaleCode {

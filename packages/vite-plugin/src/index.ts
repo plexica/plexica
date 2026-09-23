@@ -38,7 +38,7 @@ function copyI18nBundles(pluginRoot: string, config: ResolvedConfig): void {
     .filter((file) => file.endsWith('.json'))
     .filter((file) => statSync(join(source, file)).isFile());
   if (jsonFiles.length === 0) return;
-  const target = join(config.build.outDir, 'i18n');
+  const target = join(resolve(config.root, config.build.outDir), 'i18n');
   mkdirSync(target, { recursive: true });
   for (const file of jsonFiles) {
     cpSync(join(source, file), join(target, file));
@@ -78,7 +78,6 @@ export default function plexicaPluginVite(options: PlexicaPluginViteOptions = {}
       closeBundle: () => {
         if (resolvedBuildConfig !== null) {
           copyI18nBundles(pluginRoot, resolvedBuildConfig);
-          resolvedBuildConfig = null;
         }
       },
     },

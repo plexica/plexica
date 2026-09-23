@@ -6,7 +6,32 @@
 > For lessons learned from the v1 codebase, see
 > [lessons-learned.md](./lessons-learned.md).
 
-**Last Updated**: 2026-09-22 (Spec 006 Phases 1-3 merged — notifications delivered)
+**Last Updated**: 2026-09-23 (Spec 006 Phase 4 merged — i18n delivered)
+
+---
+
+## Spec 006 — Phase 4 Merged: i18n Delivered (2026-09-23)
+
+**Status**: `completed`
+**Tags**: `spec-006`, `i18n`, `react-intl`, `plugin-translations`, `tenant-overrides`
+**Spec Refs**: `006-cross-cutting-features` (stories 006-06..006-09, 8 pts)
+
+**Issue**: Spec 006 Phase 4 (internationalization) shipped and merged via PR
+#196; sprint artifacts updated to match reality.
+**Resolved by**: Build agent PR #196; verified on the feature branch.
+
+| Merged | PR | Scope |
+| ------ | -- | ----- |
+| 2026-09-23 | #196 | Phase 4 i18n: EN/IT catalogs + compile-time key-parity type/test, locale-driven IntlProvider + language switcher (< 500 ms, no reload), locale-aware formatting, plugin i18n bundles (`i18n/{locale}.json`, D-8 namespacing + schema/size-cap validation), tenant translation overrides (GET/PUT routes + admin page; precedence overrides > plugin > core), 3 E2E specs |
+
+**Key discoveries**:
+1. Catalog key parity is now enforced at compile time (`ExactMessageCatalog` in `locales.ts`) in addition to the runtime Vitest check — a missing or stray IT key fails `tsc`.
+2. Plugin asset origin is guarded by an explicit allow-list (`VITE_PLUGIN_ASSET_ORIGIN` + local/CI loopback); the broad `storage.*` fallback was removed so attacker-controlled origins can never pass.
+3. The `@plexica/vite-plugin` i18n copy resolves `outDir` against `config.root` and retains the resolved config across `--watch` rebuilds.
+
+**Verified**: web unit 111 · core-api unit 688 · vite-plugin 10 · 3 i18n E2E
+specs green in CI (i18n-language-switch, plugin-translations,
+tenant-translation-overrides).
 
 ---
 

@@ -17,8 +17,7 @@ export const messagesItWorkspaceUsers = {
   'workspace.delete.confirm.description':
     'Il workspace e tutti i suoi figli verranno archiviati. Potranno essere ripristinati entro 30 giorni.',
   'workspace.restore.confirm.title': 'Ripristina workspace',
-  'workspace.restore.confirm.description':
-    'Il workspace e i suoi figli verranno ripristinati.',
+  'workspace.restore.confirm.description': 'Il workspace e i suoi figli verranno ripristinati.',
   'workspace.status.active': 'Attivo',
   'workspace.status.archived': 'Archiviato',
   'workspace.detail.parent': 'Workspace padre:',
@@ -44,8 +43,7 @@ export const messagesItWorkspaceUsers = {
   'members.add': 'Aggiungi membro',
   'members.invite': 'Invita tramite email',
   'members.remove.confirm.title': 'Rimuovi membro',
-  'members.remove.confirm.description':
-    "Questo membro perderà l'accesso a questo workspace.",
+  'members.remove.confirm.description': "Questo membro perderà l'accesso a questo workspace.",
   'members.role.admin': 'Amministratore',
   'members.role.member': 'Membro',
   'members.role.viewer': 'Visualizzatore',
@@ -59,7 +57,8 @@ export const messagesItWorkspaceUsers = {
   'users.search.placeholder': 'Cerca utenti\u2026',
   'users.remove.title': 'Rimuovi utente',
   'users.remove.description': 'Questo utente verrà rimosso dal tenant.',
-  'users.remove.confirm.instructions': 'Digita CONFERMA per rimuovere definitivamente questo utente',
+  'users.remove.confirm.instructions':
+    'Digita CONFERMA per rimuovere definitivamente questo utente',
   'users.remove.reassign.label': 'Assegna i contenuti a',
   'users.remove.ariaLabel': 'Rimuovi {name}',
   'users.status.active': 'Attivo',
@@ -72,7 +71,7 @@ export const messagesItWorkspaceUsers = {
   'roles.export.csv': 'Esporta CSV',
   'roles.matrix.adminTenant': 'Amministratore (Tenant)',
   'roles.matrix.adminWorkspace': 'Amministratore (WS)',
-  'roles.actionCount': '{count} azioni',
+  'roles.actionCount': '{count, plural, one {# azione} other {# azioni}}',
   'roles.scope.tenant': 'Tenant',
   'roles.scope.workspace': 'Workspace',
 

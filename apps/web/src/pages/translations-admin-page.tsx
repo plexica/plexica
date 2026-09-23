@@ -59,7 +59,12 @@ export function TranslationsAdminPage(): JSX.Element {
   // the draft must NOT hit the API until it has content).
   const [draftKeys, setDraftKeys] = useState<string[]>([]);
 
-  const { register, handleSubmit, reset } = useForm<AddValues>({
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm<AddValues>({
     resolver: zodResolver(addSchema),
   });
 
@@ -72,7 +77,8 @@ export function TranslationsAdminPage(): JSX.Element {
     );
   }
 
-  const keys = [...overrideKeys(data), ...draftKeys];
+  const persistedKeys = overrideKeys(data);
+  const keys = [...persistedKeys, ...draftKeys.filter((key) => !persistedKeys.includes(key))];
 
   function handleSave(keyName: string, locale: TranslationLocale, value: string): void {
     upsert.mutate(
@@ -130,6 +136,9 @@ export function TranslationsAdminPage(): JSX.Element {
             <div className="flex-1">
               <Input
                 label={intl.formatMessage({ id: 'translations.key.label' })}
+                {...(errors.key !== undefined
+                  ? { error: intl.formatMessage({ id: 'translations.key.invalid' }) }
+                  : {})}
                 {...register('key')}
               />
             </div>

@@ -5,7 +5,7 @@
 
 | Field   | Value                                                              |
 | ------- | ------------------------------------------------------------------ |
-| Status  | In Progress — Phases 1-3 done (40/40 tasks), Phases 4-7 pending (33) |
+| Status  | In Progress — Phases 1-4 done (49/73 tasks), Phases 5-7 pending (24) |
 | Author  | forge-scrum                                                        |
 | Date    | 2026-09-17                                                         |
 | Spec    | `.forge/specs/006-cross-cutting-features/spec.md`                  |
@@ -385,7 +385,7 @@
 > (`apps/web/src/i18n/`). Ordered: catalogs → switch/formatting → plugin →
 > tenant overrides → tests.
 
-- [ ] **4.1** `[L]` `[FR-006-06]` Italian catalog + locales registry + lint + key-parity test
+- [x] **4.1** `[L]` `[FR-006-06]` Italian catalog + locales registry + lint + key-parity test
   - **File**: `apps/web/src/i18n/messages.it.ts` (Create), `apps/web/src/i18n/messages.it.auth-nav.ts` (Create), `apps/web/src/i18n/messages.it.workspace-users.ts` (Create), `apps/web/src/i18n/messages.it.settings-common.ts` (Create), `apps/web/src/i18n/messages.it.plugins.ts` (Create), `apps/web/src/i18n/locales.ts` (Create), `eslint.config.js` (Modify — `formatjs/no-hardcoded-string` for apps/web), `apps/web/src/i18n/__tests__/i18n-keys.test.ts` (Create)
   - **Type**: frontend — i18n
   - **Description**: Italian catalog **domain-split** (`messages.it.*` — Rule 4); `locales.ts` exports `{ en, it }` + key-parity type; `formatjs/no-hardcoded-string` lint rule (CI flags missing keys — spec risk mitigation); key-parity Vitest test between `en`/`it`/plugin bundles. EN default fallback (`defaultMessage`).
@@ -393,7 +393,7 @@
   - **Dependencies**: 1.5
   - **Estimated**: L
 
-- [ ] **4.2** `[M]` `[FR-006-07]` `[NFR-006-3]` Language switch — store + IntlProvider + switcher
+- [x] **4.2** `[M]` `[FR-006-07]` `[NFR-006-3]` Language switch — store + IntlProvider + switcher
   - **File**: `apps/web/src/stores/auth-store.ts` (Modify — `locale`, persisted), `apps/web/src/main.tsx` (Modify — locale-driven `IntlProvider`), `apps/web/src/hooks/use-locale.ts` (Create — `PATCH /profile` + store sync), `apps/web/src/components/i18n/language-switcher.tsx` (Create — Radix DropdownMenu)
   - **Type**: frontend — i18n
   - **Description**: Zustand auth store holds `locale` (Rule 3 — one store); `IntlProvider` re-renders in place from store — full UI update < 500 ms, **no page reload**. Profile `language` remains the source of truth (synced via `PATCH /profile`).
@@ -401,7 +401,7 @@
   - **Dependencies**: 4.1
   - **Estimated**: M
 
-- [ ] **4.3** `[M]` `[FR-006-08]` Locale-aware formatting
+- [x] **4.3** `[M]` `[FR-006-08]` Locale-aware formatting
   - **File**: `apps/web/src/lib/format.ts` (Create), affected components (Modify)
   - **Type**: frontend — formatting
   - **Description**: `FormattedDate` / `FormattedNumber`, currency via `Intl.NumberFormat` with `userProfile.timezone`; replace hardcoded date/number/currency renderings.
@@ -409,7 +409,7 @@
   - **Dependencies**: 4.2
   - **Estimated**: M
 
-- [ ] **4.4** `[M]` `[FR-006-09]` Plugin i18n bundles
+- [x] **4.4** `[M]` `[FR-006-09]` Plugin i18n bundles
   - **File**: `apps/web/src/mf-host/plugin-loader.tsx` (Modify), plugin manifest schema (Modify — `i18n.bundles`)
   - **Type**: frontend — plugin integration
   - **Description**: Read manifest `i18n.bundles`, fetch `i18n/{locale}.json` from the MF remote asset base, merge under `plugin.{slug}.` namespace prefix into the active message set (D-8 — avoids key collisions). Validate bundles (JSON schema + size cap — plugin poisoning risk).
@@ -417,7 +417,7 @@
   - **Dependencies**: 4.1
   - **Estimated**: M
 
-- [ ] **4.5** `[M]` `[FR-006-10]` Translation overrides — backend
+- [x] **4.5** `[M]` `[FR-006-10]` Translation overrides — backend
   - **File**: `services/core-api/src/modules/tenant-settings/` routes + repository (Create/Modify), schema (Modify)
   - **Type**: backend — endpoints
   - **Description**: `GET /api/v1/tenant/translations` (any tenant user — all overrides); `PUT /api/v1/tenant/translations/:key` (`tenant_admin` guard reusing the settings module guard; body `{ locale, value }`; empty `value` **deletes** the row → revert). Backed by `translation_overrides` table (migration in 1.3).
@@ -425,7 +425,7 @@
   - **Dependencies**: 1.3
   - **Estimated**: M
 
-- [ ] **4.6** `[M]` `[FR-006-10]` Translation overrides — frontend + shell merge
+- [x] **4.6** `[M]` `[FR-006-10]` Translation overrides — frontend + shell merge
   - **File**: `apps/web/src/services/translations-api.ts` (Create), `apps/web/src/hooks/use-translations.ts` (Create), translations admin page (Create), `apps/web/src/router-shell-routes.tsx` (Modify), shell boot merge (Modify)
   - **Type**: frontend — UI
   - **Description**: Overrides fetched on shell boot (TanStack Query staleTime 10 min); merged **last** — precedence overrides > plugin > core. Admin settings UI: list + edit + revert.
@@ -433,7 +433,7 @@
   - **Dependencies**: 4.5
   - **Estimated**: M
 
-- [ ] **4.7** `[L]` `[FR-006-07]` `[FR-006-08]` `[NFR-006-3]` `[P]` E2E — `i18n-language-switch.spec.ts`
+- [x] **4.7** `[L]` `[FR-006-07]` `[FR-006-08]` `[NFR-006-3]` `[P]` E2E — `i18n-language-switch.spec.ts`
   - **File**: `apps/web/e2e/i18n-language-switch.spec.ts` (Create)
   - **Type**: test — E2E
   - **Description**: Switch EN→IT: full UI updates, no page reload, < 500 ms (measured); locale-aware date format changes.
@@ -441,7 +441,7 @@
   - **Dependencies**: 4.2, 4.3
   - **Estimated**: L
 
-- [ ] **4.8** `[M]` `[FR-006-09]` `[P]` E2E — `plugin-translations.spec.ts`
+- [x] **4.8** `[M]` `[FR-006-09]` `[P]` E2E — `plugin-translations.spec.ts`
   - **File**: `apps/web/e2e/plugin-translations.spec.ts` (Create)
   - **Type**: test — E2E
   - **Description**: CRM plugin EN/IT strings render through the same react-intl pipeline (SDK-registered bundles).
@@ -449,7 +449,7 @@
   - **Dependencies**: 4.4
   - **Estimated**: M
 
-- [ ] **4.9** `[M]` `[FR-006-10]` `[P]` E2E — `tenant-translation-overrides.spec.ts`
+- [x] **4.9** `[M]` `[FR-006-10]` `[P]` E2E — `tenant-translation-overrides.spec.ts`
   - **File**: `apps/web/e2e/tenant-translation-overrides.spec.ts` (Create)
   - **Type**: test — E2E
   - **Description**: Tenant admin overrides a key → regular user sees the override; revert restores default.
@@ -669,7 +669,7 @@
 | Metric                       | Value |
 | ---------------------------- | ----- |
 | Total tasks                  | 73    |
-| Completed                    | 40/73 — Phases 1-3 (notifications, stories 006-01..006-05) |
+| Completed                    | 49/73 — Phases 1-4 (notifications 006-01..006-05 + i18n 006-06..006-09) |
 | Total phases                 | 7     |
 | Parallelizable tasks         | 28    |
 | Requirements covered         | 19/20 FRs (006-19 stubbed, Sprint 7) + 7/7 NFRs |
@@ -682,7 +682,7 @@
 | 1 — Foundation | 9  | 5 | ~8 h | Done (PR #178, 2026-09-17) |
 | 2 — Notifications core | 12 | 7 | ~14 h | Done (PR #180, 2026-09-21) |
 | 3 — Notifications interface/UI/tests | 19 | 7 | ~26 h | Done (PR #195, 2026-09-22) |
-| 4 — Internationalization | 9  | 3 | ~15 h | Pending (next) |
+| 4 — Internationalization | 9  | 3 | ~15 h | Done (PR #196, 2026-09-23) |
 | 5 — User Profile | 8  | 3 | ~12 h | Pending |
 | 6 — Observability | 13 | 3 | ~18 h | Pending |
 | 7 — Integration & Polish | 3  | 0 | ~3 h | Pending |

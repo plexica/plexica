@@ -68,7 +68,7 @@ export const messagesWorkspaceUsers = {
   'roles.matrix.title': 'Permission Matrix',
   'roles.matrix.adminTenant': 'Admin (Tenant)',
   'roles.matrix.adminWorkspace': 'Admin (WS)',
-  'roles.actionCount': '{count} actions',
+  'roles.actionCount': '{count, plural, one {# action} other {# actions}}',
   'roles.scope.tenant': 'Tenant',
   'roles.scope.workspace': 'Workspace',
   'roles.export.csv': 'Export CSV',
