@@ -89,7 +89,12 @@ export function Header({
 
         <NotificationBell />
         <LanguageSwitcher />
-        <UserMenu avatarUrl={profile?.avatarUrl ?? undefined} />
+        <UserMenu
+          {...(profile?.avatarUrl !== undefined && profile.avatarUrl !== null
+            ? { avatarUrl: profile.avatarUrl }
+            : {})}
+          {...(profile?.email !== undefined ? { email: profile.email } : {})}
+        />
       </div>
     </header>
   );

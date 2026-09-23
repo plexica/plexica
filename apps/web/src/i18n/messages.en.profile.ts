@@ -11,6 +11,8 @@ export const messagesProfile = {
   // Display name validation (006-11) — rendered instead of the raw Zod message.
   'profile.displayName.error': 'Enter a display name (1–120 characters).',
 
+  // Save failure (006-11) — rendered from the update mutation's isError.
+  'profile.save.error': 'Failed to save your profile. Please try again.',
   // Sessions (006-13)
   'profile.sessions.title': 'Active sessions',
   'profile.sessions.description': 'Devices and browsers currently signed in to your account.',

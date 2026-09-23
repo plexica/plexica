@@ -76,21 +76,45 @@ export async function updateProfile(
 
   // Keycloak-first email sync (006-11): the upstream call runs BEFORE any
   // local write. A rejection throws here, so neither the email NOR the other
-  // fields are persisted — the local profile can never diverge from Keycloak.
-  // The email then rides in the SAME Prisma update as the other fields: one
-  // atomic write, no crash window between two sequential writes.
+  // fields are persisted. The email then rides in the SAME Prisma update as
+  // the other fields: one atomic write, no crash window between two
+  // sequential writes. If that single write still fails AFTER a successful
+  // syncEmail, Keycloak is rolled back to the previous address below so the
+  // two stores cannot diverge on the handled-error path (a crash between the
+  // two awaits remains unrecoverable by design — no distributed transaction
+  // spans Keycloak and Postgres).
   const fields: Parameters<typeof repoUpdateProfile>[2] = {};
   if ('displayName' in input) fields.displayName = input.displayName;
   if (input.timezone !== undefined) fields.timezone = input.timezone;
   if (input.language !== undefined) fields.language = input.language;
 
   const nextEmail = input.email;
-  if (nextEmail !== undefined && nextEmail !== existing.email) {
+  const emailChanged = nextEmail !== undefined && nextEmail !== existing.email;
+  if (emailChanged) {
     await syncEmail(tenantContext.realmName, keycloakUserId, nextEmail);
     fields.email = nextEmail;
   }
 
-  const updated = await repoUpdateProfile(tenantDb, existing.userId, fields);
+  let updated: UserProfileDto;
+  try {
+    updated = await repoUpdateProfile(tenantDb, existing.userId, fields);
+  } catch (err) {
+    if (emailChanged) {
+      // Best-effort revert: a rollback failure is logged but never replaces
+      // the original error. Note syncEmail always clears emailVerified, so
+      // the restored address comes back unverified — acceptable for a
+      // failure path that keeps the stores consistent.
+      await syncEmail(tenantContext.realmName, keycloakUserId, existing.email).catch(
+        (rollbackErr: unknown) => {
+          logger.error(
+            { err: String(rollbackErr), keycloakUserId },
+            'Failed to roll back Keycloak email after local write failure'
+          );
+        }
+      );
+    }
+    throw err;
+  }
 
   // Sync display name to Keycloak — fire-and-forget; failures are logged only.
   if (input.displayName !== undefined && input.displayName !== null) {

@@ -26,15 +26,20 @@ export function AvatarHeader({ profile }: AvatarHeaderProps): JSX.Element {
       <div className="min-w-0">
         <p className="truncate text-lg font-semibold text-neutral-900">{name}</p>
         <p className="truncate text-sm text-neutral-500">{profile.email}</p>
-        <p className="mt-0.5 text-xs text-neutral-400">
-          <FormattedMessage
-            id={
-              profile.avatarSource === 'keycloak'
-                ? 'profile.avatar.source.keycloak'
-                : 'profile.avatar.source.upload'
-            }
-          />
-        </p>
+        {/* The source label needs a rendered avatar to describe — with no
+            picture claim and no upload the API still reports 'upload' while
+            the header shows only initials. */}
+        {profile.avatarUrl !== null && (
+          <p className="mt-0.5 text-xs text-neutral-400">
+            <FormattedMessage
+              id={
+                profile.avatarSource === 'keycloak'
+                  ? 'profile.avatar.source.keycloak'
+                  : 'profile.avatar.source.upload'
+              }
+            />
+          </p>
+        )}
       </div>
     </div>
   );

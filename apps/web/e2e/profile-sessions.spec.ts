@@ -43,12 +43,19 @@ test.describe('E2E 006-13/14: Profile sessions', () => {
     }
     // The `sid` claim marks the acting session — exactly one is current.
     expect(sessions.filter((s) => s.current)).toHaveLength(1);
+    const acting = sessions.find((s) => s.current);
+    expect(acting?.clientId).toBeTruthy();
 
-    // The card renders the same list.
+    // The card renders the same list. Totals are NOT compared across the two
+    // reads: the API list above and the card below run at different times
+    // against a shared Keycloak account, so another sign-in/revoke in between
+    // would flake an equality check. Instead the acting session must appear
+    // and be marked current.
     await page.goto('/profile');
     await expect(page.getByTestId('session-item').first()).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByTestId('session-item')).toHaveCount(sessions.length);
-    await expect(page.locator('[data-testid="session-item"][data-current="true"]')).toHaveCount(1);
+    const currentCard = page.locator('[data-testid="session-item"][data-current="true"]');
+    await expect(currentCard).toHaveCount(1);
+    await expect(currentCard).toContainText(acting?.clientId ?? '');
   });
 
   test('revoking an unknown session id → 404 NOT_FOUND (no enumeration)', async ({ page }) => {
@@ -103,6 +110,10 @@ test.describe('E2E 006-13/14: Profile sessions', () => {
     await expect(currentItem).toHaveCount(1, { timeout: 15_000 });
     await currentItem.getByRole('button', { name: /revoke/i }).click();
     await page.waitForURL(/\/realms\//, { timeout: 15_000 });
+    // The Keycloak logout endpoint also matches /realms/ — the realm URL alone
+    // does not prove revocation. The sign-in form must be back: the revoked
+    // session can no longer reach the app without re-authenticating.
+    await expect(page.locator('input[name="username"]')).toBeVisible({ timeout: 15_000 });
   });
 
   test('password link points at the Keycloak account console (006-14)', async ({ page }) => {

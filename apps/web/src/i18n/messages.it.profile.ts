@@ -11,6 +11,9 @@ export const messagesItProfile = {
   // Errore di validazione del nome visualizzato (006-11).
   'profile.displayName.error': 'Inserisci un nome visualizzato (1–120 caratteri).',
 
+  // Errore di salvataggio (006-11) — mostrato dallo stato isError della mutation.
+  'profile.save.error': 'Impossibile salvare il profilo. Riprova.',
+
   // Sessioni (006-13)
   'profile.sessions.title': 'Sessioni attive',
   'profile.sessions.description': 'Dispositivi e browser attualmente collegati al tuo account.',
