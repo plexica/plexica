@@ -497,7 +497,7 @@
   - **Estimated**: M
 
 - [ ] **5.5** `[M]` `[FR-006-13]` Unit tests — Keycloak admin helpers
-  - **File**: `services/core-api/src/lib/__tests__/keycloak-admin-users.test.ts` (Create)
+  - **File**: `services/core-api/src/__tests__/unit/keycloak-admin-users.test.ts` (Create — actual location; vitest discovers only `src/__tests__/**`, not `src/lib/__tests__/`)
   - **Type**: test — unit (mocked Keycloak Admin HTTP)
   - **Description**: `listUserSessions` / `deleteUserSession` / `syncEmail` helper contracts — URL building, error mapping.
   - **Spec Reference**: plan §10.3
@@ -505,7 +505,7 @@
   - **Estimated**: M
 
 - [ ] **5.6** `[L]` `[FR-006-13]` Integration test — profile sessions
-  - **File**: `services/core-api/src/modules/user-profile/__tests__/profile-sessions.int.test.ts` (Create)
+  - **File**: `services/core-api/src/__tests__/user-profile/profile-sessions.int.test.ts` (Create — actual location; vitest discovers only `src/__tests__/**`, not `modules/user-profile/__tests__/`)
   - **Type**: test — integration (real Keycloak)
   - **Description**: Sessions list/revoke against real Keycloak; **DELETE another user's sessionId → 404** (F4 ownership).
   - **Spec Reference**: plan §10.2

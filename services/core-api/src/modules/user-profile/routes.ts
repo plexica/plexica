@@ -19,8 +19,10 @@ import {
 import { withTenantDb } from '../../lib/tenant-database.js';
 import { UPLOAD_RATE_LIMIT } from '../../lib/rate-limit-config.js';
 
-import { updateProfileSchema } from './schema.js';
-import { getProfile, updateProfile, uploadAvatar } from './service.js';
+import { sessionIdParamsSchema, updateProfileSchema } from './schema.js';
+import { uploadAvatar } from './avatar.js';
+import { getProfile, updateProfile } from './service.js';
+import { listSessions, revokeSession } from './sessions.js';
 
 import type { MultipartFile } from '@fastify/multipart';
 import type { FastifyInstance } from 'fastify';
@@ -29,7 +31,8 @@ export async function userProfileRoutes(fastify: FastifyInstance): Promise<void>
   // ── GET /api/v1/profile ───────────────────────────────────────────────────
   fastify.get('/api/v1/profile', {}, async (request) => {
     return withTenantDb(
-      (db) => getProfile(db, request.user.keycloakUserId, request.tenantContext),
+      (db) =>
+        getProfile(db, request.user.keycloakUserId, request.tenantContext, request.user.picture),
       request.tenantContext
     );
   });
@@ -43,7 +46,39 @@ export async function userProfileRoutes(fastify: FastifyInstance): Promise<void>
     >[2];
 
     return withTenantDb(
-      (db) => updateProfile(db, request.user.keycloakUserId, input, request.tenantContext),
+      (db) =>
+        updateProfile(
+          db,
+          request.user.keycloakUserId,
+          input,
+          request.tenantContext,
+          request.user.picture
+        ),
+      request.tenantContext
+    );
+  });
+
+  // ── GET /api/v1/profile/sessions ──────────────────────────────────────────
+  // Lists the caller's active Keycloak SSO sessions (006-13).
+  fastify.get('/api/v1/profile/sessions', {}, async (request) => {
+    return listSessions(
+      request.tenantContext.realmName,
+      request.user.keycloakUserId,
+      request.user.sessionId
+    );
+  });
+
+  // ── DELETE /api/v1/profile/sessions/:sessionId ────────────────────────────
+  // Revokes one of the caller's sessions. The service layer verifies ownership
+  // BEFORE the Keycloak call — unknown or foreign sessionIds answer 404
+  // NOT_FOUND (no enumeration). Self-termination forces re-login → 200.
+  // withTenantDb supplies the non-transactional client the revocation audit
+  // write requires (mirrors the profile/avatar pattern).
+  fastify.delete('/api/v1/profile/sessions/:sessionId', {}, async (request) => {
+    const { sessionId } = parseOrThrow(sessionIdParamsSchema, request.params);
+    return withTenantDb(
+      (db) =>
+        revokeSession(db, request.tenantContext.realmName, request.user.keycloakUserId, sessionId),
       request.tenantContext
     );
   });

@@ -76,6 +76,91 @@ export async function terminateUserSessions(realm: string, userId: string): Prom
 }
 
 /**
+ * A single active Keycloak SSO session (subset of the Admin API
+ * UserSessionRepresentation — only the fields the profile UI needs).
+ */
+export interface KeycloakUserSession {
+  id: string;
+  username: string;
+  userId: string;
+  ipAddress?: string;
+  /** Session start, epoch milliseconds. */
+  start: number;
+  /** Last access, epoch milliseconds. */
+  lastAccess: number;
+  /** Map of internal client UUID → clientId. */
+  clients?: Record<string, string>;
+}
+
+/**
+ * Lists the active SSO sessions of a user in a realm (006-13).
+ */
+export async function listUserSessions(
+  realm: string,
+  userId: string
+): Promise<KeycloakUserSession[]> {
+  const res = await adminRequestOk(
+    `/admin/realms/${realm}/users/${userId}/sessions`,
+    'GET',
+    undefined,
+    { context: `Failed to list sessions for user ${userId} in realm ${realm}` }
+  );
+
+  const sessions = (await res.json()) as KeycloakUserSession[];
+  logger.debug({ realm, userId, count: sessions.length }, 'Keycloak user sessions listed');
+  return sessions;
+}
+
+/**
+ * Deletes a single SSO session by ID (006-13). Tolerates 404 — the session
+ * may have expired between the ownership check and this call; a gone session
+ * is already revoked from the caller's point of view.
+ */
+export async function deleteUserSession(realm: string, sessionId: string): Promise<void> {
+  await adminRequestOk(`/admin/realms/${realm}/sessions/${sessionId}`, 'DELETE', undefined, {
+    tolerate: [404],
+    context: `Failed to delete session ${sessionId} in realm ${realm}`,
+  });
+
+  logger.debug({ realm, sessionId }, 'Keycloak user session deleted');
+}
+
+/**
+ * Syncs a user's email address to Keycloak (006-11). The new address starts
+ * unverified — Keycloak must re-verify it before it is trusted.
+ * Throws KeycloakError on rejection/failure; callers must NOT write the local
+ * email when this rejects (Keycloak-first, no divergence).
+ */
+export async function syncEmail(realm: string, userId: string, email: string): Promise<void> {
+  await adminRequestOk(
+    `/admin/realms/${realm}/users/${userId}`,
+    'PUT',
+    { email, emailVerified: false },
+    { context: `Failed to sync email for user ${userId} in realm ${realm}` }
+  );
+
+  logger.debug({ realm, userId }, 'Keycloak user email synced');
+}
+
+/**
+ * Reads a user's CURRENT email from Keycloak (006-11 round-2 #7).
+ * Compensation helper: the local profile row may still hold the ''
+ * auto-provisioned placeholder while Keycloak already has a real address —
+ * reverting Keycloak to the local value would clear that address (or fail
+ * under realm rules). Callers capture this BEFORE mutating so a failed local
+ * write reverts Keycloak to its own previous value. Read-only: throws
+ * KeycloakError on failure, so callers abort before any mutation.
+ */
+export async function getRealmUserEmail(realm: string, userId: string): Promise<string> {
+  const res = await adminRequestOk(`/admin/realms/${realm}/users/${userId}`, 'GET', undefined, {
+    context: `Failed to read user ${userId} in realm ${realm}`,
+  });
+
+  const body = (await res.json()) as { email?: unknown };
+  return typeof body.email === 'string' ? body.email : '';
+}
+
+/**
  * Syncs a user's display name to Keycloak firstName/lastName attributes.
  */
 export async function syncDisplayName(realm: string, userId: string, name: string): Promise<void> {

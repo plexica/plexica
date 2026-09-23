@@ -15,6 +15,7 @@ import { useMediaQuery } from '@plexica/ui';
 import { WorkspaceSelectorDropdown } from '../workspace/workspace-selector-dropdown.js';
 import { NotificationBell } from '../notifications/notification-bell.js';
 import { LanguageSwitcher } from '../i18n/language-switcher.js';
+import { useProfile } from '../../hooks/use-profile.js';
 
 import { Breadcrumb } from './breadcrumb.js';
 import { UserMenu } from './user-menu.js';
@@ -32,6 +33,10 @@ export function Header({
 }: HeaderProps): JSX.Element {
   const intl = useIntl();
   const isDesktop = useMediaQuery('(min-width: 1024px)');
+  // Header avatar (006-12): the profile query is shared by cache key, so this
+  // adds no extra request — UserMenu renders the server-resolved avatarUrl
+  // (Keycloak `picture` claim wins over the upload).
+  const { data: profile } = useProfile();
 
   // P5-H-1: aria attributes must reflect the element that is actually controlled.
   // Desktop: the <aside id="sidebar-panel"> is visible; its state is !isSidebarCollapsed.
@@ -84,7 +89,12 @@ export function Header({
 
         <NotificationBell />
         <LanguageSwitcher />
-        <UserMenu />
+        <UserMenu
+          {...(profile?.avatarUrl !== undefined && profile.avatarUrl !== null
+            ? { avatarUrl: profile.avatarUrl }
+            : {})}
+          {...(profile?.email !== undefined ? { email: profile.email } : {})}
+        />
       </div>
     </header>
   );

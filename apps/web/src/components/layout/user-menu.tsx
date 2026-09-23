@@ -10,13 +10,25 @@ import { useAuthStore } from '../../stores/auth-store.js';
 
 import { Avatar } from './avatar.js';
 
-export function UserMenu(): JSX.Element {
+interface UserMenuProps {
+  /** Server-resolved avatar URL (006-12) — Keycloak `picture` claim wins. */
+  avatarUrl?: string | undefined;
+  /**
+   * Refreshed profile email (006-11). The auth-store email comes from the
+   * access token and goes stale after an email edit until the next login;
+   * the profile query is invalidated on save, so prefer it when available.
+   */
+  email?: string | undefined;
+}
+
+export function UserMenu({ avatarUrl, email }: UserMenuProps): JSX.Element {
   const intl = useIntl();
   const userProfile = useAuthStore((s) => s.userProfile);
   const logout = useAuthStore((s) => s.logout);
 
   const name =
     userProfile !== null ? `${userProfile.firstName} ${userProfile.lastName}`.trim() : '…';
+  const shownEmail = email ?? userProfile?.email;
 
   return (
     <DropdownMenu.Root>
@@ -27,7 +39,11 @@ export function UserMenu(): JSX.Element {
           data-testid="user-menu-trigger"
           className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2"
         >
-          <Avatar name={name} size="sm" />
+          <Avatar
+            name={name}
+            size="sm"
+            {...(avatarUrl !== undefined ? { imageUrl: avatarUrl } : {})}
+          />
         </button>
       </DropdownMenu.Trigger>
 
@@ -40,9 +56,7 @@ export function UserMenu(): JSX.Element {
           {/* User info — non-interactive */}
           <div className="px-2 py-1.5">
             <p className="text-sm font-medium text-neutral-900">{name}</p>
-            {userProfile !== null && (
-              <p className="text-xs text-neutral-500">{userProfile.email}</p>
-            )}
+            {shownEmail !== undefined && <p className="text-xs text-neutral-500">{shownEmail}</p>}
           </div>
 
           <DropdownMenu.Separator className="my-1 h-px bg-neutral-100" />
