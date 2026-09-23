@@ -52,7 +52,7 @@ export async function upsertTranslationOverride(
 ): Promise<TranslationOverrideRow> {
   const rows = await db.$queryRaw<TranslationOverrideRow[]>(Prisma.sql`
     INSERT INTO translation_overrides (key, locale, value, updated_by)
-    VALUES (${input.key}, ${input.locale}, ${input.value}, ${input.updatedBy})
+    VALUES (${input.key}, ${input.locale}, ${input.value}, ${input.updatedBy}::uuid)
     ON CONFLICT (key, locale) DO UPDATE SET
       value = EXCLUDED.value,
       updated_by = EXCLUDED.updated_by,

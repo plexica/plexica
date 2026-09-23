@@ -36,6 +36,13 @@ test.describe('E2E 006-10: tenant translation overrides', () => {
     await loginAsAdmin(page);
     await ensureNoOverride(page, OVERRIDE_KEY);
 
+    // Switch identity on the SAME page: the admin session still holds a token
+    // in sessionStorage (so the app never redirects to Keycloak → loginAsMember
+    // hangs at waitForURL(/realms/)) and Keycloak's SSO cookie would silently
+    // re-authenticate the admin. Clear both, exactly like
+    // plugin-system/ac-02-authorization.spec.ts does before switching users.
+    await page.evaluate(() => sessionStorage.clear());
+    await page.context().clearCookies();
     await loginAsMember(page);
     // Direct API calls need the session's freshly minted bearer (the `page`
     // context holds tokens in sessionStorage, not in request headers) — a
