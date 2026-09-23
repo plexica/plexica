@@ -48,9 +48,7 @@ test.describe('E2E 006-13/14: Profile sessions', () => {
     await page.goto('/profile');
     await expect(page.getByTestId('session-item').first()).toBeVisible({ timeout: 15_000 });
     await expect(page.getByTestId('session-item')).toHaveCount(sessions.length);
-    await expect(
-      page.locator('[data-testid="session-item"][data-current="true"]')
-    ).toHaveCount(1);
+    await expect(page.locator('[data-testid="session-item"][data-current="true"]')).toHaveCount(1);
   });
 
   test('revoking an unknown session id → 404 NOT_FOUND (no enumeration)', async ({ page }) => {
@@ -58,16 +56,17 @@ test.describe('E2E 006-13/14: Profile sessions', () => {
       tenantApiUrl(ADMIN_TENANT_SLUG, `/api/v1/profile/sessions/${randomUUID()}`),
       {
         headers: { ...(await freshBearer(page)), 'X-Tenant-Slug': ADMIN_TENANT_SLUG },
+        // Fastify rejects application/json with an empty body (400
+        // FST_ERR_CTP_EMPTY_JSON_BODY); freshBearer always sets the JSON
+        // content type, so send an explicit empty object like the UI client.
+        data: {},
       }
     );
     expect(res.status()).toBe(404);
     expect(await res.json()).toMatchObject({ error: { code: 'NOT_FOUND' } });
   });
 
-  test("revoking another user's session → 404 (F4 ownership-first)", async ({
-    page,
-    browser,
-  }) => {
+  test("revoking another user's session → 404 (F4 ownership-first)", async ({ page, browser }) => {
     const context = await browser.newContext();
     try {
       const memberPage = await context.newPage();
@@ -82,6 +81,9 @@ test.describe('E2E 006-13/14: Profile sessions', () => {
         tenantApiUrl(ADMIN_TENANT_SLUG, `/api/v1/profile/sessions/${foreignId}`),
         {
           headers: { ...(await freshBearer(page)), 'X-Tenant-Slug': ADMIN_TENANT_SLUG },
+          // Explicit empty JSON body (see above): no body + JSON content
+          // type would 400 before the ownership check runs.
+          data: {},
         }
       );
       expect(res.status()).toBe(404);
