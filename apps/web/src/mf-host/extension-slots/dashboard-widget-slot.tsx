@@ -1,19 +1,24 @@
 // extension-slots/dashboard-widget-slot.tsx
 // Renders plugins at the dashboard-widget:grid extension point.
 
+import { useMemo } from 'react';
+
 import { PluginSlot } from './plugin-slot.js';
 
+import type { PluginSlotEntry } from './plugin-slot.js';
+
 interface DashboardWidgetSlotProps {
-  pluginEntries: Array<{
-    slug: string;
-    installId: string;
-    remoteEntryUrl: string;
-    extensionPoint: string;
-  }>;
+  pluginEntries: PluginSlotEntry[];
 }
 
-export function DashboardWidgetSlot({ pluginEntries }: DashboardWidgetSlotProps): JSX.Element | null {
-  const widgetPlugins = pluginEntries.filter((p) => p.extensionPoint === 'dashboard-widget:grid');
+export function DashboardWidgetSlot({
+  pluginEntries,
+}: DashboardWidgetSlotProps): JSX.Element | null {
+  // Stable identity across renders — see workspace-panel-slot.tsx (006-09).
+  const widgetPlugins = useMemo(
+    () => pluginEntries.filter((p) => p.extensionPoint === 'dashboard-widget:grid'),
+    [pluginEntries]
+  );
 
   if (widgetPlugins.length === 0) {
     return null;

@@ -19,6 +19,10 @@ export interface PluginManifest {
     remoteEntry?: string;
     extensionPoints: string[];
   };
+  /** Locale codes shipped as `i18n/{locale}.json` bundles (006-09). */
+  i18n?: {
+    bundles?: string[];
+  };
   events?: {
     subscribes?: string[];
   };

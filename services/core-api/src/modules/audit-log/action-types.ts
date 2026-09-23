@@ -35,6 +35,7 @@ export const AUDIT_ACTION_TYPES: ActionTypeDefinition[] = [
   { key: 'settings.name_change', label: 'Update Tenant Name', category: 'Settings' },
   { key: 'settings.branding_update', label: 'Update Branding', category: 'Settings' },
   { key: 'settings.auth_config_change', label: 'Update Auth Config', category: 'Settings' },
+  { key: 'settings.translation_override', label: 'Override Translation', category: 'Settings' },
   // User Profile
   { key: 'profile.update', label: 'Update Profile', category: 'Profile' },
   { key: 'profile.avatar_change', label: 'Change Avatar', category: 'Profile' },

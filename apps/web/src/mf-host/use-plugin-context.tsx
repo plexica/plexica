@@ -37,6 +37,7 @@ export function PluginContextProvider({
   const tenantSlug = useAuthStore((s) => s.tenantSlug);
   const tenantUuid = useAuthStore((s) => s.tenantUuid);
   const currentWorkspaceId = useWorkspaceStore((s) => s.currentWorkspaceId);
+  const locale = useAuthStore((s) => s.locale);
 
   const value = useMemo<PluginContextValue>(() => {
     const role =
@@ -54,9 +55,9 @@ export function PluginContextProvider({
       userId: userProfile?.id ?? '',
       workspaceId: currentWorkspaceId,
       role,
-      locale: 'en',
+      locale,
     };
-  }, [userProfile, tenantSlug, tenantUuid, currentWorkspaceId]);
+  }, [userProfile, tenantSlug, tenantUuid, currentWorkspaceId, locale]);
 
   return <PluginContext.Provider value={value}>{children}</PluginContext.Provider>;
 }

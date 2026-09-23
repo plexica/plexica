@@ -17,12 +17,13 @@ export function DealListBadge(context: CrmApiContext): React.JSX.Element {
     <button
       type="button"
       className="flex items-center justify-between rounded-md px-3 py-2 text-sm text-neutral-700 hover:bg-neutral-100 transition-colors"
-      aria-label={intl.formatMessage({ id: 'crm.sidebar.dealsLabel' })}
+      aria-label={intl.formatMessage({
+        id: 'plugin.crm.sidebar.dealsLabel',
+        defaultMessage: 'CRM deals',
+      })}
     >
-      <span>{intl.formatMessage({ id: 'crm.sidebar.deals' })}</span>
-      {!isLoading && data && (
-        <Badge variant="default" label={String(data.count)} />
-      )}
+      <span>{intl.formatMessage({ id: 'plugin.crm.sidebar.deals', defaultMessage: 'Deals' })}</span>
+      {!isLoading && data && <Badge variant="default" label={String(data.count)} />}
     </button>
   );
 }

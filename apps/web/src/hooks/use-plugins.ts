@@ -7,9 +7,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { pluginApi } from '../services/plugin-api.js';
 
-import type {
-  PluginVisibilityUpdate,
-} from '../types/plugin.js';
+import type { PluginVisibilityUpdate } from '../types/plugin.js';
 
 // ── Marketplace queries ──────────────────────────────────────────────────────
 
@@ -45,6 +43,12 @@ export function useWorkspacePlugins(workspaceId: string) {
     queryKey: ['plugins', 'workspace', workspaceId],
     queryFn: () => pluginApi.listWorkspacePlugins(workspaceId),
     enabled: workspaceId.length > 0,
+    // Entries carry fresh PRESIGNED URLs per request — no point refetching on
+    // window focus (regenerated server-side anyway) or polling (006-09
+    // follow-up MEDIUM): re-presigning the whole batch on every focus cost N
+    // storage round trips for zero new data.
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 }
 
@@ -107,8 +111,7 @@ export function useUninstallPlugin() {
 export function useUpdatePluginVisibility(installId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (data: PluginVisibilityUpdate[]) =>
-      pluginApi.updateVisibility(installId, data),
+    mutationFn: (data: PluginVisibilityUpdate[]) => pluginApi.updateVisibility(installId, data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['plugin', 'visibility', installId] });
     },

@@ -5,14 +5,19 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { profileApi } from '../services/profile-api.js';
+import { useAuthStore } from '../stores/auth-store.js';
 
 import type { UpdateProfilePayload } from '../types/profile.js';
 
 export function useProfile() {
+  const accessToken = useAuthStore((state) => state.accessToken);
   return useQuery({
     queryKey: ['profile'],
     queryFn: () => profileApi.get(),
     staleTime: 5 * 60 * 1000,
+    // Anonymous visits (login page, pre-render) must not fire a 401-ing
+    // request; the query runs once a session token exists (006-09 follow-up).
+    enabled: accessToken !== null,
   });
 }
 

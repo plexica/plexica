@@ -23,6 +23,7 @@ import { ProfilePage } from './pages/profile-page.js';
 import { AuditLogPage } from './pages/audit-log-page.js';
 import { NotificationCenterPage } from './pages/notification-center-page.js';
 import { NotificationPrefsPage } from './pages/notification-prefs-page.js';
+import { TranslationsAdminPage } from './pages/translations-admin-page.js';
 
 export const dashboardRoute = createRoute({
   getParentRoute: () => shellRoute,
@@ -120,6 +121,12 @@ export const notificationPrefsRoute = createRoute({
   component: NotificationPrefsPage,
 });
 
+export const translationsRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: '/settings/translations',
+  component: TranslationsAdminPage,
+});
+
 // ── Plugin system routes (Spec 004) ───────────────────────────────────────────
 
 export const marketplaceRoute = createRoute({
@@ -149,6 +156,7 @@ export const shellChildRoutes = [
   tenantSettingsRoute,
   tenantBrandingRoute,
   tenantAuthConfigRoute,
+  translationsRoute,
   profileRoute,
   auditLogRoute,
   notificationCenterRoute,

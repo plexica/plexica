@@ -15,8 +15,8 @@ export function WorkspaceParentReference({
   if (parent === undefined) return null;
 
   return (
-    <p className="text-sm text-neutral-600">
-      <FormattedMessage id="workspace.detail.parent" />{' '}
+    <p className="flex items-center gap-1 text-sm text-neutral-600">
+      <FormattedMessage id="workspace.detail.parent" />
       <Link
         to="/workspaces/$workspaceId"
         params={{ workspaceId: parentId }}

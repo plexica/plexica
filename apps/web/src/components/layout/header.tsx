@@ -14,6 +14,7 @@ import { useMediaQuery } from '@plexica/ui';
 
 import { WorkspaceSelectorDropdown } from '../workspace/workspace-selector-dropdown.js';
 import { NotificationBell } from '../notifications/notification-bell.js';
+import { LanguageSwitcher } from '../i18n/language-switcher.js';
 
 import { Breadcrumb } from './breadcrumb.js';
 import { UserMenu } from './user-menu.js';
@@ -82,6 +83,7 @@ export function Header({
         </div>
 
         <NotificationBell />
+        <LanguageSwitcher />
         <UserMenu />
       </div>
     </header>

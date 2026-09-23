@@ -106,7 +106,12 @@ export function PluginDetailSheet({
                 </div>
                 <div>
                   <h2 id={headingId} className="text-lg font-semibold text-neutral-900">{plugin.name}</h2>
-                  <p className="text-sm text-neutral-500">{plugin.author} &middot; v{plugin.version}</p>
+                  <p className="text-sm text-neutral-500">
+                    {intl.formatMessage(
+                      { id: 'marketplace.detail.meta' },
+                      { author: plugin.author, version: plugin.version }
+                    )}
+                  </p>
                 </div>
               </div>
               <button type="button" onClick={onClose} className="rounded p-1 text-neutral-400 hover:text-neutral-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500" aria-label={intl.formatMessage({ id: 'marketplace.close' })}>

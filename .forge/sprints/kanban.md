@@ -46,30 +46,34 @@ Sprint 2:  [✓] Done        (2026-04-01 → 2026-04-03)  68/68 tasks done  219/
 Sprint 3:  [✓] Done        (2026-04-08 → 2026-06-19) 134/134 tasks done  322/322 pts  — Spec 003
 Sprint 4:  [✓] Done        (2026-06-26 → 2026-07-02)  30/30 features done  004-01 → 004-30  — Spec 004 (Plugin System)
 Sprint 5:  [✓] Done        (2026-07-02 → 2026-07-31)  11/11 stories done   005-01 → 005-11  — Spec 005 (Super Admin)
-Sprint 6:  [→] In Progress (2026-09-17 → 2026-10-08)   0/13 stories done   006-01 → 006-13  — Spec 006 (Cross-Cutting) — target 27 pts
+Sprint 6:  [→] In Progress (2026-09-17 → 2026-10-08)   9/13 stories done   006-01 → 006-09  — Spec 006 (Cross-Cutting) — 19/27 pts earned
 Sprint 7:  [ ] Not Started  — Spec 007
 ```
 
 **Sprint 6 — Spec 006 (Cross-Cutting), normalized scale** — story list in
-`.forge/sprints/active/sprint-006.yaml`:
+`.forge/sprints/active/sprint-006.yaml`. Progress as of 2026-09-23:
+**9/13 stories done** (006-01..006-05 notifications + 006-06..006-09 i18n —
+19 pts) via PRs #178, #180, #195, #196. Next: Phase 5 profile (006-10).
 
 | Story | Title | Size | Pts | Status |
 | ----- | ----- | ---- | --- | ------ |
-| 006-01 | Real-time notification infrastructure (SSE) | L | 3 | pending |
-| 006-02 | Notification center UI | M | 2 | pending |
-| 006-03 | Email notifications with retry queue | M | 2 | pending |
-| 006-04 | Per-user notification preferences | M | 2 | pending |
-| 006-05 | Plugin notification emission via SDK | M | 2 | pending |
-| 006-06 | Full react-intl migration (no hardcoded strings) | L | 3 | pending |
-| 006-07 | Language switch (EN/IT) + locale-aware formatting | M | 2 | pending |
-| 006-08 | Plugin translation registration via SDK | M | 2 | pending |
-| 006-09 | Tenant translation overrides | S | 1 | pending |
+| 006-01 | Real-time notification infrastructure (SSE) | L | 3 | done (2026-09-22) |
+| 006-02 | Notification center UI | M | 2 | done (2026-09-22) |
+| 006-03 | Email notifications with retry queue | M | 2 | done (2026-09-22) |
+| 006-04 | Per-user notification preferences | M | 2 | done (2026-09-22) |
+| 006-05 | Plugin notification emission via SDK | M | 2 | done (2026-09-22) |
+| 006-06 | Full react-intl migration (no hardcoded strings) | L | 3 | done (2026-09-23) |
+| 006-07 | Language switch (EN/IT) + locale-aware formatting | M | 2 | done (2026-09-23) |
+| 006-08 | Plugin translation registration via SDK | M | 2 | done (2026-09-23) |
+| 006-09 | Tenant translation overrides | S | 1 | done (2026-09-23) |
 | 006-10 | Profile page + avatar | M | 2 | pending |
 | 006-11 | Session management + password change | M | 2 | pending |
 | 006-12 | Health check endpoint + structured logs | M | 2 | pending |
 | 006-13 | Observability dashboards (Prometheus + Grafana + Kafka) | M | 2 | pending |
 
-**Total**: 13 stories, 27 pts. Deferred to Sprint 7: OTel tracing (006-19, optional).
+**Total**: 13 stories, 27 pts. **Progress**: 9/13 stories done (006-01..006-09,
+notifications + i18n — 19 pts earned). **Remaining**: 4 stories, 8 pts (profile →
+observability). Deferred to Sprint 7: OTel tracing (006-19, optional).
 
 ---
 

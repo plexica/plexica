@@ -5,6 +5,8 @@
 import { useState } from 'react';
 import { TableRow, TableCell } from '@plexica/ui';
 
+import { useFormatter } from '../../hooks/use-formatter.js';
+
 import type { AuditLogEntry } from '../../types/audit.js';
 
 interface ExpandableRowProps {
@@ -14,6 +16,7 @@ interface ExpandableRowProps {
 export function ExpandableRow({ entry }: ExpandableRowProps): JSX.Element {
   const [expanded, setExpanded] = useState(false);
   const hasDetail = entry.beforeValue != null || entry.afterValue != null;
+  const { formatDateTime } = useFormatter();
 
   return (
     <>
@@ -25,10 +28,12 @@ export function ExpandableRow({ entry }: ExpandableRowProps): JSX.Element {
         <TableCell className="truncate text-sm text-neutral-700">{entry.actionType}</TableCell>
         <TableCell className="truncate text-sm text-neutral-700">
           {entry.targetType}
+          {/* `:id` suffix is identifier data, not UI copy */}
+          {/* eslint-disable-next-line formatjs/no-literal-string-in-jsx -- id suffix */}
           {entry.targetId != null ? `:${entry.targetId}` : ''}
         </TableCell>
         <TableCell className="text-sm text-neutral-500">
-          {new Date(entry.createdAt).toLocaleString()}
+          {formatDateTime(entry.createdAt)}
         </TableCell>
       </TableRow>
       {expanded && hasDetail && (

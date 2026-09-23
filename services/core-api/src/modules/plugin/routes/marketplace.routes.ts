@@ -8,12 +8,11 @@ import { withCoreDb, withTenantDb } from '../../../lib/tenant-database.js';
 import { RESOURCE_SLUG_REGEX } from '../../../lib/slug.js';
 import { requireAbac } from '../../../middleware/abac.js';
 import { ForbiddenError } from '../../../lib/app-error.js';
-import { getPresignedReadUrl } from '../../../lib/storage-client.js';
 import { buildPaginatedResult } from '../../../lib/pagination.js';
 import { PluginNotFoundError } from '../errors.js';
 import { manifestSchema } from '../schema/manifest.js';
-import { getDevBackendForInstallation } from '../services/dev-backends.js';
 import { isPluginVisible } from '../services/visibility.service.js';
+import { buildWorkspacePluginEntries } from '../services/workspace-plugin-entries.js';
 
 import type { FastifyInstance } from 'fastify';
 import type { Prisma } from '@prisma/client';
@@ -103,28 +102,10 @@ export async function marketplaceRoutes(fastify: FastifyInstance): Promise<void>
         select: { id: true, slug: true, version: true, manifest: true },
       })
     );
-    const byId = new Map(plugins.map((plugin) => [plugin.id, plugin]));
-    return Promise.all(
-      installations.flatMap((installation) => {
-        const plugin = byId.get(installation.pluginId);
-        const parsed = manifestSchema.safeParse(plugin?.manifest);
-        if (!plugin || !parsed.success || !parsed.data.ui) return [];
-        const ui = parsed.data.ui;
-        const dev = getDevBackendForInstallation(plugin.slug, installation.id);
-        const points = dev?.extensionPoints ?? ui.extensionPoints;
-        return points.map(async (extensionPoint) => ({
-          installId: installation.id,
-          slug: plugin.slug,
-          extensionPoint,
-          remoteEntryUrl:
-            dev?.uiUrl ??
-            (await getPresignedReadUrl(
-              'plugin-assets',
-              `plugins/${plugin.slug}/${plugin.version}/${ui.remoteEntry}`
-            )),
-        }));
-      })
-    );
+    // Per-locale i18n bundle URLs are presigned per OBJECT inside the helper
+    // (Blocker-2 fix: sibling-derivation from the presigned remoteEntry URL
+    // produces SignatureDoesNotMatch in storage origin).
+    return buildWorkspacePluginEntries(installations, plugins);
   });
 
   // ── GET /api/v1/plugins ────────────────────────────────────────────────────
@@ -168,7 +149,7 @@ export async function marketplaceRoutes(fastify: FastifyInstance): Promise<void>
             installCount: installedIds.has(plugin.id) ? 1 : 0,
           })),
           total,
-          { page, pageSize },
+          { page, pageSize }
         );
       })
     );

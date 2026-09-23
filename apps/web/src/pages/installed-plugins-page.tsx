@@ -2,7 +2,7 @@
 // Tenant admin: view installed plugins, activate/deactivate, configure visibility, uninstall.
 
 import { useState } from 'react';
-import { FormattedMessage } from 'react-intl';
+import { FormattedMessage, useIntl } from 'react-intl';
 import { Button } from '@plexica/ui';
 import { Puzzle } from 'lucide-react';
 
@@ -23,6 +23,7 @@ import { PageError } from '../components/feedback/page-error.js';
 import type { PluginInstallation } from '../types/plugin.js';
 
 export function InstalledPluginsPage(): JSX.Element {
+  const intl = useIntl();
   const [uninstallTarget, setUninstallTarget] = useState<PluginInstallation | null>(null);
   const [expandedVisibility, setExpandedVisibility] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState<Set<string>>(new Set());
@@ -100,7 +101,10 @@ export function InstalledPluginsPage(): JSX.Element {
                   <div>
                     <h3 className="text-sm font-medium text-neutral-900">{inst.name}</h3>
                     <p className="text-xs text-neutral-500">
-                      v{inst.version}
+                      {intl.formatMessage(
+                        { id: 'plugins.installed.version' },
+                        { version: inst.version }
+                      )}
                     </p>
                   </div>
                 </div>

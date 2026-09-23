@@ -17,6 +17,9 @@
     "remoteEntry": "remoteEntry.js",
     "extensionPoints": ["sidebar:admin", "workspace-panel:main"]
   },
+  "i18n": {
+    "bundles": ["en", "it"]
+  },
   "events": {
     "subscribes": ["plexica.workspace.created"]
   },

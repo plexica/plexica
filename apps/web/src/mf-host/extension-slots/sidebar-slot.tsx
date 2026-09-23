@@ -2,19 +2,22 @@
 // Renders plugins at the sidebar:admin extension point.
 // Plugins are loaded from object storage (prod) or dev server (dev) via the plugin loader.
 
+import { useMemo } from 'react';
+
 import { PluginSlot } from './plugin-slot.js';
 
+import type { PluginSlotEntry } from './plugin-slot.js';
+
 interface SidebarSlotProps {
-  pluginEntries: Array<{
-    slug: string;
-    installId: string;
-    remoteEntryUrl: string;
-    extensionPoint: string;
-  }>;
+  pluginEntries: PluginSlotEntry[];
 }
 
 export function SidebarSlot({ pluginEntries }: SidebarSlotProps): JSX.Element | null {
-  const sidebarPlugins = pluginEntries.filter((p) => p.extensionPoint === 'sidebar:admin');
+  // Stable identity across renders — see workspace-panel-slot.tsx (006-09).
+  const sidebarPlugins = useMemo(
+    () => pluginEntries.filter((p) => p.extensionPoint === 'sidebar:admin'),
+    [pluginEntries]
+  );
 
   if (sidebarPlugins.length === 0) {
     return null;

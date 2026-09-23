@@ -30,10 +30,10 @@ export function ActionMatrixTable({ rows }: ActionMatrixTableProps): JSX.Element
               <FormattedMessage id="auditLog.table.action" />
             </TableHead>
             <TableHead>
-              <FormattedMessage id="members.role.admin" /> (Tenant)
+              <FormattedMessage id="roles.matrix.adminTenant" />
             </TableHead>
             <TableHead>
-              <FormattedMessage id="members.role.admin" /> (WS)
+              <FormattedMessage id="roles.matrix.adminWorkspace" />
             </TableHead>
             <TableHead>
               <FormattedMessage id="members.role.member" />

@@ -56,6 +56,8 @@ function StatCard({
         </div>
       ) : (
         <p className="mt-1 text-2xl font-bold text-neutral-900">
+          {/* Missing-data glyph for unavailable/unset stats — locale-neutral */}
+          {/* eslint-disable-next-line formatjs/no-literal-string-in-jsx -- data fallback glyph */}
           {isUnavailable || value === undefined ? '—' : value}
         </p>
       )}
