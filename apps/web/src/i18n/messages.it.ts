@@ -6,6 +6,7 @@ import { messagesItWorkspaceUsers } from './messages.it.workspace-users.js';
 import { messagesItSettingsCommon } from './messages.it.settings-common.js';
 import { messagesItPlugins } from './messages.it.plugins.js';
 import { messagesItNotifications } from './messages.it.notifications.js';
+import { messagesItProfile } from './messages.it.profile.js';
 
 export const messagesIt = {
   ...messagesItAuthNav,
@@ -13,4 +14,5 @@ export const messagesIt = {
   ...messagesItSettingsCommon,
   ...messagesItPlugins,
   ...messagesItNotifications,
+  ...messagesItProfile,
 } as const;

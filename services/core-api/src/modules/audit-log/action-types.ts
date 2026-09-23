@@ -39,6 +39,8 @@ export const AUDIT_ACTION_TYPES: ActionTypeDefinition[] = [
   // User Profile
   { key: 'profile.update', label: 'Update Profile', category: 'Profile' },
   { key: 'profile.avatar_change', label: 'Change Avatar', category: 'Profile' },
+  // Caller's own SSO session revoked via DELETE /profile/sessions/:id (006-13).
+  { key: 'session.revoke', label: 'Revoke Session', category: 'Authentication' },
 ];
 
 // Build O(1) lookup

@@ -30,6 +30,12 @@ export interface AuthUser {
   lastName: string;
   realm: string;
   roles: string[];
+  /** Keycloak `picture` claim (006-12) — avatar URL when the IdP provides one.
+   *  Absent unless the token carries a non-empty picture claim. */
+  picture?: string;
+  /** Keycloak session id (`sid` claim, 006-13) — marks the caller's own session
+   *  in the session list. Absent when the token carries no sid. */
+  sessionId?: string;
 }
 
 /**
@@ -110,6 +116,8 @@ async function verifyToken(token: string, realm: string): Promise<AuthUser> {
   const { payload } = await jwtVerify(token, jwks, verifyOptions);
 
   const sub = String(payload['sub'] ?? '');
+  const pictureClaim = payload['picture'];
+  const sidClaim = payload['sid'];
   return {
     id: sub,
     keycloakUserId: sub,
@@ -118,6 +126,10 @@ async function verifyToken(token: string, realm: string): Promise<AuthUser> {
     lastName: String(payload['family_name'] ?? ''),
     realm,
     roles: (payload['realm_access'] as { roles?: string[] } | undefined)?.roles ?? [],
+    // Optional claims use conditional spreads: exactOptionalPropertyTypes
+    // forbids assigning an explicit undefined to `picture?` / `sessionId?`.
+    ...(typeof pictureClaim === 'string' && pictureClaim !== '' ? { picture: pictureClaim } : {}),
+    ...(typeof sidClaim === 'string' && sidClaim !== '' ? { sessionId: sidClaim } : {}),
   };
 }
 

@@ -34,6 +34,8 @@ function rowToDto(row: UserProfileRow): UserProfileDto {
     displayName: row.displayName,
     avatarPath: row.avatarPath,
     avatarUrl: null, // Populated by service layer via getPresignedReadUrl()
+    avatarSource: 'upload', // Overwritten by the service layer when a picture claim wins
+    keycloakAccountUrl: '', // Overwritten by the service layer (per-realm account console URL)
     timezone: row.timezone,
     language: row.language,
     notificationPrefs: (row.notificationPrefs as unknown as NotificationPrefs) ?? {},
@@ -112,6 +114,14 @@ export interface UpdateProfileFields {
   displayName?: string | null;
   timezone?: string;
   language?: string;
+  /**
+   * New email — written in the SAME update as the other fields, AFTER Keycloak
+   * has confirmed the sync (006-11, Keycloak-first). Never set when the
+   * upstream sync rejects — the service layer guarantees the ordering, so the
+   * local profile can never diverge. A single Prisma `update` keeps the email
+   * and profile-field writes atomic: no crash window between two writes.
+   */
+  email?: string;
 }
 
 export async function updateProfile(
@@ -124,6 +134,7 @@ export async function updateProfile(
   if ('displayName' in fields) data.displayName = fields.displayName;
   if (fields.timezone !== undefined) data.timezone = fields.timezone;
   if (fields.language !== undefined) data.language = fields.language;
+  if (fields.email !== undefined) data.email = fields.email;
 
   const row = await db.userProfile.update({
     where: { userId },

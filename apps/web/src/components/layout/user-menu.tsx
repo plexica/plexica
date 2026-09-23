@@ -10,7 +10,12 @@ import { useAuthStore } from '../../stores/auth-store.js';
 
 import { Avatar } from './avatar.js';
 
-export function UserMenu(): JSX.Element {
+interface UserMenuProps {
+  /** Server-resolved avatar URL (006-12) — Keycloak `picture` claim wins. */
+  avatarUrl?: string | undefined;
+}
+
+export function UserMenu({ avatarUrl }: UserMenuProps): JSX.Element {
   const intl = useIntl();
   const userProfile = useAuthStore((s) => s.userProfile);
   const logout = useAuthStore((s) => s.logout);
@@ -27,7 +32,11 @@ export function UserMenu(): JSX.Element {
           data-testid="user-menu-trigger"
           className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2"
         >
-          <Avatar name={name} size="sm" />
+          <Avatar
+            name={name}
+            size="sm"
+            {...(avatarUrl !== undefined ? { imageUrl: avatarUrl } : {})}
+          />
         </button>
       </DropdownMenu.Trigger>
 

@@ -7,6 +7,7 @@ import { messagesWorkspaceUsers } from './messages.en.workspace-users.js';
 import { messagesSettingsCommon } from './messages.en.settings-common.js';
 import { messagesPlugins } from './messages.en.plugins.js';
 import { messagesNotifications } from './messages.en.notifications.js';
+import { messagesProfile } from './messages.en.profile.js';
 
 export const messages = {
   ...messagesAuthNav,
@@ -14,6 +15,7 @@ export const messages = {
   ...messagesSettingsCommon,
   ...messagesPlugins,
   ...messagesNotifications,
+  ...messagesProfile,
 } as const;
 
 export type MessageKey = keyof typeof messages;
