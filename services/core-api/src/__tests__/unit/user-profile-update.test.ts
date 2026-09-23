@@ -13,6 +13,7 @@ vi.mock('../../modules/user-profile/repository.js', () => ({
 vi.mock('../../lib/keycloak-admin-users.js', () => ({
   syncDisplayName: vi.fn(),
   syncEmail: vi.fn(),
+  getRealmUserEmail: vi.fn(),
 }));
 vi.mock('../../modules/audit-log/writer.js', () => ({
   writeAuditLog: vi.fn(),
@@ -30,12 +31,12 @@ import {
   findProfileByKeycloakId,
   updateProfile as repoUpdate,
 } from '../../modules/user-profile/repository.js';
-import { syncEmail } from '../../lib/keycloak-admin-users.js';
+import { syncEmail, getRealmUserEmail } from '../../lib/keycloak-admin-users.js';
 import { writeAuditLog } from '../../modules/audit-log/writer.js';
 import { logger } from '../../lib/logger.js';
 
 import type { TenantContext } from '../../lib/tenant-context-store.js';
-import type { TenantPrismaClient } from '../../lib/tenant-database.js';
+import type { TenantPrisma, TenantPrismaClient } from '../../lib/tenant-database.js';
 import type { UserProfileDto } from '../../modules/user-profile/types.js';
 
 const CTX: TenantContext = {
@@ -51,6 +52,7 @@ const NEW_EMAIL = 'new@test.io';
 const findMock = vi.mocked(findProfileByKeycloakId);
 const repoUpdateMock = vi.mocked(repoUpdate);
 const syncEmailMock = vi.mocked(syncEmail);
+const kcEmailMock = vi.mocked(getRealmUserEmail);
 const auditMock = vi.mocked(writeAuditLog);
 
 function existingProfile(): UserProfileDto {
@@ -72,11 +74,16 @@ function existingProfile(): UserProfileDto {
   };
 }
 
-const db = {} as unknown as TenantPrismaClient;
+const txQueryRawMock = vi.fn(async () => [{ email: OLD_EMAIL }]);
+const txClient = { $queryRaw: txQueryRawMock } as unknown as TenantPrisma.TransactionClient;
+const transactionMock = vi.fn(async (fn: (tx: unknown) => Promise<unknown>) => fn(txClient));
+const db = { $transaction: transactionMock } as unknown as TenantPrismaClient;
 
 beforeEach(() => {
   vi.clearAllMocks();
   findMock.mockResolvedValue(existingProfile());
+  kcEmailMock.mockResolvedValue(OLD_EMAIL);
+  txQueryRawMock.mockResolvedValue([{ email: OLD_EMAIL }]);
 });
 
 describe("updateProfileSchema ''-as-no-change (006-11)", () => {
@@ -141,7 +148,7 @@ describe('updateProfile compensating Keycloak revert (006-11)', () => {
     await expect(updateProfile(db, KC_USER_ID, { email: NEW_EMAIL }, CTX)).resolves.toBe(row);
     expect(syncEmailMock).toHaveBeenCalledTimes(1);
     expect(repoUpdateMock).toHaveBeenCalledWith(
-      db,
+      txClient,
       row.userId,
       expect.objectContaining({ email: NEW_EMAIL })
     );
@@ -155,5 +162,7 @@ describe('updateProfile compensating Keycloak revert (006-11)', () => {
       'db down'
     );
     expect(syncEmailMock).not.toHaveBeenCalled();
+    expect(kcEmailMock).not.toHaveBeenCalled();
+    expect(transactionMock).not.toHaveBeenCalled();
   });
 });

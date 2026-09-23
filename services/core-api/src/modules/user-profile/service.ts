@@ -8,10 +8,11 @@ import crypto from 'node:crypto';
 
 import { UserNotFoundError } from '../../lib/app-error.js';
 import { logger } from '../../lib/logger.js';
-import { syncDisplayName, syncEmail } from '../../lib/keycloak-admin-users.js';
+import { syncDisplayName } from '../../lib/keycloak-admin-users.js';
 import { writeAuditLog } from '../audit-log/writer.js';
 
 import { enrichProfile } from './avatar.js';
+import { applyEmailChange, normalizeEmail } from './email-change.js';
 import {
   findProfileByKeycloakId,
   upsertProfile,
@@ -74,46 +75,33 @@ export async function updateProfile(
   const existing = await findProfileByKeycloakId(tenantDb, keycloakUserId);
   if (existing === null) throw new UserNotFoundError();
 
-  // Keycloak-first email sync (006-11): the upstream call runs BEFORE any
-  // local write. A rejection throws here, so neither the email NOR the other
-  // fields are persisted. The email then rides in the SAME Prisma update as
-  // the other fields: one atomic write, no crash window between two
-  // sequential writes. If that single write still fails AFTER a successful
-  // syncEmail, Keycloak is rolled back to the previous address below so the
-  // two stores cannot diverge on the handled-error path (a crash between the
-  // two awaits remains unrecoverable by design — no distributed transaction
-  // spans Keycloak and Postgres).
+  // Keycloak-first email sync (006-11, serialized in email-change.ts): the
+  // upstream call runs BEFORE any local write. A rejection throws before the
+  // write below, so neither the email NOR the other fields are persisted.
   const fields: Parameters<typeof repoUpdateProfile>[2] = {};
   if ('displayName' in input) fields.displayName = input.displayName;
   if (input.timezone !== undefined) fields.timezone = input.timezone;
   if (input.language !== undefined) fields.language = input.language;
 
-  const nextEmail = input.email;
-  const emailChanged = nextEmail !== undefined && nextEmail !== existing.email;
-  if (emailChanged) {
-    await syncEmail(tenantContext.realmName, keycloakUserId, nextEmail);
-    fields.email = nextEmail;
-  }
+  // Normalized comparison (#5): Keycloak is case-insensitive, so a case-only
+  // edit must not trigger syncEmail (which would reset emailVerified). The
+  // normalized address is also what gets persisted.
+  const normalizedNext = input.email !== undefined ? normalizeEmail(input.email) : undefined;
+  const emailChanged =
+    normalizedNext !== undefined && normalizedNext !== normalizeEmail(existing.email);
 
   let updated: UserProfileDto;
-  try {
+  if (normalizedNext !== undefined && emailChanged) {
+    updated = await applyEmailChange(
+      tenantDb,
+      tenantContext.realmName,
+      keycloakUserId,
+      existing,
+      normalizedNext,
+      fields
+    );
+  } else {
     updated = await repoUpdateProfile(tenantDb, existing.userId, fields);
-  } catch (err) {
-    if (emailChanged) {
-      // Best-effort revert: a rollback failure is logged but never replaces
-      // the original error. Note syncEmail always clears emailVerified, so
-      // the restored address comes back unverified — acceptable for a
-      // failure path that keeps the stores consistent.
-      await syncEmail(tenantContext.realmName, keycloakUserId, existing.email).catch(
-        (rollbackErr: unknown) => {
-          logger.error(
-            { err: String(rollbackErr), keycloakUserId },
-            'Failed to roll back Keycloak email after local write failure'
-          );
-        }
-      );
-    }
-    throw err;
   }
 
   // Sync display name to Keycloak — fire-and-forget; failures are logged only.

@@ -32,6 +32,7 @@ function SessionRow({
     <li
       data-testid="session-item"
       data-current={session.current ? 'true' : 'false'}
+      data-session-id={session.id}
       className="flex items-center gap-3 rounded-md border border-neutral-100 px-3 py-2.5"
     >
       <MonitorSmartphone className="h-5 w-5 shrink-0 text-neutral-400" aria-hidden="true" />

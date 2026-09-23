@@ -55,6 +55,11 @@ test.describe('E2E 006-13/14: Profile sessions', () => {
     await expect(page.getByTestId('session-item').first()).toBeVisible({ timeout: 15_000 });
     const currentCard = page.locator('[data-testid="session-item"][data-current="true"]');
     await expect(currentCard).toHaveCount(1);
+    // The acting session is identified by its session id (not clientId: two
+    // sign-ins to the same client share a clientId but not a session id), so
+    // the card must mark exactly the row carrying the acting session's id.
+    expect(acting?.id).toBeTruthy();
+    await expect(currentCard).toHaveAttribute('data-session-id', acting?.id ?? '');
     await expect(currentCard).toContainText(acting?.clientId ?? '');
   });
 

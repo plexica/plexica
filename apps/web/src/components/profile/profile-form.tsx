@@ -1,10 +1,8 @@
 // profile-form.tsx
 // Profile details form (006-11): display name, email, timezone, language.
-// Extracted from profile-page.tsx (Constitution Rule 4 — no file above 200
-// lines). Self-contained TanStack Query mutation — the page mounts it only
-// after the profile has loaded, so `defaultValues` never needs a reset dance
-// (background refetches must not undo in-progress edits). All strings via
-// react-intl; validation failures map to localized messages, never raw Zod.
+// Self-contained TanStack Query mutation; the page mounts it only after the
+// profile loads, so `defaultValues` never needs a reset dance (background
+// refetches must not undo in-progress edits). All strings via react-intl.
 
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -74,22 +72,42 @@ function selectField(
 export function ProfileForm({ initial }: { initial: ProfileFormInitial }): JSX.Element {
   const intl = useIntl();
   const { saveStatus, markSaved } = useSaveStatus();
-  const { mutate: updateProfile, isPending: isSaving, isError: isSaveError } = useUpdateProfile();
+  const {
+    mutate: updateProfile,
+    isPending: isSaving,
+    isError: isSaveError,
+    reset: resetSaveError,
+  } = useUpdateProfile();
 
   const {
     register,
     handleSubmit,
     reset,
     control,
+    setError,
     formState: { errors, isDirty, dirtyFields },
   } = useForm<FormValues>({ resolver: zodResolver(schema), defaultValues: initial });
 
   function onSubmit(values: FormValues): void {
+    // A new submission starts clean: the mutation clears its error on send,
+    // but the empty-payload path below never sends — so a stale failure is
+    // reset up front instead of sitting next to a fresh "Saved".
+    if (isSaveError) resetSaveError();
+
+    // A deliberate clear of a STORED value is not a no-op: '' means "no
+    // change", so clearing a real value surfaces a validation error (using
+    // the existing localized copy) instead of reporting success.
+    const clearedName =
+      dirtyFields.displayName === true && values.displayName === '' && initial.displayName !== '';
+    const clearedEmail = dirtyFields.email === true && values.email === '' && initial.email !== '';
+    if (clearedName) setError('displayName', { type: 'manual' });
+    if (clearedEmail) setError('email', { type: 'manual' });
+    if (clearedName || clearedEmail) return;
+
     // PATCH carries only fields changed in this submission: sending the whole
     // mount-time snapshot would resubmit a stale email after another tab
-    // edited it first, and the backend would sync that stale value back to
-    // Keycloak. Empty strings mean "no change" (auto-provisioned profile)
-    // and are omitted, so they never trigger the Keycloak email sync.
+    // edited it first. Empty strings mean "no change" and are omitted, so
+    // they never trigger the Keycloak email sync.
     const payload: UpdateProfilePayload = {};
     if (dirtyFields.displayName === true && values.displayName !== '') {
       payload.displayName = values.displayName;
@@ -122,38 +140,46 @@ export function ProfileForm({ initial }: { initial: ProfileFormInitial }): JSX.E
         onSubmit={(e) => {
           void handleSubmit(onSubmit)(e);
         }}
+        // Correcting the form clears a stale save failure (mutation reset).
+        onChange={() => {
+          if (isSaveError) resetSaveError();
+        }}
         className="space-y-4"
         noValidate
       >
-        <Input
-          label={intl.formatMessage({ id: 'profile.displayName.label' })}
-          {...register('displayName')}
-          {...(errors.displayName !== undefined
-            ? { error: intl.formatMessage({ id: 'profile.displayName.error' }) }
-            : {})}
-        />
-        <Input
-          label={intl.formatMessage({ id: 'profile.email.label' })}
-          type="email"
-          {...register('email')}
-          {...(errors.email !== undefined
-            ? { error: intl.formatMessage({ id: 'profile.email.error' }) }
-            : {})}
-        />
-        {selectField(
-          intl,
-          control,
-          'timezone',
-          'profile.timezone.label',
-          timezoneOptions(initial.timezone)
-        )}
-        {selectField(
-          intl,
-          control,
-          'language',
-          'profile.language.label',
-          languageOptions(initial.language)
-        )}
+        {/* Locked while saving: mid-request edits would be discarded by
+            reset(values) on success, so the form disables instead. */}
+        <fieldset disabled={isSaving} className="m-0 min-w-0 space-y-4 border-0 p-0">
+          <Input
+            label={intl.formatMessage({ id: 'profile.displayName.label' })}
+            {...register('displayName')}
+            {...(errors.displayName !== undefined
+              ? { error: intl.formatMessage({ id: 'profile.displayName.error' }) }
+              : {})}
+          />
+          <Input
+            label={intl.formatMessage({ id: 'profile.email.label' })}
+            type="email"
+            {...register('email')}
+            {...(errors.email !== undefined
+              ? { error: intl.formatMessage({ id: 'profile.email.error' }) }
+              : {})}
+          />
+          {selectField(
+            intl,
+            control,
+            'timezone',
+            'profile.timezone.label',
+            timezoneOptions(initial.timezone)
+          )}
+          {selectField(
+            intl,
+            control,
+            'language',
+            'profile.language.label',
+            languageOptions(initial.language)
+          )}
+        </fieldset>
         <SaveBar
           isDirty={isDirty}
           isSaving={isSaving}

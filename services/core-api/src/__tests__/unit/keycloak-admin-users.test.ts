@@ -9,6 +9,7 @@ import { KeycloakError } from '../../lib/app-error.js';
 import { invalidateAdminTokenCache } from '../../lib/keycloak-admin-internal.js';
 import {
   deleteUserSession,
+  getRealmUserEmail,
   listUserSessions,
   syncDisplayName,
   syncEmail,
@@ -149,6 +150,28 @@ describe('syncEmail', () => {
   it('maps a Keycloak rejection to KeycloakError (caller must not write locally)', async () => {
     stubKeycloak(() => jsonResponse(409, {}));
     await expect(syncEmail(REALM, USER_ID, 'taken@test.io')).rejects.toBeInstanceOf(KeycloakError);
+  });
+});
+
+describe('getRealmUserEmail', () => {
+  it('GETs the user and returns the stored email (rollback source)', async () => {
+    const { calls } = stubKeycloak(() => jsonResponse(200, { email: 'real@test.io' }));
+
+    await expect(getRealmUserEmail(REALM, USER_ID)).resolves.toBe('real@test.io');
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.method).toBe('GET');
+    expect(calls[0]?.url.endsWith(`/admin/realms/${REALM}/users/${USER_ID}`)).toBe(true);
+  });
+
+  it('returns an empty string when Keycloak stores no email', async () => {
+    stubKeycloak(() => jsonResponse(200, { username: 'no-email' }));
+    await expect(getRealmUserEmail(REALM, USER_ID)).resolves.toBe('');
+  });
+
+  it('maps a Keycloak failure to KeycloakError (caller aborts before mutating)', async () => {
+    stubKeycloak(() => jsonResponse(500, {}));
+    await expect(getRealmUserEmail(REALM, USER_ID)).rejects.toBeInstanceOf(KeycloakError);
   });
 });
 

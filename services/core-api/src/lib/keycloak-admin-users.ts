@@ -143,6 +143,24 @@ export async function syncEmail(realm: string, userId: string, email: string): P
 }
 
 /**
+ * Reads a user's CURRENT email from Keycloak (006-11 round-2 #7).
+ * Compensation helper: the local profile row may still hold the ''
+ * auto-provisioned placeholder while Keycloak already has a real address —
+ * reverting Keycloak to the local value would clear that address (or fail
+ * under realm rules). Callers capture this BEFORE mutating so a failed local
+ * write reverts Keycloak to its own previous value. Read-only: throws
+ * KeycloakError on failure, so callers abort before any mutation.
+ */
+export async function getRealmUserEmail(realm: string, userId: string): Promise<string> {
+  const res = await adminRequestOk(`/admin/realms/${realm}/users/${userId}`, 'GET', undefined, {
+    context: `Failed to read user ${userId} in realm ${realm}`,
+  });
+
+  const body = (await res.json()) as { email?: unknown };
+  return typeof body.email === 'string' ? body.email : '';
+}
+
+/**
  * Syncs a user's display name to Keycloak firstName/lastName attributes.
  */
 export async function syncDisplayName(realm: string, userId: string, name: string): Promise<void> {
