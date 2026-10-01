@@ -618,8 +618,8 @@ importers:
   services/core-api:
     dependencies:
       '@confluentinc/kafka-javascript':
-        specifier: 1.10.0
-        version: 1.10.0
+        specifier: 1.10.1
+        version: 1.10.1
       '@fastify/multipart':
         specifier: ^9.4.0
         version: 9.4.0
@@ -822,8 +822,8 @@ packages:
     resolution: {integrity: sha512-6zABk/ECA/QYSCQ1NGiVwwbQerUCZ+TQbp64Q3AgmfNvurHH0j8TtXa1qbShXA6qqkpAj4V5W8pP6mLe1mcMqA==}
     engines: {node: '>=18'}
 
-  '@confluentinc/kafka-javascript@1.10.0':
-    resolution: {integrity: sha512-6gLgZSxbtlC5kR/VOG1JE2m8Lb2NwXMDJmkEDunyj8yV/VyzjLTqH/SojMJ/SdcmwUxmXVwf7VC4ATK/gQsKxg==}
+  '@confluentinc/kafka-javascript@1.10.1':
+    resolution: {integrity: sha512-KVePUBn21EqCVP9mfxzEuM3SYJHHEF7X+iiC2e43QQgDSyEaksInmCGooT3w5q+cNAdkSCrK71j0ICfqoSqZLw==}
     engines: {node: '>=18.0.0'}
 
   '@csstools/color-helpers@5.1.0':
@@ -4166,8 +4166,8 @@ packages:
   mz@2.7.0:
     resolution: {integrity: sha512-z81GNO7nnYMEhrGh9LeymoE4+Yr0Wn5McHIZMK5cfQCl+NDX08sCZgUc9/6MHni9IWuFLm1Z3HTCXu2z9fN62Q==}
 
-  nan@2.28.0:
-    resolution: {integrity: sha512-fTsDz99OTq2sVePhGdp4qQhggZFtKr64ZNVyVajRKtMOkJxYekplBh577PiJB12v/D3s2E5cGtOI45LWp6rnLQ==}
+  nan@2.29.0:
+    resolution: {integrity: sha512-GlGk3HIvitbvs+LT3g6XUP1kpirKNvmDFwF/bmo6XNWSb/eYEs/O4bfgIEIXCZ+lIOTS5xNwDvSGMw6FJdAhtA==}
 
   nanoid@3.3.18:
     resolution: {integrity: sha512-DTg4MJbGMWkfi6VZFdNt2/caMbQy4Ou+Op/hJQvGEWcnVfoA1QA+xzRKAzw9jD6+GVOOeYr/mIcuDSdug6F6+w==}
@@ -5564,12 +5564,12 @@ snapshots:
 
   '@bcoe/v8-coverage@1.0.2': {}
 
-  '@confluentinc/kafka-javascript@1.10.0':
+  '@confluentinc/kafka-javascript@1.10.1':
     dependencies:
       '@mapbox/node-pre-gyp': 2.0.3
       bindings: 1.5.0
       js-yaml: 4.3.2
-      nan: 2.28.0
+      nan: 2.29.0
       tar: 7.5.22
     transitivePeerDependencies:
       - encoding
@@ -7689,7 +7689,7 @@ snapshots:
   cpu-features@0.0.10:
     dependencies:
       buildcheck: 0.0.7
-      nan: 2.28.0
+      nan: 2.29.0
     optional: true
 
   cross-spawn@7.0.6:
@@ -8880,7 +8880,7 @@ snapshots:
       object-assign: 4.1.1
       thenify-all: 1.6.0
 
-  nan@2.28.0: {}
+  nan@2.29.0: {}
 
   nanoid@3.3.18: {}
 
@@ -9622,7 +9622,7 @@ snapshots:
       bcrypt-pbkdf: 1.0.2
     optionalDependencies:
       cpu-features: 0.0.10
-      nan: 2.28.0
+      nan: 2.29.0
 
   stackback@0.0.2: {}
 
