@@ -1,5 +1,5 @@
 # Build from the monorepo root so pnpm workspace dependencies resolve exactly as in CI.
-FROM node:24.21.0-alpine@sha256:be80f76cf40ec8e42b9bec49f60a55e0660f30af58d3e5a25530785b30ea67e2 AS builder
+FROM node:24.22.1-alpine@sha256:06d7adf3e0ef61a13f1d28682726366f97a15aa1888c934d3ecec86c33918b53 AS builder
 
 RUN corepack enable && corepack prepare pnpm@10.34.2 --activate
 WORKDIR /workspace
@@ -19,7 +19,7 @@ RUN pnpm --filter @plexica/sdk build && \
     pnpm --filter @plexica/plugin-crm build:backend && \
     pnpm --filter @plexica/plugin-crm deploy --legacy --prod /app
 
-FROM node:24.21.0-alpine@sha256:be80f76cf40ec8e42b9bec49f60a55e0660f30af58d3e5a25530785b30ea67e2
+FROM node:24.22.1-alpine@sha256:06d7adf3e0ef61a13f1d28682726366f97a15aa1888c934d3ecec86c33918b53
 
 RUN addgroup -S plexica && adduser -S plexica -G plexica
 WORKDIR /app
